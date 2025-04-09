@@ -1,0 +1,27 @@
+modules:
+  protofiles:
+    type: ProtoFiles
+    network: ../../output/v6.4/binpb/berlin-v6.4-10pct.network.binpb
+    population: ../../output/v6.4/binpb/berlin-v6.4-10pct.plans.binpb
+    vehicles: ../../output/v6.4/binpb/berlin-v6.4-10pct.vehicles.binpb
+    ids: ../../output/v6.4/binpb/berlin-v6.4-10pct.ids.binpb
+  partitioning:
+    type: Partitioning
+    num_parts: 12
+    method: !Metis
+      vertex_weight:
+        - InLinkCount
+      imbalance_factor: 1.1
+      edge_weight: Capacity
+  output:
+    type: Output
+    output_dir: ../../output/
+  routing:
+    type: Routing
+    mode: UsePlans
+  simulation:
+    type: Simulation
+    start_time: 0
+    end_time: 84600
+    sample_size: 1
+    stuck_threshold: 30

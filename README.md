@@ -1,1 +1,1 @@
-# parallel-qsim-rvr
+# parallel-qsim-berlin
