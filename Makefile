@@ -9,8 +9,8 @@ PCT := 10
 
 java := java -Xmx$(MEMORY) -XX:+UseParallelGC -cp $(JAR) org.matsim.prepare.RunParallelQSimBerlinPreparation
 
-p := input/$(BV)
-op := output/$(BV)
+p := ./input/$(BV)
+op := ./output/$(BV)
 
 .PHONY: prepare
 
@@ -23,7 +23,7 @@ $(RUST_EXE):
 $(op)/berlin-$(BV)-$(PCT)pct.plans-filtered.xml.gz: $(op)/berlin-$(BV)-$(PCT)pct.plans.xml.gz
 	$(java) prepare filter-population\
 		--input $<\
-		--modes car,walk,ride,bike,freight,truck\
+		--modes car,walk,ride,bike,freight,truck
 
 $(op)/berlin-$(BV)-$(PCT)pct.plans.xml.gz:
 	curl https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/berlin/berlin-$(BV)/input/$(notdir $@) -o $@
@@ -34,7 +34,7 @@ $(op)/berlin-$(BV)-vehicleTypes.xml:
 $(op)/berlin-$(BV)-vehicleTypes-including-walk.xml: $(op)/berlin-$(BV)-vehicleTypes.xml
 	$(java) prepare adapt-vehicle-types\
 		--input $<\
-		--teleported-modes bike,walk,ride\
+		--teleported-modes bike,walk,ride
 
 $(op)/berlin-$(BV).network.xml.gz:
 	curl https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/berlin/berlin-$(BV)/input/berlin-$(BV)-network-with-pt.xml.gz -o $@
@@ -45,9 +45,21 @@ $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb: $(op)/berlin-$(BV)-$(PCT)pct.plans
 		--population $(op)/berlin-$(BV)-$(PCT)pct.plans-filtered.xml.gz\
 		--vehicles $(op)/berlin-$(BV)-vehicleTypes-including-walk.xml\
 		--output-dir $(op)\
-		--run-id binpb/berlin-$(BV)-$(PCT)pct\
+		--run-id binpb/berlin-$(BV)-$(PCT)pct
 
 prepare: $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb
 
-run: $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb
+run: prepare
 	$(RUST_EXE)/local_qsim --config-path $p/berlin-v6.4.config.yml
+
+convert-events:
+	$(RUST_EXE)/proto2xml \
+		--path $(op)/ \
+		--id-store $(op)/binpb/berlin-$(BV)-10pct.ids.binpb \
+		--num-parts $(N)
+
+convert-network:
+	$(RUST_EXE)/convert_to_xml\
+		--ids $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb\
+		--network $(op)/berlin-$(BV)-$(PCT)pct.network.$(N).binpb\
+		--vehicles $(op)/binpb/berlin-$(BV)-$(PCT)pct.vehicles.binpb
