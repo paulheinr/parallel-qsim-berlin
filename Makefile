@@ -47,7 +47,10 @@ $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb: $(op)/berlin-$(BV)-$(PCT)pct.plans
 		--output-dir $(op)\
 		--run-id binpb/berlin-$(BV)-$(PCT)pct
 
-prepare: $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb
+mk-output-folders:
+	mkdir -p $(op)/binpb
+
+prepare: mk-output-folders $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb
 
 run: prepare
 	$(RUST_EXE)/local_qsim --config-path $p/berlin-v6.4.config.yml

@@ -1,0 +1,580 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE population SYSTEM "http://www.matsim.org/files/dtd/population_v6.dtd">
+
+<population>
+
+    <attributes>
+        <attribute name="coordinateReferenceSystem" class="java.lang.String">EPSG:25832</attribute>
+    </attributes>
+
+    <person id="bb_00005bd6">
+        <attributes>
+            <attribute name="RegioStaR7" class="java.lang.Integer">3</attribute>
+            <attribute name="age" class="java.lang.Integer">49</attribute>
+            <attribute name="ars" class="java.lang.Long">120690616616</attribute>
+            <attribute name="bikeAvail" class="java.lang.String">always</attribute>
+            <attribute name="carAvail" class="java.lang.String">always</attribute>
+            <attribute name="economic_status" class="java.lang.String">medium</attribute>
+            <attribute name="employed" class="java.lang.Boolean">true</attribute>
+            <attribute name="employment" class="java.lang.String">job_full_time</attribute>
+            <attribute name="gem" class="java.lang.Integer">12069616</attribute>
+            <attribute name="hasLicense" class="java.lang.String">yes</attribute>
+            <attribute name="home_x" class="java.lang.Double">789538.61</attribute>
+            <attribute name="home_y" class="java.lang.Double">5813719.01</attribute>
+            <attribute name="household_equivalent_size" class="java.lang.Double">1.5</attribute>
+            <attribute name="household_size" class="java.lang.Integer">2</attribute>
+            <attribute name="household_type" class="java.lang.String">multi_wo_children</attribute>
+            <attribute name="income" class="java.lang.Double">2200.0</attribute>
+            <attribute name="ptAboAvail" class="java.lang.String">never</attribute>
+            <attribute name="restricted_mobility" class="java.lang.Boolean">false</attribute>
+            <attribute name="sex" class="java.lang.String">f</attribute>
+            <attribute name="subpopulation" class="java.lang.String">person</attribute>
+            <attribute name="vehicles" class="org.matsim.vehicles.PersonVehicles">{"car":"bb_00005bd6_car","truck":"bb_00005bd6_truck","freight":"bb_00005bd6_freight","ride":"bb_00005bd6_ride","bike":"bb_00005bd6_bike"}</attribute>
+        </attributes>
+        <plan score="126.6079969877827" selected="yes">
+            <activity type="home_86400" link="-150731516#0" x="789538.61" y="5813719.01" end_time="07:47:35" >
+                <attributes>
+                    <attribute name="initialEndTime" class="java.lang.Double">26455.0</attribute>
+                    <attribute name="orig_dist" class="java.lang.Double">0.0</attribute>
+                </attributes>
+            </activity>
+            <leg mode="walk" dep_time="07:47:35">
+                <attributes>
+                    <attribute name="routingMode" class="java.lang.String">pt</attribute>
+                </attributes>
+                <route type="generic" start_link="-150731516#0" end_link="pt_525685_bus" trav_time="00:10:03" distance="740.5309900369846"></route>
+            </leg>
+            <activity type="pt interaction" link="pt_525685_bus" x="789745.27" y="5814249.84" max_dur="00:00:00" >
+            </activity>
+            <leg mode="pt" dep_time="07:57:38">
+                <attributes>
+                    <attribute name="routingMode" class="java.lang.String">pt</attribute>
+                </attributes>
+                <route type="default_pt" start_link="pt_525685_bus" end_link="pt_167534_bus" trav_time="00:42:22" distance="12896.564886191016">{"transitRouteId":"X10---20549_76","boardingTime":"08:00:00","transitLineId":"X10---20549","accessFacilityId":"525685_bus","egressFacilityId":"167534_bus"}</route>
+            </leg>
+            <activity type="pt interaction" link="pt_167534_bus" x="792299.82" y="5825436.84" max_dur="00:00:00" >
+            </activity>
+            <leg mode="walk" dep_time="08:40:00">
+                <attributes>
+                    <attribute name="routingMode" class="java.lang.String">pt</attribute>
+                </attributes>
+                <route type="generic" start_link="pt_167534_bus" end_link="-4396420#5" trav_time="00:08:15" distance="608.1106511943239"></route>
+            </leg>
+            <activity type="work_36600" link="-4396420#5" facility="f7a2fe3" x="791836.62" y="5825502.12" end_time="17:24:08" >
+                <attributes>
+                    <attribute name="initialEndTime" class="java.lang.Double">64328.0</attribute>
+                    <attribute name="orig_dist" class="java.lang.Double">17.672</attribute>
+                    <attribute name="orig_duration" class="java.lang.Double">20.0</attribute>
+                </attributes>
+            </activity>
+            <leg mode="walk" dep_time="17:24:08">
+                <attributes>
+                    <attribute name="routingMode" class="java.lang.String">pt</attribute>
+                </attributes>
+                <route type="generic" start_link="-4396420#5" end_link="pt_167534_bus" trav_time="00:08:15" distance="608.1106511943239"></route>
+            </leg>
+            <activity type="pt interaction" link="pt_167534_bus" x="792299.82" y="5825436.84" max_dur="00:00:00" >
+            </activity>
+            <leg mode="pt" dep_time="17:32:23">
+                <attributes>
+                    <attribute name="routingMode" class="java.lang.String">pt</attribute>
+                </attributes>
+                <route type="default_pt" start_link="pt_167534_bus" end_link="pt_525685_bus" trav_time="00:36:37" distance="12899.463431805238">{"transitRouteId":"X10---20549_15","boardingTime":"17:33:00","transitLineId":"X10---20549","accessFacilityId":"167534_bus","egressFacilityId":"525685_bus"}</route>
+            </leg>
+            <activity type="pt interaction" link="pt_525685_bus" x="789745.27" y="5814249.84" max_dur="00:00:00" >
+            </activity>
+            <leg mode="walk" dep_time="18:09:00">
+                <attributes>
+                    <attribute name="routingMode" class="java.lang.String">pt</attribute>
+                </attributes>
+                <route type="generic" start_link="pt_525685_bus" end_link="-150731516#0" trav_time="00:10:03" distance="740.5309900369846"></route>
+            </leg>
+            <activity type="home_86400" link="-150731516#0" x="789538.61" y="5813719.01" >
+                <attributes>
+                    <attribute name="orig_dist" class="java.lang.Double">16.253</attribute>
+                    <attribute name="orig_duration" class="java.lang.Double">20.0</attribute>
+                </attributes>
+            </activity>
+        </plan>
+
+    </person>
+
+    <person id="bb_0001abb4">
+    <attributes>
+        <attribute name="RegioStaR7" class="java.lang.Integer">3</attribute>
+        <attribute name="age" class="java.lang.Integer">63</attribute>
+        <attribute name="ars" class="java.lang.Long">120610260260</attribute>
+        <attribute name="bikeAvail" class="java.lang.String">never</attribute>
+        <attribute name="carAvail" class="java.lang.String">always</attribute>
+        <attribute name="economic_status" class="java.lang.String">medium</attribute>
+        <attribute name="employed" class="java.lang.Boolean">true</attribute>
+        <attribute name="employment" class="java.lang.String">job_full_time</attribute>
+        <attribute name="gem" class="java.lang.Integer">12061260</attribute>
+        <attribute name="hasLicense" class="java.lang.String">yes</attribute>
+        <attribute name="home_x" class="java.lang.Double">816610.56</attribute>
+        <attribute name="home_y" class="java.lang.Double">5801049.33</attribute>
+        <attribute name="household_equivalent_size" class="java.lang.Double">2.0</attribute>
+        <attribute name="household_size" class="java.lang.Integer">3</attribute>
+        <attribute name="household_type" class="java.lang.String">multi_wo_children</attribute>
+        <attribute name="income" class="java.lang.Double">1400.0</attribute>
+        <attribute name="ptAboAvail" class="java.lang.String">never</attribute>
+        <attribute name="restricted_mobility" class="java.lang.Boolean">false</attribute>
+        <attribute name="sex" class="java.lang.String">m</attribute>
+        <attribute name="subpopulation" class="java.lang.String">person</attribute>
+        <attribute name="vehicles" class="org.matsim.vehicles.PersonVehicles">{"car":"bb_0001abb4_car","truck":"bb_0001abb4_truck","freight":"bb_0001abb4_freight","ride":"bb_0001abb4_ride","bike":"bb_0001abb4_bike"}</attribute>
+    </attributes>
+    <plan score="137.86198437238733" selected="yes">
+    <activity type="home_86400" link="-1123879017#1" x="816610.56" y="5801049.33" end_time="06:29:10" >
+        <attributes>
+            <attribute name="initialEndTime" class="java.lang.Double">22150.0</attribute>
+            <attribute name="orig_dist" class="java.lang.Double">0.0</attribute>
+        </attributes>
+    </activity>
+    <leg mode="walk" dep_time="06:29:10">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">ride</attribute>
+        </attributes>
+        <route type="generic" start_link="-1123879017#1" end_link="-1123879017#1" trav_time="00:00:34" distance="41.89429062706882"></route>
+    </leg>
+    <activity type="ride interaction" link="-1123879017#1" x="816641.0348627717" y="5801059.809605896" max_dur="00:00:00" >
+    </activity>
+    <leg mode="ride" dep_time="06:29:44">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">ride</attribute>
+        </attributes>
+        <route type="links" start_link="-1123879017#1" end_link="-637258605" trav_time="00:08:20" distance="3797.53" vehicleRefId="bb_0001abb4_ride">-1123879017#1 1123879017#1 25235688#0 25235688#1 25235688#2 25235688#3 -609655249#1 -609655249#0 -26311010#1 -26311010#0 -609657120#0 -234
+            18522#1 -23418522#0 792238632 71009503 -637258605</route>
+    </leg>
+    <activity type="ride interaction" link="-637258605" x="816351.7532309733" y="5798109.053572639" max_dur="00:00:00" >
+    </activity>
+    <leg mode="walk" dep_time="06:37:59">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">ride</attribute>
+        </attributes>
+        <route type="generic" start_link="-637258605" end_link="-637258605" trav_time="00:00:12" distance="15.588392237066252"></route>
+    </leg>
+        <activity type="work_36600" link="-637258605" facility="f0fc656" x="816363.49" y="5798111.51" end_time="16:02:24" >
+            <attributes>
+                <attribute name="initialEndTime" class="java.lang.Double">59394.0</attribute>
+                <attribute name="orig_dist" class="java.lang.Double">4.577</attribute>
+                <attribute name="orig_duration" class="java.lang.Double">15.0</attribute>
+            </attributes>
+        </activity>
+        <leg mode="walk" dep_time="16:02:24">
+            <attributes>
+                <attribute name="routingMode" class="java.lang.String">ride</attribute>
+            </attributes>
+            <route type="generic" start_link="-637258605" end_link="-637258605" trav_time="00:00:12" distance="15.588392237066252"></route>
+        </leg>
+        <activity type="ride interaction" link="-637258605" x="816351.7532309733" y="5798109.053572639" max_dur="00:00:00" >
+        </activity>
+        <leg mode="ride" dep_time="16:02:36">
+            <attributes>
+                <attribute name="routingMode" class="java.lang.String">ride</attribute>
+            </attributes>
+            <route type="links" start_link="-637258605" end_link="-1123879017#1" trav_time="00:09:13" distance="4349.7" vehicleRefId="bb_0001abb4_ride">-637258605 565095159 -71009503 -792238631 -825866284 -427111060 -11459076 472382715 23418522#0 23418522#1 609657120#0 26311010#0 26311010#1
+                609655249#0 609655249#1 -25235688#3 -25235688#2 -25235688#1 -25235688#0 -1123879017#1</route>
+        </leg>
+        <activity type="ride interaction" link="-1123879017#1" x="816641.0348627717" y="5801059.809605896" max_dur="00:00:00" >
+        </activity>
+        <leg mode="walk" dep_time="16:11:20">
+            <attributes>
+                <attribute name="routingMode" class="java.lang.String">ride</attribute>
+            </attributes>
+            <route type="generic" start_link="-1123879017#1" end_link="-1123879017#1" trav_time="00:00:34" distance="41.89429062706882"></route>
+        </leg>
+        <activity type="home_86400" link="-1123879017#1" x="816610.56" y="5801049.33" >
+            <attributes>
+                <attribute name="orig_dist" class="java.lang.Double">5.592</attribute>
+                <attribute name="orig_duration" class="java.lang.Double">15.0</attribute>
+            </attributes>
+        </activity>
+    </plan>
+
+    </person>
+    <person id="noLinkId">
+        <plan score="137.86198437238733" selected="yes">
+        <activity type="home_86400" facility="fac" end_time="06:29:10" >
+            <attributes>
+                <attribute name="initialEndTime" class="java.lang.Double">22150.0</attribute>
+                <attribute name="orig_dist" class="java.lang.Double">0.0</attribute>
+            </attributes>
+        </activity>
+        <leg mode="walk" dep_time="06:29:10">
+            <attributes>
+                <attribute name="routingMode" class="java.lang.String">ride</attribute>
+            </attributes>
+            <route type="generic" start_link="-1123879017#1" end_link="-1123879017#1" trav_time="00:00:34" distance="41.89429062706882"></route>
+        </leg>
+        <activity type="work" link="-1123879017#1" x="816641.0348627717" y="5801059.809605896" max_dur="00:00:00" >
+        </activity>
+        </plan>
+    </person>
+
+    <person id="goodsTraffic_re_vkz.0693_4_41">
+    <attributes>
+        <attribute name="purpose" class="java.lang.Integer">4</attribute>
+        <attribute name="subpopulation" class="java.lang.String">goodsTraffic</attribute>
+        <attribute name="tourStartArea" class="java.lang.String">re_vkz.0693</attribute>
+        <attribute name="vehicleTypes" class="org.matsim.vehicles.PersonVehicleTypes">{"truck":"light8t"}</attribute>
+        <attribute name="vehicles" class="org.matsim.vehicles.PersonVehicles">{"car":"goodsTraffic_re_vkz.0693_4_41_car","truck":"goodsTraffic_re_vkz.0693_4_41_truck","freight":"goodsTraffic_re_vkz.0693_4_41_freight","ride":"goodsTraffic_re_vkz.0693_4_41_ride","bike":"goodsTraffic_re_vkz.0693_4_4
+            1_bike"}</attribute>
+    </attributes>
+    <plan score="61.32177878724058" selected="yes">
+    <activity type="commercial_start" link="-31003576#0" x="798894.83" y="5821213.52" end_time="00:08:04" >
+    </activity>
+    <leg mode="walk" dep_time="00:08:04">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="-31003576#0" end_link="-31003576#0" trav_time="00:00:00" distance="0.0"></route>
+    </leg>
+    <activity type="truck interaction" link="-31003576#0" x="798894.83" y="5821213.52" max_dur="00:00:00" >
+    </activity>
+    <leg mode="truck" dep_time="00:08:04">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="links" start_link="-31003576#0" end_link="-5116191" trav_time="00:09:04" distance="4245.74" vehicleRefId="goodsTraffic_re_vkz.0693_4_41_truck">-31003576#0 31003576#0 31003576#1 31003576#2 5096266#0 836498507#1 41517093#1 837200686 647762532 39982803 837200672 4830086#
+            0 198942671#1 338078853#0 338078853#1 338078854#0 -971432956 5095621#7 824574378 1072433522 5110666 798541026 838809410#0 -5116191</route>
+    </leg>
+    <activity type="truck interaction" link="-5116191" x="802467.73" y="5821185.81" max_dur="00:00:00" >
+    </activity>
+    <leg mode="walk" dep_time="00:16:38">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="-5116191" end_link="-5116191" trav_time="00:00:00" distance="0.0"></route>
+    </leg>
+    <activity type="service_1800" link="-5116191" x="802467.73" y="5821185.81" max_dur="00:26:55" >
+    </activity>
+    <leg mode="walk" dep_time="00:44:03">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="-5116191" end_link="-5116191" trav_time="00:00:00" distance="0.0"></route>
+    </leg>
+    <activity type="truck interaction" link="-5116191" x="802467.73" y="5821185.81" max_dur="00:00:00" >
+    </activity>
+    <leg mode="truck" dep_time="00:44:03">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="links" start_link="-5116191" end_link="-11279994" trav_time="00:08:56" distance="5193.459999999999" vehicleRefId="goodsTraffic_re_vkz.0693_4_41_truck">-5116191 200707868#1 200707868#3 200707868#4 200707868#5 105518285 431551349#0 1065916216 4579877#3 137700054 1987585
+            9 862741105 137700029 431551337#0 137700042 -435021928 -19875856 -435021931 -31824581 -896209924 -31824585 -19875855#2 -19875855#0 431573846#0 993314009 1121917420#1 154749357#1 1110032796 -313964772#1 -313964772#0 -54633568 -25801033#0 -11279994</route>
+    </leg>
+    <activity type="truck interaction" link="-11279994" x="805819.34" y="5819882.44" max_dur="00:00:00" >
+    </activity>
+    <leg mode="walk" dep_time="00:52:27">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="-11279994" end_link="-11279994" trav_time="00:00:00" distance="0.0"></route>
+    </leg>
+    <activity type="service_4200" link="-11279994" x="805819.34" y="5819882.44" max_dur="01:12:03" >
+    </activity>
+    <leg mode="walk" dep_time="02:05:02">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="-11279994" end_link="-11279994" trav_time="00:00:00" distance="0.0"></route>
+    </leg>
+    <activity type="truck interaction" link="-11279994" x="805819.34" y="5819882.44" max_dur="00:00:00" >
+    </activity>
+    <leg mode="truck" dep_time="02:05:02">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="links" start_link="-11279994" end_link="-880121416" trav_time="00:15:13" distance="8291.77" vehicleRefId="goodsTraffic_re_vkz.0693_4_41_truck">-11279994 11279994 25801033#0 54633568 313964772#0 313964772#1 -54844570 -154749357#1 -154749357#0 -1121917420#0 -431573846#2
+            1065916217#0 19875855#2 31824585 896209924 31824581 435021931 19875856 435021928 26547703 435021929#0 227895808#0 138259798 292532854 292532846 22762354 32890426 229901568 19791143 106310111 137700007#0 1016866178#1 -887311580 -1016866208 -862863157 -981958445 437054299 -1016866211 -437054298 -348979675 1555950
+            16#0 155595016#1 -1067724388 -28961510#0 18593434 -18908136 -24159804 -29892624 -37184617#1 -37184617#0 -18908134#2 -18908134#1 -861068542 -4827498#2 -860638044#2 -860638046#2 -410242419 404402497#0 -28496022#2 -880121416</route>
+    </leg>
+    <activity type="truck interaction" link="-880121416" x="800622.831844615" y="5823007.075519159" max_dur="00:00:00" >
+    </activity>
+    <leg mode="walk" dep_time="02:19:49">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="-880121416" end_link="-880121416" trav_time="00:00:00" distance="0.23325686494701892"></route>
+    </leg>
+    <activity type="service_5400" link="-880121416" x="800622.79" y="5823007.25" max_dur="01:25:25" >
+    </activity>
+    <leg mode="walk" dep_time="03:45:40">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="-880121416" end_link="-880121416" trav_time="00:00:00" distance="0.23325686494701892"></route>
+    </leg>
+    <activity type="truck interaction" link="-880121416" x="800622.831844615" y="5823007.075519159" max_dur="00:00:00" >
+    </activity>
+    <leg mode="truck" dep_time="03:45:40">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="links" start_link="-880121416" end_link="209264198#0" trav_time="00:05:45" distance="2454.0999999999995" vehicleRefId="goodsTraffic_re_vkz.0693_4_41_truck">-880121416 56383732 53785140 53785139 400740402 59582702#0 60688536 849599097#0 957691116 46672236#0 959814964 2
+            8496019 32206247 991802117 -155605298 23026083 241014146#0 27943683#1 228498038 4859901#1 997788465#0 997788500#0 209264198#0</route>
+    </leg>
+    <activity type="truck interaction" link="209264198#0" x="800009.6877715152" y="5824588.735074694" max_dur="00:00:00" >
+    </activity>
+    <leg mode="walk" dep_time="03:50:48">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="209264198#0" end_link="209264198#0" trav_time="00:00:00" distance="0.7571506856766153"></route>
+    </leg>
+    <activity type="service_2400" link="209264198#0" x="800010.27" y="5824588.72" max_dur="00:38:55" >
+    </activity>
+    <leg mode="walk" dep_time="04:30:20">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="209264198#0" end_link="209264198#0" trav_time="00:00:00" distance="0.7571506856766153"></route>
+    </leg>
+    <activity type="truck interaction" link="209264198#0" x="800009.6877715152" y="5824588.735074694" max_dur="00:00:00" >
+    </activity>
+    <leg mode="truck" dep_time="04:30:20">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="links" start_link="209264198#0" end_link="-4686461#1" trav_time="00:04:01" distance="1516.09" vehicleRefId="goodsTraffic_re_vkz.0693_4_41_truck">209264198#0 4679304#4 816324772#0 816324772#2 1020303900 964322023 218539598#0 27943683#1 228498038 959902781 964322028 989
+            204415 959902774 959902772 959902771#1 959902771#2 959902764#0 959902764#1 -845476765#4 4686462 -4686461#1</route>
+    </leg>
+    <activity type="truck interaction" link="-4686461#1" x="800167.3603432608" y="5825202.109845953" max_dur="00:00:00" >
+    </activity>
+    <leg mode="walk" dep_time="04:34:03">
+    <attributes>
+        <attribute name="routingMode" class="java.lang.String">truck</attribute>
+    </attributes>
+    <route type="generic" start_link="-4686461#1" end_link="-4686461#1" trav_time="00:00:00" distance="0.3598547424299589"></route>
+    </leg>
+    <activity type="service_3000" link="-4686461#1" x="800167.3" y="5825202.38" max_dur="00:45:43" >
+    </activity>
+    <leg mode="walk" dep_time="05:20:04">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="-4686461#1" end_link="-4686461#1" trav_time="00:00:00" distance="0.3598547424299589"></route>
+    </leg>
+    <activity type="truck interaction" link="-4686461#1" x="800167.3603432608" y="5825202.109845953" max_dur="00:00:00" >
+    </activity>
+    <leg mode="truck" dep_time="05:20:04">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="links" start_link="-4686461#1" end_link="1089683049" trav_time="00:08:55" distance="3202.7999999999997" vehicleRefId="goodsTraffic_re_vkz.0693_4_41_truck">-4686461#1 959902758 959902757 959902778#0 981051255#0 981051252 981051253#0 -320178377 -65425838#1 -866658747 22
+            701543#3 22701543#1 -866658764 62276481 4612858#0 4612858#1 4526406#0 4526406#1 562077314#0 169738742#0 169738742#2 335487060#0 110450329#0 110450329#3 34059286#0 4642205#0 1057528474#0 1089683572 1089683049</route>
+    </leg>
+    <activity type="truck interaction" link="1089683049" x="797643.2121491778" y="5825731.081147624" max_dur="00:00:00" >
+    </activity>
+    <leg mode="walk" dep_time="05:28:30">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="1089683049" end_link="1089683049" trav_time="00:00:00" distance="0.010314535395282681"></route>
+    </leg>
+    <activity type="service_2400" link="1089683049" x="797643.22" y="5825731.08" max_dur="00:41:47" >
+    </activity>
+    <leg mode="walk" dep_time="06:10:46">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="1089683049" end_link="1089683049" trav_time="00:00:00" distance="0.010314535395282681"></route>
+    </leg>
+    <activity type="truck interaction" link="1089683049" x="797643.2121491778" y="5825731.081147624" max_dur="00:00:00" >
+    </activity>
+    <leg mode="truck" dep_time="06:10:46">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="links" start_link="1089683049" end_link="-35557161#0" trav_time="00:07:16" distance="2746.9300000000003" vehicleRefId="goodsTraffic_re_vkz.0693_4_41_truck">1089683049 -1126170615 -16112362#1 -12678106 980109815#4 47157388 4642205#0 386460952#0 379506035#0 379506035#1
+            -1057532584 -875929571#2 328064917#3 32975879 -1090233551 -1057550513 -415424121 632065756 -632065761 109781892#0 -327979621#2 327979624 -67099797#1 -67099797#0 -435164424 199847244 81113584#0 199847252#0 -375459783 -375459782 -1105574289 -35557161#2 -35557161#1 -35557161#0</route>
+    </leg>
+    <activity type="truck interaction" link="-35557161#0" x="798051.18" y="5827295.68" max_dur="00:00:00" >
+    </activity>
+    <leg mode="walk" dep_time="06:17:47">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="-35557161#0" end_link="-35557161#0" trav_time="00:00:00" distance="0.0"></route>
+    </leg>
+    <activity type="service_1200" link="-35557161#0" x="798051.18" y="5827295.68" max_dur="00:23:49" >
+    </activity>
+    <leg mode="walk" dep_time="06:41:51">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="-35557161#0" end_link="-35557161#0" trav_time="00:00:00" distance="0.0"></route>
+    </leg>
+    <activity type="truck interaction" link="-35557161#0" x="798051.18" y="5827295.68" max_dur="00:00:00" >
+    </activity>
+    <leg mode="truck" dep_time="06:41:51">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="links" start_link="-35557161#0" end_link="-1119938072" trav_time="00:02:59" distance="1083.1200000000001" vehicleRefId="goodsTraffic_re_vkz.0693_4_41_truck">-35557161#0 -4611706 -1105574291 -24242882 882389497 194069450#0 461526153#0 188386313#0 1119935543 153698380#0
+            111833186 -1119938072</route>
+    </leg>
+    <activity type="truck interaction" link="-1119938072" x="797390.42" y="5827659.84" max_dur="00:00:00" >
+    </activity>
+    <leg mode="walk" dep_time="06:44:33">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="-1119938072" end_link="-1119938072" trav_time="00:00:00" distance="0.0"></route>
+    </leg>
+    <activity type="service_600" link="-1119938072" x="797390.42" y="5827659.84" max_dur="00:06:53" >
+    </activity>
+    <leg mode="walk" dep_time="06:51:43">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="-1119938072" end_link="-1119938072" trav_time="00:00:00" distance="0.0"></route>
+    </leg>
+    <activity type="truck interaction" link="-1119938072" x="797390.42" y="5827659.84" max_dur="00:00:00" >
+    </activity>
+    <leg mode="truck" dep_time="06:51:43">
+    <attributes>
+        <attribute name="routingMode" class="java.lang.String">truck</attribute>
+    </attributes>
+        <route type="links" start_link="-1119938072" end_link="-4535225#2" trav_time="00:18:00" distance="7288.900000000001" vehicleRefId="goodsTraffic_re_vkz.0693_4_41_truck">-1119938072 -153698380#2 155186522#0 24913267#0 326116286#0 4402014#0 326116285#0 -320462163#2 154041918#0 320420
+            912#0 25776568#0 -55495482#1 -55495482#0 160971199#0 -327462545#2 -1121496496 -25041360 -461905068 -461905067#2 -279549312#4 -279549312#1 -279549312#0 -730191117 153376938 309602349 1101157404#0 153373877#1 720356202 4531812 4531813 153370345 577560819 316741525 335398605 1101138347#2 -151526149#1 1100788999 449
+            1980#2 480722136#0 4491994#0 85127874#0 4449439#0 85127888#0 529791047#3 4395589#0 836953626#0 840401539 10098783#0 23485319 208089049#0 208089049#3 208089047#0 37853469 24910775#0 10098780#0 413337261#1 413337261#2 413337261#3 4535227#0 4535225#0 -4535225#2</route>
+    </leg>
+    <activity type="truck interaction" link="-4535225#2" x="793327.7443364472" y="5823423.768217413" max_dur="00:00:00" >
+    </activity>
+    <leg mode="walk" dep_time="07:09:30">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="-4535225#2" end_link="-4535225#2" trav_time="00:00:00" distance="0.04642049740683759"></route>
+    </leg>
+    <activity type="service_3600" link="-4535225#2" x="793327.78" y="5823423.77" max_dur="00:57:58" >
+    </activity>
+    <leg mode="walk" dep_time="08:07:41">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="-4535225#2" end_link="-4535225#2" trav_time="00:00:00" distance="0.04642049740683759"></route>
+    </leg>
+    <activity type="truck interaction" link="-4535225#2" x="793327.7443364472" y="5823423.768217413" max_dur="00:00:00" >
+    </activity>
+    <leg mode="truck" dep_time="08:07:41">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="links" start_link="-4535225#2" end_link="1115340050#2" trav_time="00:05:08" distance="2387.5600000000004" vehicleRefId="goodsTraffic_re_vkz.0693_4_41_truck">-4535225#2 4535225#0 1014041203#0 -28701037#1 -28701037#0 4395537#1 4395537#2 4535241#0 4536799#0 32879876 9592
+            8371#1 95928371#3 95928371#4 112509368#0 4575473#0 4500198 1125915766#1 1122784753#1 -1125916066#1 -1125916066#0 67556839#4 232562331 1115340050#0 1115340050#2</route>
+    </leg>
+    <activity type="truck interaction" link="1115340050#2" x="794406.08" y="5822331.43" max_dur="00:00:00" >
+    </activity>
+    <leg mode="walk" dep_time="08:12:48">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="1115340050#2" end_link="1115340050#2" trav_time="00:00:00" distance="0.0"></route>
+    </leg>
+    <activity type="service_600" link="1115340050#2" x="794406.08" y="5822331.43" max_dur="00:01:39" >
+    </activity>
+    <leg mode="walk" dep_time="08:14:28">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="1115340050#2" end_link="1115340050#2" trav_time="00:00:00" distance="0.0"></route>
+    </leg>
+    <activity type="truck interaction" link="1115340050#2" x="794406.08" y="5822331.43" max_dur="00:00:00" >
+    </activity>
+    <leg mode="truck" dep_time="08:14:28">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="links" start_link="1115340050#2" end_link="-38082624#3" trav_time="00:01:47" distance="1004.37" vehicleRefId="goodsTraffic_re_vkz.0693_4_41_truck">1115340050#2 554960998 1115340048#0 1115340048#1 67704027 1023981165 1116330548#0 1116330549#0 87332569 1121919121#1 1123
+            020059#1 -38082624#3</route>
+    </leg>
+    <activity type="truck interaction" link="-38082624#3" x="794047.0250681988" y="5821533.363297271" max_dur="00:00:00" >
+    </activity>
+    <leg mode="walk" dep_time="08:16:05">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="-38082624#3" end_link="-38082624#3" trav_time="00:00:02" distance="3.523747421720953"></route>
+    </leg>
+    <activity type="service_3600" link="-38082624#3" x="794045.68" y="5821531.01" max_dur="01:01:06" >
+    </activity>
+    <leg mode="walk" dep_time="09:17:23">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="-38082624#3" end_link="-38082624#3" trav_time="00:00:02" distance="3.523747421720953"></route>
+    </leg>
+    <activity type="truck interaction" link="-38082624#3" x="794047.0250681988" y="5821533.363297271" max_dur="00:00:00" >
+    </activity>
+    <leg mode="truck" dep_time="09:17:25">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="links" start_link="-38082624#3" end_link="-24223541#1" trav_time="00:00:36" distance="354.4" vehicleRefId="goodsTraffic_re_vkz.0693_4_41_truck">-38082624#3 -38082624#0 38082622 144131214 -1117472840 -24223541#1</route>
+    </leg>
+    <activity type="truck interaction" link="-24223541#1" x="794381.8275796204" y="5821492.36462861" max_dur="00:00:00" >
+    </activity>
+    <leg mode="walk" dep_time="09:17:56">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="-24223541#1" end_link="-24223541#1" trav_time="00:00:49" distance="60.66234469078847"></route>
+    </leg>
+    <activity type="service_1200" link="-24223541#1" x="794386.02" y="5821445.89" max_dur="00:18:20" >
+    </activity>
+    <leg mode="walk" dep_time="09:37:10">
+    <attributes>
+        <attribute name="routingMode" class="java.lang.String">truck</attribute>
+    </attributes>
+        <route type="generic" start_link="-24223541#1" end_link="-24223541#1" trav_time="00:00:49" distance="60.66234469078847"></route>
+    </leg>
+    <activity type="truck interaction" link="-24223541#1" x="794381.8275796204" y="5821492.36462861" max_dur="00:00:00" >
+    </activity>
+    <leg mode="truck" dep_time="09:37:59">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="links" start_link="-24223541#1" end_link="407076806" trav_time="00:05:26" distance="3573.28" vehicleRefId="goodsTraffic_re_vkz.0693_4_41_truck">-24223541#1 -24223541#0 -1116980485#1 -538602078#2 -538602615#1 -4536816 151022675 119080630#0 4463289#1 407076808 407076804
+            407076807 4401030 199287264 407079670 307356330 22495274 138611859 210712613 4517410 617342812 132378087 4401032 431727424 4401028 431727423 199287262 199287261 407079667 407076806</route>
+    </leg>
+    <activity type="truck interaction" link="407076806" x="794779.3534651279" y="5822107.855994484" max_dur="00:00:00" >
+    </activity>
+    <leg mode="walk" dep_time="09:43:11">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="407076806" end_link="407076806" trav_time="00:00:29" distance="36.47082305836235"></route>
+    </leg>
+    <activity type="service_3600" link="407076806" x="794802.38" y="5822091.83" max_dur="01:00:34" >
+    </activity>
+    <leg mode="walk" dep_time="10:44:28">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="generic" start_link="407076806" end_link="407076806" trav_time="00:00:29" distance="36.47082305836235"></route>
+    </leg>
+    <activity type="truck interaction" link="407076806" x="794779.3534651279" y="5822107.855994484" max_dur="00:00:00" >
+    </activity>
+    <leg mode="truck" dep_time="10:44:57">
+        <attributes>
+            <attribute name="routingMode" class="java.lang.String">truck</attribute>
+        </attributes>
+        <route type="links" start_link="407076806" end_link="-31003576#0" trav_time="00:07:12" distance="6172.669999999998" vehicleRefId="goodsTraffic_re_vkz.0693_4_41_truck">407076806 407076805 4463290 550086270 59156126#0 281303970#0 344256556#0 4463289#1 407076808 407076804 407076807 4
+            401030 199287264 407079670 4401031 199287260 138611857 199287259 199287258 199287251 199287250 431727415 431727414 334018083 334018082 196854805 196854803 334005612 427577078 427577074 4493120 4493122#0 107196020#2 210080958#0 156597541 -31003576#0</route>
+    </leg>
+    <activity type="truck interaction" link="-31003576#0" x="798894.83" y="5821213.52" max_dur="00:00:00" >
+    </activity>
+    <leg mode="walk" dep_time="10:51:45">
+    <attributes>
+        <attribute name="routingMode" class="java.lang.String">truck</attribute>
+    </attributes>
+        <route type="generic" start_link="-31003576#0" end_link="-31003576#0" trav_time="00:00:00" distance="0.0"></route>
+    </leg>
+        <activity type="commercial_end" link="-31003576#0" x="798894.83" y="5821213.52" >
+        </activity>
+    </plan>
+
+    </person>
+</population>

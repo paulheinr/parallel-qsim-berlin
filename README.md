@@ -19,6 +19,13 @@ Use:
 make run
 ``` 
 
+In order to convert the events from protobuf to `.xml.gz` files, run 
+```shell
+make convert-events N=<number of partitions used>
+```
+The default number of partitions is 16 (see config file), as this is the number of CPU cores of my computer. With this, the QSim runs in approx. 16s. 
+
 # Open Tasks
 - [ ] Explicit comparison of results with the original MATSim Berlin scenario
+- [ ] Remove PT links from network 
 - [ ] Simulate PT as teleported (one would need to convert the route types)

@@ -7,7 +7,7 @@ modules:
     ids: ../../output/v6.4/binpb/berlin-v6.4-10pct.ids.binpb
   partitioning:
     type: Partitioning
-    num_parts: 12
+    num_parts: 16
     method: !Metis
       vertex_weight:
         - InLinkCount
