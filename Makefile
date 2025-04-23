@@ -10,7 +10,7 @@ PCT := 10
 java := java -Xmx$(MEMORY) -XX:+UseParallelGC -cp $(JAR) org.matsim.prepare.RunParallelQSimBerlinPreparation
 
 p := ./input/$(BV)
-op := ./output/$(BV)
+op := ./output/$(BV)/$(PCT)pct
 
 .PHONY: prepare
 
@@ -53,12 +53,12 @@ mk-output-folders:
 prepare: mk-output-folders $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb
 
 run: prepare
-	$(RUST_EXE)/local_qsim --config-path $p/berlin-v6.4.config.yml
+	$(RUST_EXE)/local_qsim --config-path $p/berlin-v6.4.$(PCT)pct.config.yml
 
 convert-events:
 	$(RUST_EXE)/proto2xml \
 		--path $(op)/ \
-		--id-store $(op)/binpb/berlin-$(BV)-10pct.ids.binpb \
+		--id-store $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb \
 		--num-parts $(N)
 
 convert-network:
