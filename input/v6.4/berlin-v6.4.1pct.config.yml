@@ -26,3 +26,7 @@ modules:
     end_time: 84600
     sample_size: 0.01
     stuck_threshold: 30
+    main_modes:
+    - car
+    - freight
+    - truck
