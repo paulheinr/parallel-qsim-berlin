@@ -48,10 +48,6 @@ public class FilterPopulation implements MATSimAppCommand {
 
         for (Person person : inputPopulation.getPersons().values()) {
             CleanPopulation.removeUnselectedPlans(person);
-
-            // This is necessary because the rust QSim implicitly assumes generic routes for teleportation.
-            // See https://github.com/matsim-vsp/parallel_qsim_rust/issues/149
-            replaceLinksRoutes(person, Set.of(TransportMode.ride, TransportMode.bike));
         }
 
         log.info("Filtered population contains {} agents", inputPopulation.getPersons().size());
@@ -72,33 +68,5 @@ public class FilterPopulation implements MATSimAppCommand {
             }
         }
         return true;
-    }
-
-    /**
-     * Replaces all routes of given modes with generic routes.
-     */
-    private static void replaceLinksRoutes(Person person, Set<String> modes) {
-        Plan plan = person.getSelectedPlan();
-        for (Leg leg : TripStructureUtils.getLegs(plan)) {
-            if (!modes.contains(leg.getMode())) {
-                continue;
-            }
-
-            if (leg.getRoute() instanceof NetworkRoute) {
-                leg.setRoute(convertLinksRouteToGenericRoute(leg.getRoute()));
-            }
-        }
-    }
-
-    private static Route convertLinksRouteToGenericRoute(Route route) {
-        if (!(route instanceof NetworkRoute)) {
-            throw new IllegalArgumentException("Route is not a NetworkRoute");
-        }
-
-        Route genericRouteImpl = RouteUtils.createGenericRouteImpl(route.getStartLinkId(), route.getEndLinkId());
-        genericRouteImpl.setDistance(route.getDistance());
-        genericRouteImpl.setTravelTime(route.getTravelTime().orElseThrow(() -> new IllegalStateException("Travel time not set")));
-
-        return genericRouteImpl;
     }
 }

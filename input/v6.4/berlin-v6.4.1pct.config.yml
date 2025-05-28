@@ -30,3 +30,6 @@ modules:
     - car
     - freight
     - truck
+  computational_setup:
+    type: ComputationalSetup
+    global_sync: true

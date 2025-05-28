@@ -26,3 +26,6 @@ modules:
     end_time: 84600
     sample_size: 0.1
     stuck_threshold: 30
+  computational_setup:
+    type: ComputationalSetup
+    global_sync: true
