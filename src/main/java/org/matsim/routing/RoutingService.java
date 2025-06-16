@@ -3,6 +3,8 @@ package org.matsim.routing;
 import com.google.inject.Key;
 import com.google.inject.name.Names;
 import io.grpc.stub.StreamObserver;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.matsim.IdStoreDeserializer;
 import org.matsim.api.core.v01.Id;
@@ -31,6 +33,7 @@ import java.util.Map;
 import java.util.Optional;
 
 public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
+    private static final Logger log = LogManager.getLogger(RoutingService.class);
     private final RoutingModule swissRailRaptor;
     private final Scenario scenario;
 
@@ -41,7 +44,7 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
 
     @Override
     public void getRoute(Routing.Request request, StreamObserver<Routing.Response> responseObserver) {
-        System.out.println("Received request for route from " + request.getFromLinkId() + " to " + request.getToLinkId());
+        log.info("Received request for route from {} to {}", request.getFromLinkId(), request.getToLinkId());
 
         RoutingRequest raptorRequest = createRaptorRequest(request);
         List<? extends PlanElement> planElements = swissRailRaptor.calcRoute(raptorRequest);
