@@ -18,9 +18,8 @@ public class RoutingServer {
     public static void main(String[] args) throws IOException, InterruptedException {
         URL ptScenarioURL = ExamplesUtils.getTestScenarioURL("pt-tutorial");
         Config config = ConfigUtils.loadConfig(IOUtils.extendUrl(ptScenarioURL, "0.config.xml"));
-        Path idPath = null;
 
-        RoutingService routingService = new RoutingService.Factory(config, idPath).create();
+        RoutingService routingService = new RoutingService.Factory(config).create();
         Server server = ServerBuilder.forPort(PORT)
                 .addService(routingService)
                 .addService(ProtoReflectionService.newInstance())

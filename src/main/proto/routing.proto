@@ -1,0 +1,78 @@
+syntax = "proto3";
+package routing;
+
+service RoutingService {
+  rpc GetRoute (Request) returns (Response);
+}
+
+message Request {
+  string person_id = 1;
+  string from_link_id = 2;
+  string to_link_id = 3;
+  string mode = 4;
+  uint64 departure_time = 5;
+}
+
+message Response {
+  repeated Leg legs = 1;
+  repeated Activity activities = 2;
+}
+
+message Activity {
+  string act_type = 1;
+  string link_id = 2;
+  double x = 3;
+  double y = 4;
+  optional uint32 start_time = 5;
+  optional uint32 end_time = 6;
+  optional uint32 max_dur = 7;
+}
+
+message Leg {
+  string mode = 1;
+  string routing_mode = 2;
+  optional uint32 dep_time = 3;
+  uint32 trav_time = 4;
+  map<string, AttributeValue> attributes = 6;
+  oneof route {
+    GenericRoute generic_route = 7;
+    NetworkRoute network_route = 8;
+    PtRoute pt_route = 9;
+  };
+}
+
+message GenericRoute {
+  string start_link = 1;
+  string end_link = 2;
+  optional uint64 trav_time = 3;
+  optional double distance = 4;
+  optional string veh_id = 5;
+}
+
+message NetworkRoute {
+  GenericRoute delegate = 1;
+  repeated string route = 2;
+}
+
+message PtRoute {
+  GenericRoute delegate = 1;
+  PtRouteDescription information = 2;
+}
+
+message PtRouteDescription {
+  string transit_route_id = 1;
+  optional uint32 boarding_time = 2;
+  string transit_line_id = 3;
+  string access_facility_id = 4;
+  string egress_facility_id = 5;
+}
+
+message AttributeValue {
+  oneof type {
+    int64 int_value = 1;
+    string string_value = 2;
+    double double_value = 3;
+    bool bool_value = 4;
+    // to be expanded
+  }
+}

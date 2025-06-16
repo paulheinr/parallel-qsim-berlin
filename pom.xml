@@ -29,7 +29,7 @@
 
 		<maven.compiler.release>21</maven.compiler.release>
 
-		<grpc.version>1.63.0</grpc.version>
+		<grpc.version>1.67.1</grpc.version>
 		<protobuf.version>4.28.2</protobuf.version>
 		<protobuf.plugin.version>0.6.1</protobuf.plugin.version>
 		<java.version>21</java.version>
@@ -48,20 +48,6 @@
 		<dependency>
 			<groupId>org.matsim.contrib</groupId>
 			<artifactId>dvrp</artifactId>
-			<version>${matsim.version}</version>
-			<scope>compile</scope>
-		</dependency>
-
-		<dependency>
-			<groupId>org.matsim.contrib</groupId>
-			<artifactId>emissions</artifactId>
-			<version>${matsim.version}</version>
-			<scope>compile</scope>
-		</dependency>
-
-		<dependency>
-			<groupId>org.matsim.contrib</groupId>
-			<artifactId>noise</artifactId>
 			<version>${matsim.version}</version>
 			<scope>compile</scope>
 		</dependency>
@@ -321,7 +307,7 @@
 					<protocArtifact>com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
 					<pluginId>grpc-java</pluginId>
 					<pluginArtifact>io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
-					<protoSourceRoot>${rust.qsim.source}/src</protoSourceRoot>
+<!--					<protoSourceRoot>${rust.qsim.source}/src</protoSourceRoot>-->
 				</configuration>
 				<executions>
 					<execution>
