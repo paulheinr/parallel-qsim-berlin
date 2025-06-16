@@ -31,7 +31,8 @@ public class IdStoreDeserializer {
     public static Map<Long, List<String>> loadIdStore(Path path) {
         Map<Long, List<String>> idStore = new HashMap<>();
 
-        try (InputStream input = new FileInputStream(path.toFile())) {
+        File file = path.toFile();
+        try (InputStream input = new FileInputStream(file)) {
             CodedInputStream protoInputStream = CodedInputStream.newInstance(input);
 
             while (!protoInputStream.isAtEnd()) {
@@ -80,16 +81,6 @@ public class IdStoreDeserializer {
         }
 
         return strings;
-    }
-
-    // Optional: test or use this from main
-    public static void main(String[] args) throws IOException {
-        Path path = Path.of("ids.pbf");
-        Map<Long, List<String>> idStore = loadIdStore(path);
-
-        for (Map.Entry<Long, List<String>> entry : idStore.entrySet()) {
-            System.out.printf("type_id = %d, ids = %s%n", entry.getKey(), entry.getValue());
-        }
     }
 
     private static class u32 {}
