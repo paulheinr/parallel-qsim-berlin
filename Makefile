@@ -3,11 +3,13 @@ BV := v6.4
 
 RUST_BASE := ~/git/parallel_qsim_rust
 RUST_EXE := $(RUST_BASE)/target/release
+RUST_BIN := local_qsim
 
 MEMORY ?= 20G
 PCT := 1
 
-java := java -Xmx$(MEMORY) -XX:+UseParallelGC -cp $(JAR) org.matsim.prepare.RunParallelQSimBerlinPreparation
+java_prepare := java -Xmx$(MEMORY) -XX:+UseParallelGC -cp $(JAR) org.matsim.prepare.RunParallelQSimBerlinPreparation
+java_router := java -Xmx$(MEMORY) -XX:+UseParallelGC -cp $(JAR) org.matsim.routing.MockRoutingServer
 
 p := ./input/$(BV)
 op := ./output/$(BV)/$(PCT)pct
@@ -15,13 +17,13 @@ op := ./output/$(BV)/$(PCT)pct
 .PHONY: prepare
 
 $(JAR):
-	mvn clean package
+	mvn clean package -DskipTests
 
 $(RUST_EXE):
 	cd $(RUST_BASE) && cargo build --release
 
 $(op)/berlin-$(BV)-$(PCT)pct.plans-filtered.xml.gz: $(op)/berlin-$(BV)-$(PCT)pct.plans.xml.gz $(JAR)
-	$(java) prepare filter-population\
+	$(java_prepare) prepare filter-population\
 		--input $<\
 		--modes car,walk,ride,bike,freight,truck,pt
 
@@ -35,14 +37,14 @@ $(op)/berlin-$(BV)-vehicleTypes.xml:
 	curl https://raw.githubusercontent.com/matsim-scenarios/matsim-berlin/refs/heads/main/input/$(BV)/$(notdir $@) -o $@
 
 $(op)/berlin-$(BV)-vehicleTypes-including-walk-pt.xml: $(op)/berlin-$(BV)-vehicleTypes.xml $(JAR)
-	$(java) prepare adapt-vehicle-types\
+	$(java_prepare) prepare adapt-vehicle-types\
 		--input $<
 
 $(op)/berlin-$(BV).network.xml.gz:
 	curl https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/berlin/berlin-$(BV)/input/berlin-$(BV)-network-with-pt.xml.gz -o $@
 
 $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb: $(op)/berlin-$(BV)-$(PCT)pct.plans-filtered.xml.gz $(op)/berlin-$(BV)-vehicleTypes-including-walk-pt.xml $(op)/berlin-$(BV).network.xml.gz $(op)/berlin-$(BV)-transitSchedule.xml.gz
-	$(RUST_EXE)/convert_to_binary\
+	cargo flamegraph --bin convert_to_binary --manifest-path $(RUST_BASE)/Cargo.toml --output convert.svg -- \
 		--network $(op)/berlin-$(BV).network.xml.gz\
 		--population $(op)/berlin-$(BV)-$(PCT)pct.plans-filtered.xml.gz\
 		--vehicles $(op)/berlin-$(BV)-vehicleTypes-including-walk-pt.xml\
@@ -56,7 +58,17 @@ mk-output-folders:
 prepare: mk-output-folders $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb
 
 run: prepare
-	$(RUST_EXE)/local_qsim --config-path $p/berlin-v6.4.$(PCT)pct.config.yml
+	@if [ -n "$(N)" ]; then \
+		EXTRA="--set partitioning.num_parts=$(N)"; \
+	else \
+		EXTRA=""; \
+	fi; \
+	CMD="cargo flamegraph --bin $(RUST_BIN) --manifest-path $(RUST_BASE)/Cargo.toml -- --config-path $p/berlin-v6.4.$(PCT)pct.config.yml $$EXTRA $(ARGS)"; \
+	echo "$$CMD"; \
+	eval "$$CMD"
+
+run-routing: prepare
+	$(MAKE) run RUST_BIN=local_qsim_routing ARGS="--set routing.mode=ad-hoc --router-ip http://localhost:50051"
 
 convert-events:
 	$(RUST_EXE)/proto2xml \
@@ -72,3 +84,6 @@ convert-network:
 
 clean:
 	rm -rf $(op)
+
+router: $(JAR)
+	$(java_router)

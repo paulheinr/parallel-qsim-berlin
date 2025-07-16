@@ -177,9 +177,11 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
         public RoutingService create() {
             config.controller().setOverwriteFileSetting(OutputDirectoryHierarchy.OverwriteFileSetting.deleteDirectoryIfExists);
             Scenario scenario = ScenarioUtils.loadScenario(config);
-            Controller controller = ControllerUtils.createController(scenario);
+            //Controller controller = ControllerUtils.createController(scenario);
 
-            RoutingModule swissRailRaptor = controller.getInjector().getInstance(Key.get(RoutingModule.class, Names.named("pt")));
+            RoutingModule swissRailRaptor = ControllerUtils.createAdhocInjector(scenario).getInstance(Key.get(RoutingModule.class, Names.named("pt")));
+
+            //RoutingModule swissRailRaptor = controller.getInjector().getInstance(Key.get(RoutingModule.class, Names.named("pt")));
 
             return new RoutingService(swissRailRaptor, scenario);
         }
