@@ -5,13 +5,18 @@ import io.grpc.ServerBuilder;
 import io.grpc.protobuf.services.ProtoReflectionService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import picocli.CommandLine;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.regex.Pattern;
 
 public class RoutingServer implements MATSimAppCommand {
@@ -42,18 +47,19 @@ public class RoutingServer implements MATSimAppCommand {
         log.info("Starting server with sample: {}, config: {}, output: {}, threads: {}", sample, config, output, numThreads);
 
         Config config = ConfigUtils.loadConfig(this.config);
-
         if (sample != null) {
             config.plans().setInputFile(adjustName(config.plans().getInputFile()));
         }
-
         config.controller().setOutputDirectory(output);
 
         RoutingService routingService = new RoutingService.Factory(config).create();
+
+        ExecutorService executor = getExecutorService(routingService);
+
         Server server = ServerBuilder.forPort(PORT)
                 .addService(routingService)
                 .addService(ProtoReflectionService.newInstance())
-                .executor(Executors.newFixedThreadPool(numThreads))
+                .executor(executor)
                 .build()
                 .start();
 
@@ -61,6 +67,18 @@ public class RoutingServer implements MATSimAppCommand {
         server.awaitTermination();
 
         return 0;
+    }
+
+    @NotNull
+    private ExecutorService getExecutorService(RoutingService routingService) throws InterruptedException, ExecutionException {
+        // Eagerly initialize ThreadLocals for all threads
+        var executor = Executors.newFixedThreadPool(numThreads);
+        var futures = new ArrayList<Future<?>>();
+        for (int i = 0; i < numThreads; i++) {
+            futures.add(executor.submit(routingService::init));
+        }
+        for (var f : futures) f.get();
+        return executor;
     }
 
     private String adjustName(String name) {

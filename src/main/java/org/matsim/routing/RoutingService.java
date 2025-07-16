@@ -41,6 +41,15 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
         this.scenario = scenarioThreadLocal;
     }
 
+    /**
+     * Initializes the service by loading the Swiss Rail Raptor and scenario.
+     * This method should be called before any routing requests are processed.
+     */
+    public void init() {
+        this.swissRailRaptor.get();
+        this.scenario.get();
+    }
+
     @Override
     public void getRoute(Routing.Request request, StreamObserver<Routing.Response> responseObserver) {
         log.info("Received request for route from {} to {}", request.getFromLinkId(), request.getToLinkId());
