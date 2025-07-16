@@ -6,7 +6,6 @@ import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
-import org.matsim.IdStoreDeserializer;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.network.Link;
@@ -15,9 +14,9 @@ import org.matsim.api.core.v01.population.Leg;
 import org.matsim.api.core.v01.population.Person;
 import org.matsim.api.core.v01.population.PlanElement;
 import org.matsim.core.config.Config;
-import org.matsim.core.controler.Controller;
 import org.matsim.core.controler.ControllerUtils;
 import org.matsim.core.controler.OutputDirectoryHierarchy;
+import org.matsim.core.population.routes.NetworkRoute;
 import org.matsim.core.router.LinkWrapperFacility;
 import org.matsim.core.router.RoutingModule;
 import org.matsim.core.router.RoutingRequest;
@@ -34,12 +33,12 @@ import java.util.Optional;
 
 public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
     private static final Logger log = LogManager.getLogger(RoutingService.class);
-    private final RoutingModule swissRailRaptor;
-    private final Scenario scenario;
+    private final ThreadLocal<RoutingModule> swissRailRaptor;
+    private final ThreadLocal<Scenario> scenario;
 
-    private RoutingService(RoutingModule wrappedRaptorRouter, Scenario scenario) {
-        this.swissRailRaptor = wrappedRaptorRouter;
-        this.scenario = scenario;
+    private RoutingService(ThreadLocal<RoutingModule> raptorThreadLocal, ThreadLocal<Scenario> scenarioThreadLocal) {
+        this.swissRailRaptor = raptorThreadLocal;
+        this.scenario = scenarioThreadLocal;
     }
 
     @Override
@@ -47,7 +46,7 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
         log.info("Received request for route from {} to {}", request.getFromLinkId(), request.getToLinkId());
 
         RoutingRequest raptorRequest = createRaptorRequest(request);
-        List<? extends PlanElement> planElements = swissRailRaptor.calcRoute(raptorRequest);
+        List<? extends PlanElement> planElements = swissRailRaptor.get().calcRoute(raptorRequest);
 
         Routing.Response response = convertToProtoResponse(planElements);
         responseObserver.onNext(response);
@@ -67,13 +66,14 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
             }
         }
 
-        return responseBuilder.build();
+        Routing.Response response = responseBuilder.build();
+        return response;
     }
 
     private Routing.Leg convertToProtoLeg(Leg leg) {
         Routing.Leg.Builder legBuilder = Routing.Leg.newBuilder()
-        .setMode(leg.getMode())
-        .setTravTime((int) leg.getTravelTime().orElseThrow(() -> new IllegalArgumentException("Leg must have travel time")));
+                .setMode(leg.getMode())
+                .setTravTime((int) leg.getTravelTime().orElseThrow(() -> new IllegalArgumentException("Leg must have travel time")));
         leg.getDepartureTime().ifDefined(d -> legBuilder.setDepTime((int) d));
         Optional.ofNullable(leg.getRoutingMode()).ifPresent(legBuilder::setRoutingMode);
 
@@ -98,9 +98,9 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
                 .setDistance(leg.getRoute().getDistance());
         leg.getRoute().getTravelTime().ifDefined(d -> protoGenericRoute.setTravTime((int) d));
 
-        Routing.PtRoute.Builder protoPtRoute = Routing.PtRoute.newBuilder();
-
-        if(leg.getRoute() instanceof DefaultTransitPassengerRoute ptRoute) {
+        if (leg.getRoute() instanceof DefaultTransitPassengerRoute ptRoute) {
+            // PT Route
+            Routing.PtRoute.Builder protoPtRoute = Routing.PtRoute.newBuilder();
             Routing.PtRouteDescription routeDescription = Routing.PtRouteDescription.newBuilder()
                     .setAccessFacilityId(ptRoute.getAccessStopId().toString())
                     .setEgressFacilityId(ptRoute.getEgressStopId().toString())
@@ -109,13 +109,25 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
                     .setTransitLineId(ptRoute.getLineId().toString()).build();
 
             protoPtRoute.setInformation(routeDescription);
+
+            protoPtRoute
+                    .setDelegate(protoGenericRoute.build())
+                    .build();
+
+            legBuilder.setPtRoute(protoPtRoute);
+        } else if (leg.getRoute() instanceof NetworkRoute networkRoute) {
+            //Network Route
+            Routing.NetworkRoute.Builder protoNetworkRoute = Routing.NetworkRoute.newBuilder();
+            for (Id<Link> linkId : networkRoute.getLinkIds()) {
+                protoNetworkRoute.addRoute(linkId.toString());
+            }
+            protoNetworkRoute.setDelegate(protoGenericRoute.build());
+
+            legBuilder.setNetworkRoute(protoNetworkRoute);
+        } else {
+            //Generic Route
+            legBuilder.setGenericRoute(protoGenericRoute);
         }
-
-        protoPtRoute
-                .setDelegate(protoGenericRoute.build())
-                .build();
-
-        legBuilder.setPtRoute(protoPtRoute);
 
         return legBuilder.build();
     }
@@ -142,12 +154,12 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
         return new RoutingRequest() {
             @Override
             public Facility getFromFacility() {
-                return new LinkWrapperFacility(scenario.getNetwork().getLinks().get(fromLink));
+                return new LinkWrapperFacility(scenario.get().getNetwork().getLinks().get(fromLink));
             }
 
             @Override
             public Facility getToFacility() {
-                return new LinkWrapperFacility(scenario.getNetwork().getLinks().get(toLink));
+                return new LinkWrapperFacility(scenario.get().getNetwork().getLinks().get(toLink));
             }
 
             @Override
@@ -167,7 +179,7 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
         };
     }
 
-    public static class Factory{
+    public static class Factory {
         private final Config config;
 
         public Factory(Config config) {
@@ -176,30 +188,13 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
 
         public RoutingService create() {
             config.controller().setOverwriteFileSetting(OutputDirectoryHierarchy.OverwriteFileSetting.deleteDirectoryIfExists);
-            Scenario scenario = ScenarioUtils.loadScenario(config);
-            //Controller controller = ControllerUtils.createController(scenario);
-
-            RoutingModule swissRailRaptor = ControllerUtils.createAdhocInjector(scenario).getInstance(Key.get(RoutingModule.class, Names.named("pt")));
-
-            //RoutingModule swissRailRaptor = controller.getInjector().getInstance(Key.get(RoutingModule.class, Names.named("pt")));
-
-            return new RoutingService(swissRailRaptor, scenario);
-        }
-
-        private void createMatsimIds(Map<Long, List<String>> ids){
-            for (Map.Entry<Long, List<String>> idEntry : ids.entrySet()) {
-                Long type = idEntry.getKey();
-                Class<?> typeClass = IdStoreDeserializer.TYPE_ID_TO_CLASS.get(type);
-
-                if (typeClass == null) {
-                    throw new IllegalArgumentException("Unknown type ID: " + type);
-                }
-
-                List<String> externalIds = idEntry.getValue();
-                for (String externalId : externalIds) {
-                    Id.create(externalId, typeClass);
-                }
-            }
+            // ThreadLocal for Scenario and RoutingModule
+            ThreadLocal<Scenario> scenarioThreadLocal = ThreadLocal.withInitial(() -> ScenarioUtils.loadScenario(config));
+            ThreadLocal<RoutingModule> raptorThreadLocal = ThreadLocal.withInitial(() -> {
+                Scenario scenario = scenarioThreadLocal.get();
+                return ControllerUtils.createAdhocInjector(scenario).getInstance(Key.get(RoutingModule.class, Names.named("pt")));
+            });
+            return new RoutingService(raptorThreadLocal, scenarioThreadLocal);
         }
     }
 }
