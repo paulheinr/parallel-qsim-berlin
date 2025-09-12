@@ -1,14 +1,14 @@
 JAR := parallel-qsim-berlin-*.jar
 BV := v6.4
 
-RUST_BASE := ~/git/parallel_qsim_rust
+RUST_BASE := ~/git/parallel_qsim_rust/rust_qsim
 RUST_BIN := local_qsim
 
 MEMORY ?= 20G
 PCT := 1
 
 java_prepare := java -Xmx$(MEMORY) -XX:+UseParallelGC -cp $(JAR) org.matsim.prepare.RunParallelQSimBerlinPreparation
-java_router := java -Xmx$(MEMORY) -XX:+UseParallelGC -cp $(JAR) org.matsim.routing.MockRoutingServer
+java_router := java -Xmx$(MEMORY) -XX:+UseParallelGC -cp $(JAR) org.matsim.routing.RoutingServer
 
 p := ./input/$(BV)
 op := ./output/$(BV)/$(PCT)pct
@@ -62,7 +62,7 @@ run: prepare
 	else \
 		EXTRA=""; \
 	fi; \
-	CMD="cargo flamegraph --bin $(RUST_BIN) --manifest-path $(RUST_BASE)/Cargo.toml -- --config-path $p/berlin-v6.4.$(PCT)pct.config.yml $$EXTRA $(ARGS)"; \
+	CMD="cargo flamegraph --example $(RUST_BIN) --manifest-path $(RUST_BASE)/Cargo.toml -- --config-path $p/berlin-v6.4.$(PCT)pct.config.yml $$EXTRA $(ARGS)"; \
 	echo "$$CMD"; \
 	eval "$$CMD"
 

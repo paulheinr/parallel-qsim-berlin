@@ -83,7 +83,10 @@ public class RoutingServer implements MATSimAppCommand {
 
     private String adjustName(String name) {
         String postfix = this.sample + "pct";
+        String adjusted = PATTERN.matcher(name).replaceAll(postfix);
 
-        return PATTERN.matcher(name).replaceAll(postfix);
+        log.info("Adjusting name from {} to {}", name, adjusted);
+
+        return adjusted;
     }
 }
