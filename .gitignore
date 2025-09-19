@@ -18,3 +18,5 @@ target/
 
 .idea
 output/
+
+parallel-qsim-berlin*jar
