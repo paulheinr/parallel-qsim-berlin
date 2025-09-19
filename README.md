@@ -11,7 +11,7 @@ Other modes of transport are simulated as in the original MATSim Berlin scenario
 
 Use:
 
-```shell 
+```shell
 make prepare
 ```
 
@@ -19,11 +19,13 @@ make prepare
 
 Performs just one run of the qsim.
 
-Use:
+Note: Running the scenario relies on a local clone of the Parallel QSIM repository https://github.com/matsim-vsp/parallel_qsim_rust. You may separately wish to ensure that you can successfully build Parallel QSIM before attempting the step below which tries to do the same.
+
+Use the following, replacing <DIR> with the path to the cloned Parallel QSIM repository:
 
 ```shell
-make run
-``` 
+make run RUST_BASE=<DIR>
+```
 
 In order to convert the events from protobuf to `.xml.gz` files, run
 
