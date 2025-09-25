@@ -2,6 +2,7 @@ package org.matsim.routing;
 
 import com.google.inject.Key;
 import com.google.inject.name.Names;
+import com.google.protobuf.Empty;
 import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -35,10 +36,12 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
     private static final Logger log = LogManager.getLogger(RoutingService.class);
     private final ThreadLocal<RoutingModule> swissRailRaptor;
     private final ThreadLocal<Scenario> scenario;
+    private final Runnable shutdown;
 
-    private RoutingService(ThreadLocal<RoutingModule> raptorThreadLocal, ThreadLocal<Scenario> scenarioThreadLocal) {
+    private RoutingService(ThreadLocal<RoutingModule> raptorThreadLocal, ThreadLocal<Scenario> scenarioThreadLocal, Runnable shutdown) {
         this.swissRailRaptor = raptorThreadLocal;
         this.scenario = scenarioThreadLocal;
+        this.shutdown = shutdown;
     }
 
     /**
@@ -48,6 +51,14 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
     public void init() {
         this.swissRailRaptor.get();
         this.scenario.get();
+    }
+
+    @Override
+    public void shutdown(Empty request, StreamObserver<Empty> responseObserver) {
+        log.info("Shutting down routing service");
+        responseObserver.onNext(Empty.getDefaultInstance());
+        responseObserver.onCompleted();
+        shutdown.run();
     }
 
     @Override
@@ -188,13 +199,7 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
         };
     }
 
-    public static class Factory {
-        private final Config config;
-
-        public Factory(Config config) {
-            this.config = config;
-        }
-
+    public record Factory(Config config, Runnable shutdown) {
         public RoutingService create() {
             config.controller().setOverwriteFileSetting(OutputDirectoryHierarchy.OverwriteFileSetting.deleteDirectoryIfExists);
             // ThreadLocal for Scenario and RoutingModule
@@ -203,7 +208,7 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
                 Scenario scenario = scenarioThreadLocal.get();
                 return ControllerUtils.createAdhocInjector(scenario).getInstance(Key.get(RoutingModule.class, Names.named("pt")));
             });
-            return new RoutingService(raptorThreadLocal, scenarioThreadLocal);
+            return new RoutingService(raptorThreadLocal, scenarioThreadLocal, shutdown);
         }
     }
 }

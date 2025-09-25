@@ -13,10 +13,8 @@ import picocli.CommandLine;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 public class RoutingServer implements MATSimAppCommand {
@@ -52,10 +50,10 @@ public class RoutingServer implements MATSimAppCommand {
         }
         config.controller().setOutputDirectory(output);
 
-        RoutingService routingService = new RoutingService.Factory(config).create();
+        AtomicReference<Server> serverRef = new AtomicReference<>();
+        RoutingService routingService = getRoutingService(serverRef, config);
 
         ExecutorService executor = getExecutorService(routingService);
-
         Server server = ServerBuilder.forPort(PORT)
                 .addService(routingService)
                 .addService(ProtoReflectionService.newInstance())
@@ -63,18 +61,45 @@ public class RoutingServer implements MATSimAppCommand {
                 .build()
                 .start();
 
+        serverRef.set(server);
+
         log.info("Server started on port {}", PORT);
         server.awaitTermination();
 
+        log.info("Server stopped");
+        System.exit(0);
         return 0;
     }
 
     @NotNull
+    private static RoutingService getRoutingService(AtomicReference<Server> serverRef, Config config) {
+        // use a shutdown hook to stop the server gracefully when it gets a shutdown signal
+        Runnable shutdown = () -> {
+            log.info("Running shutdown hook");
+            Server s = serverRef.get();
+            if (s == null) return;
+            s.shutdown(); // graceful: stop accepting new calls; let in-flight finish
+            try {
+                if (!s.awaitTermination(10, TimeUnit.SECONDS)) {
+                    s.shutdownNow(); // force if not done in time
+                }
+            } catch (InterruptedException e) {
+                s.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        };
+
+        return new RoutingService.Factory(config, shutdown).create();
+    }
+
+    @NotNull
     private ExecutorService getExecutorService(RoutingService routingService) throws InterruptedException, ExecutionException {
-        // Eagerly initialize ThreadLocals for all threads
+        // Create a thread pool with threads initialized with the routing service. This works because the routing service has thread local variables.
+        // (Ahhh, this implicit threading in java is crap... :( paul, sep '25)
         var executor = Executors.newFixedThreadPool(numThreads);
         var futures = new ArrayList<Future<?>>();
         for (int i = 0; i < numThreads; i++) {
+            // Eagerly initialize ThreadLocals for all threads
             futures.add(executor.submit(routingService::init));
         }
         for (var f : futures) f.get();
