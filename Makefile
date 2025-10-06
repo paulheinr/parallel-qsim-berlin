@@ -67,7 +67,12 @@ run: prepare
 	eval "$$CMD"
 
 run-routing: prepare
-	$(MAKE) run --release RUST_BIN=local_qsim_routing ARGS="--set routing.mode=ad-hoc --router-ip http://localhost:50051"
+		@if [ -n "$(URL)" ]; then \
+			ROUTER_URL="$(URL)"; \
+		else \
+			ROUTER_URL="http://localhost:50051"; \
+		fi; \
+		$(MAKE) run --release RUST_BIN=local_qsim_routing ARGS="--set routing.mode=ad-hoc --router-ip $$ROUTER_URL"
 
 convert-events:
 	cargo run --bin proto2xml --release --manifest-path $(RUST_BASE)/Cargo.toml -- \
