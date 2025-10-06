@@ -43,7 +43,7 @@ $(op)/berlin-$(BV).config.xml:
 	curl https://raw.githubusercontent.com/matsim-scenarios/matsim-berlin/refs/heads/main/input/$(BV)/berlin-$(BV).config.xml -o $@
 
 $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb: $(op)/berlin-$(BV)-$(PCT)pct.plans-filtered.xml.gz $(op)/berlin-$(BV)-vehicleTypes-including-walk-pt.xml $(op)/berlin-$(BV).network.xml.gz $(op)/berlin-$(BV)-transitSchedule.xml.gz
-	cargo run --bin convert_to_binary --manifest-path $(RUST_BASE)/Cargo.toml  -- \
+	cargo run --release --bin convert_to_binary --manifest-path $(RUST_BASE)/Cargo.toml  -- \
 		--network $(op)/berlin-$(BV).network.xml.gz\
 		--population $(op)/berlin-$(BV)-$(PCT)pct.plans-filtered.xml.gz\
 		--vehicles $(op)/berlin-$(BV)-vehicleTypes-including-walk-pt.xml\
@@ -62,12 +62,12 @@ run: prepare
 	else \
 		EXTRA=""; \
 	fi; \
-	CMD="cargo run --example $(RUST_BIN) --manifest-path $(RUST_BASE)/Cargo.toml -- --config-path $p/berlin-v6.4.$(PCT)pct.config.yml $$EXTRA $(ARGS)"; \
+	CMD="cargo run --release --example $(RUST_BIN) --manifest-path $(RUST_BASE)/Cargo.toml -- --config-path $p/berlin-v6.4.$(PCT)pct.config.yml $$EXTRA $(ARGS)"; \
 	echo "$$CMD"; \
 	eval "$$CMD"
 
 run-routing: prepare
-	$(MAKE) run RUST_BIN=local_qsim_routing ARGS="--set routing.mode=ad-hoc --router-ip http://localhost:50051"
+	$(MAKE) run --release RUST_BIN=local_qsim_routing ARGS="--set routing.mode=ad-hoc --router-ip http://localhost:50051"
 
 convert-events:
 	cargo run --bin proto2xml --release --manifest-path $(RUST_BASE)/Cargo.toml -- \
