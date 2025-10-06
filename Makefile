@@ -95,4 +95,6 @@ router: $(JAR) $(op)/berlin-$(BV).config.xml
 	else \
 		EXTRA=""; \
 	fi; \
-	$(java_router) --config $(op)/berlin-$(BV).config.xml --sample $(N) --output $(op)/routing $(EXTRA)
+	CMD="$(java_router) --config $(op)/berlin-$(BV).config.xml --sample $(PCT) --output $(op)/routing $(EXTRA)"; \
+	echo "$$CMD"; \
+	eval "$$CMD"
