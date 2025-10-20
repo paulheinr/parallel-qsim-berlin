@@ -1,11 +1,13 @@
 JAR := parallel-qsim-berlin-*.jar
 BV := v6.4
 
-RUST_BASE := ~/git/parallel_qsim_rust/rust_qsim
+RUST_BASE := ~/git/parallel_qsim_rust
 RUST_BIN := local_qsim
 
 MEMORY ?= 20G
 PCT := 1
+
+MODE ?= cargo
 
 java_prepare := java -Xmx$(MEMORY) -XX:+UseParallelGC -cp $(JAR) org.matsim.prepare.RunParallelQSimBerlinPreparation
 java_router := java -Xmx$(MEMORY) -XX:+UseParallelGC -cp $(JAR) org.matsim.routing.RoutingServer
@@ -43,7 +45,12 @@ $(op)/berlin-$(BV).config.xml:
 	curl https://raw.githubusercontent.com/matsim-scenarios/matsim-berlin/refs/heads/main/input/$(BV)/berlin-$(BV).config.xml -o $@
 
 $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb: $(op)/berlin-$(BV)-$(PCT)pct.plans-filtered.xml.gz $(op)/berlin-$(BV)-vehicleTypes-including-walk-pt.xml $(op)/berlin-$(BV).network.xml.gz $(op)/berlin-$(BV)-transitSchedule.xml.gz
-	cargo run --release --bin convert_to_binary --manifest-path $(RUST_BASE)/Cargo.toml  -- \
+	if [ "$(MODE)" = "bin" ]; then \
+		RUNNER="$(RUST_BASE)/target/release/convert_to_binary"; \
+	else \
+		RUNNER="cargo run --release --bin convert_to_binary --manifest-path $(RUST_BASE)/Cargo.toml --"; \
+	fi; \
+	eval "$$RUNNER \
 		--network $(op)/berlin-$(BV).network.xml.gz\
 		--population $(op)/berlin-$(BV)-$(PCT)pct.plans-filtered.xml.gz\
 		--vehicles $(op)/berlin-$(BV)-vehicleTypes-including-walk-pt.xml\
@@ -62,7 +69,12 @@ run: prepare
 	else \
 		EXTRA=""; \
 	fi; \
-	CMD="cargo run --release --example $(RUST_BIN) --manifest-path $(RUST_BASE)/Cargo.toml -- --config-path $p/berlin-v6.4.$(PCT)pct.config.yml $$EXTRA $(ARGS)"; \
+	if [ "$(MODE)" = "bin" ]; then \
+		RUNNER="$(RUST_BASE)/target/release/examples/$(RUST_BIN)"; \
+	else \
+		RUNNER="cargo run --release --example $(RUST_BIN) --manifest-path $(RUST_BASE)/Cargo.toml --"; \
+	fi; \
+	CMD="$$RUNNER --config-path $p/berlin-v6.4.$(PCT)pct.config.yml $$EXTRA $(ARGS)"; \
 	echo "$$CMD"; \
 	eval "$$CMD"
 
@@ -75,16 +87,26 @@ run-routing: prepare
 		$(MAKE) run RUST_BIN=local_qsim_routing ARGS="--set routing.mode=ad-hoc --router-ip $$ROUTER_URL"
 
 convert-events:
-	cargo run --release --bin proto2xml --manifest-path $(RUST_BASE)/Cargo.toml -- \
+	if [ "$(MODE)" = "bin" ]; then \
+  	    RUNNER="$(RUST_BASE)/target/release/proto2xml"; \
+  	else \
+  		RUNNER="cargo run --release --bin proto2xml --manifest-path $(RUST_BASE)/Cargo.toml --"; \
+  	fi; \
+	eval "$$RUNNER \
 		--path $(op)/ \
 		--id-store $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb \
-		--num-parts $(N)
+		--num-parts $(N)"
 
 convert-network:
-	cargo run --release --bin convert_to_xml --manifest-path $(RUST_BASE)/Cargo.toml \
+	if [ "$(MODE)" = "bin" ]; then \
+		RUNNER="$(RUST_BASE)/target/release/convert_to_xml"; \
+	else \
+		RUNNER="cargo run --release --bin convert_to_xml --manifest-path $(RUST_BASE)/Cargo.toml --"; \
+	fi; \
+	eval "$$RUNNER \
 		--ids $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb\
 		--network $(op)/berlin-$(BV)-$(PCT)pct.network.$(N).binpb\
-		--vehicles $(op)/binpb/berlin-$(BV)-$(PCT)pct.vehicles.binpb
+		--vehicles $(op)/binpb/berlin-$(BV)-$(PCT)pct.vehicles.binpb"
 
 clean:
 	rm -rf $(op)
