@@ -28,20 +28,26 @@ import org.matsim.utils.objectattributes.attributable.Attributes;
 import routing.Routing;
 import routing.RoutingServiceGrpc;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
     private static final Logger log = LogManager.getLogger(RoutingService.class);
     private final ThreadLocal<RoutingModule> swissRailRaptor;
     private final ThreadLocal<Scenario> scenario;
     private final Runnable shutdown;
+    private final Config config;
+    private Map<String, Integer> threadNums = new HashMap<>();
+    private final ConcurrentMap<Integer, List<ProfilingEntry>> profilingEntries = new ConcurrentHashMap<>(10);
 
-    private RoutingService(ThreadLocal<RoutingModule> raptorThreadLocal, ThreadLocal<Scenario> scenarioThreadLocal, Runnable shutdown) {
+    private RoutingService(ThreadLocal<RoutingModule> raptorThreadLocal, ThreadLocal<Scenario> scenarioThreadLocal, Runnable shutdown, Config config) {
         this.swissRailRaptor = raptorThreadLocal;
         this.scenario = scenarioThreadLocal;
         this.shutdown = shutdown;
+        this.config = config;
     }
 
     /**
@@ -55,15 +61,23 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
 
     @Override
     public void shutdown(Empty request, StreamObserver<Empty> responseObserver) {
+        log.info("Received shutdown request");
+        writeProfilingEntries();
+
         log.info("Shutting down routing service");
         responseObserver.onNext(Empty.getDefaultInstance());
         responseObserver.onCompleted();
-        shutdown.run();
+        new Thread(shutdown).start();
     }
 
     @Override
     public void getRoute(Routing.Request request, StreamObserver<Routing.Response> responseObserver) {
+        long startTime = System.nanoTime();
+
         log.info("Received request for route from {} to {}", request.getFromLinkId(), request.getToLinkId());
+        log.info("Thread: {}", Thread.currentThread().getName());
+        Integer threadNum = threadNums.computeIfAbsent(Thread.currentThread().getName(), s -> Integer.valueOf(s.substring(s.lastIndexOf('-') + 1)));
+        List<ProfilingEntry> pe = profilingEntries.computeIfAbsent(threadNum, s -> new ArrayList<>());
 
         RoutingRequest raptorRequest = createRaptorRequest(request);
         List<? extends PlanElement> planElements = swissRailRaptor.get().calcRoute(raptorRequest);
@@ -71,6 +85,12 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
         Routing.Response response = convertToProtoResponse(planElements);
         responseObserver.onNext(response);
         responseObserver.onCompleted();
+
+        long endTime = System.nanoTime();
+
+        int travelTime = response.getLegsList().stream().mapToInt(Routing.Leg::getTravTime).sum();
+        var p = new ProfilingEntry(threadNum, request.getNow(), request.getDepartureTime(), request.getFromLinkId(), request.getToLinkId(), startTime, endTime - startTime, travelTime);
+        pe.add(p);
     }
 
     private Routing.Response convertToProtoResponse(List<? extends PlanElement> planElements) {
@@ -199,16 +219,43 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
         };
     }
 
+    private void writeProfilingEntries() {
+        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
+        String t = LocalDateTime.now().format(dateTimeFormatter);
+        String outputFile = config.controller().getOutputDirectory() + "/routing-profiling-" + t + ".csv";
+
+        log.info("Writing profiling entries to file: {}", outputFile);
+
+        List<ProfilingEntry> allEntries = this.profilingEntries.values().stream().flatMap(Collection::stream).sorted(Comparator.comparingInt(e -> e.simulationNow)).toList();
+
+        try (java.io.BufferedWriter writer = java.nio.file.Files.newBufferedWriter(java.nio.file.Paths.get(outputFile))) {
+            writer.write("thread, now, departure_time, from, to, start, duration_ns, travel_time_s");
+            writer.newLine();
+            for (ProfilingEntry profilingEntry : allEntries) {
+                writer.write(profilingEntry.thread + "," + profilingEntry.simulationNow + "," + profilingEntry.departureTime + "," + profilingEntry.from + "," + profilingEntry.to + "," + profilingEntry.duration + "," + profilingEntry.travelTime);
+                writer.newLine();
+            }
+        } catch (java.io.IOException e) {
+            log.error("Error writing to file: {}", outputFile, e);
+            throw new RuntimeException(e);
+        }
+    }
+
     public record Factory(Config config, Runnable shutdown) {
         public RoutingService create() {
-            config.controller().setOverwriteFileSetting(OutputDirectoryHierarchy.OverwriteFileSetting.deleteDirectoryIfExists);
+            config.controller().setOverwriteFileSetting(OutputDirectoryHierarchy.OverwriteFileSetting.overwriteExistingFiles);
             // ThreadLocal for Scenario and RoutingModule
             ThreadLocal<Scenario> scenarioThreadLocal = ThreadLocal.withInitial(() -> ScenarioUtils.loadScenario(config));
             ThreadLocal<RoutingModule> raptorThreadLocal = ThreadLocal.withInitial(() -> {
                 Scenario scenario = scenarioThreadLocal.get();
                 return ControllerUtils.createAdhocInjector(scenario).getInstance(Key.get(RoutingModule.class, Names.named("pt")));
             });
-            return new RoutingService(raptorThreadLocal, scenarioThreadLocal, shutdown);
+            return new RoutingService(raptorThreadLocal, scenarioThreadLocal, shutdown, config);
         }
+    }
+
+    private record ProfilingEntry(int thread, int simulationNow, long departureTime, String from, String to,
+                                  long start, long duration, int travelTime) {
+
     }
 }

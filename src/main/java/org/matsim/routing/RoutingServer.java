@@ -1,5 +1,6 @@
 package org.matsim.routing;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.protobuf.services.ProtoReflectionService;
@@ -94,9 +95,12 @@ public class RoutingServer implements MATSimAppCommand {
 
     @NotNull
     private ExecutorService getExecutorService(RoutingService routingService) throws InterruptedException, ExecutionException {
+        log.info("Initializing {} threads", numThreads);
+
         // Create a thread pool with threads initialized with the routing service. This works because the routing service has thread local variables.
         // (Ahhh, this implicit threading in java is crap... :( paul, sep '25)
-        var executor = Executors.newFixedThreadPool(numThreads);
+        ThreadFactory factory = new ThreadFactoryBuilder().setNameFormat("router-%d").build();
+        var executor = Executors.newFixedThreadPool(numThreads, factory);
         var futures = new ArrayList<Future<?>>();
         for (int i = 0; i < numThreads; i++) {
             // Eagerly initialize ThreadLocals for all threads

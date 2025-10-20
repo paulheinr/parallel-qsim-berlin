@@ -78,7 +78,7 @@ public class ProfileRouting implements MATSimAppCommand {
 
         long startTime = System.nanoTime();
         Routing.Response response = routingService.getRoute(request);
-        int sum = response.getLegsList().stream().mapToInt(l -> l.getTravTime()).sum();
+        int sum = response.getLegsList().stream().mapToInt(Routing.Leg::getTravTime).sum();
         long endTime = System.nanoTime();
         return new R(endTime - startTime, sum);
     }

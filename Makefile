@@ -72,16 +72,16 @@ run-routing: prepare
 		else \
 			ROUTER_URL="http://localhost:50051"; \
 		fi; \
-		$(MAKE) run --release RUST_BIN=local_qsim_routing ARGS="--set routing.mode=ad-hoc --router-ip $$ROUTER_URL"
+		$(MAKE) run RUST_BIN=local_qsim_routing ARGS="--set routing.mode=ad-hoc --router-ip $$ROUTER_URL"
 
 convert-events:
-	cargo run --bin proto2xml --release --manifest-path $(RUST_BASE)/Cargo.toml -- \
+	cargo run --release --bin proto2xml --manifest-path $(RUST_BASE)/Cargo.toml -- \
 		--path $(op)/ \
 		--id-store $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb \
 		--num-parts $(N)
 
 convert-network:
-	cargo run --bin convert_to_xml --release --manifest-path $(RUST_BASE)/Cargo.toml \
+	cargo run --release --bin convert_to_xml --manifest-path $(RUST_BASE)/Cargo.toml \
 		--ids $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb\
 		--network $(op)/berlin-$(BV)-$(PCT)pct.network.$(N).binpb\
 		--vehicles $(op)/binpb/berlin-$(BV)-$(PCT)pct.vehicles.binpb
@@ -95,6 +95,6 @@ router: $(JAR) $(op)/berlin-$(BV).config.xml
 	else \
 		EXTRA=""; \
 	fi; \
-	CMD="$(java_router) --config $(op)/berlin-$(BV).config.xml --sample $(PCT) --output $(op)/routing $(EXTRA)"; \
+	CMD="$(java_router) --config $(op)/berlin-$(BV).config.xml --sample $(PCT) --output $(op)/routing $$EXTRA"; \
 	echo "$$CMD"; \
 	eval "$$CMD"
