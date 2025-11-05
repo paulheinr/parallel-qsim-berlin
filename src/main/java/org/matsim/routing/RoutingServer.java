@@ -31,6 +31,9 @@ public class RoutingServer implements MATSimAppCommand {
     @CommandLine.Option(names = "--config", description = "Path to config", required = true)
     private String config;
 
+    @CommandLine.Option(names = "--localFiles", description = "Use local MATSim files instead of SVN")
+    private boolean localFiles = false;
+
     @CommandLine.Option(names = "--output", description = "Base output directory for the server", required = true)
     private String output;
 
@@ -50,6 +53,14 @@ public class RoutingServer implements MATSimAppCommand {
             config.plans().setInputFile(adjustName(config.plans().getInputFile()));
         }
         config.controller().setOutputDirectory(output);
+
+        // we do not need plans and counts on the server side
+        config.plans().setInputFile(null);
+        config.counts().setInputFile(null);
+
+        if (localFiles) {
+            adaptToLocalFileNames(config);
+        }
 
         AtomicReference<Server> serverRef = new AtomicReference<>();
         RoutingService routingService = getRoutingService(serverRef, config);
@@ -117,5 +128,16 @@ public class RoutingServer implements MATSimAppCommand {
         log.info("Adjusting name from {} to {}", name, adjusted);
 
         return adjusted;
+    }
+
+    private void adaptToLocalFileNames(Config config) {
+        config.network().setInputFile(fileNameFromUrl(config.network().getInputFile()));
+        config.transit().setTransitScheduleFile(fileNameFromUrl(config.transit().getTransitScheduleFile()));
+        config.vehicles().setVehiclesFile(fileNameFromUrl(config.vehicles().getVehiclesFile()));
+        config.facilities().setInputFile(fileNameFromUrl(config.facilities().getInputFile()));
+    }
+
+    private String fileNameFromUrl(String url) {
+        return url.substring(url.lastIndexOf('/') + 1);
     }
 }
