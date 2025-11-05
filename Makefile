@@ -10,7 +10,8 @@ PCT := 1
 MODE ?= cargo
 
 java_prepare := java -Xmx$(MEMORY) -XX:+UseParallelGC -cp $(JAR) org.matsim.prepare.RunParallelQSimBerlinPreparation
-java_router := java -Xmx$(MEMORY) -XX:+UseParallelGC -cp $(JAR) org.matsim.routing.RoutingServer
+# prefer local DTDs to avoid network access (i.e. on hpc clusters)
+java_router := java -Xmx$(MEMORY) -XX:+UseParallelGC -Dmatsim.preferLocalDtds=true -cp $(JAR) org.matsim.routing.RoutingServer
 
 p := ./input/$(BV)
 op := ./output/$(BV)/$(PCT)pct
