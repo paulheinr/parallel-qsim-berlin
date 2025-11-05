@@ -117,7 +117,14 @@ convert-network:
 clean:
 	rm -rf $(op)
 
-router: $(JAR) $(op)/berlin-$(BV).config.xml $(op)/berlin-$(BV)-facilities.xml.gz $(op)/berlin-$(BV)-network-with-pt.xml.gz $(op)/berlin-$(BV)-vehicleTypes.xml
+router-deps: $(JAR) \
+             $(op)/berlin-$(BV).config.xml \
+             $(op)/berlin-$(BV)-facilities.xml.gz \
+             $(op)/berlin-$(BV)-network-with-pt.xml.gz \
+             $(op)/berlin-$(BV)-vehicleTypes.xml
+	@echo "Dependencies for router are up to date."
+
+router: router-deps
 	@if [ -n "$(THREADS)" ]; then \
 		EXTRA="--threads $(THREADS)"; \
 	else \
