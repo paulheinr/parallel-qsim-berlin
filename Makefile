@@ -62,7 +62,7 @@ $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb: $(op)/berlin-$(BV)-$(PCT)pct.plans
 		--vehicles $(op)/berlin-$(BV)-vehicleTypes-including-walk-pt.xml\
 		--transit-schedule $(op)/berlin-$(BV)-transitSchedule.xml.gz\
 		--output-dir $(op)\
-		--run-id binpb/berlin-$(BV)-$(PCT)pct
+		--run-id binpb/berlin-$(BV)-$(PCT)pct"
 
 mk-output-folders:
 	mkdir -p $(op)/binpb
