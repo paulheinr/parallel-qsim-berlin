@@ -31,6 +31,9 @@ $(op)/berlin-$(BV)-$(PCT)pct.plans.xml.gz:
 $(op)/berlin-$(BV)-transitSchedule.xml.gz:
 	curl https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/berlin/berlin-$(BV)/input/$(notdir $@) -o $@
 
+$(op)/berlin-$(BV)-transitVehicles.xml.gz:
+	curl https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/berlin/berlin-$(BV)/input/$(notdir $@) -o $@
+
 $(op)/berlin-$(BV)-vehicleTypes.xml:
 	curl https://raw.githubusercontent.com/matsim-scenarios/matsim-berlin/refs/heads/main/input/$(BV)/$(notdir $@) -o $@
 
@@ -121,7 +124,8 @@ router-deps: $(JAR) \
              $(op)/berlin-$(BV).config.xml \
              $(op)/berlin-$(BV)-facilities.xml.gz \
              $(op)/berlin-$(BV)-network-with-pt.xml.gz \
-             $(op)/berlin-$(BV)-vehicleTypes.xml
+             $(op)/berlin-$(BV)-vehicleTypes.xml \
+             $(op)/berlin-$(BV)-transitVehicles.xml.gz
 	@echo "Dependencies for router are up to date."
 
 router: router-deps

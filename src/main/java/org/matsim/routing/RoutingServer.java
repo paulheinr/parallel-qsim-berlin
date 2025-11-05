@@ -133,6 +133,7 @@ public class RoutingServer implements MATSimAppCommand {
     private void adaptToLocalFileNames(Config config) {
         config.network().setInputFile(fileNameFromUrl(config.network().getInputFile()));
         config.transit().setTransitScheduleFile(fileNameFromUrl(config.transit().getTransitScheduleFile()));
+        config.transit().setVehiclesFile(fileNameFromUrl(config.transit().getVehiclesFile()));
         config.vehicles().setVehiclesFile(fileNameFromUrl(config.vehicles().getVehiclesFile()));
         config.facilities().setInputFile(fileNameFromUrl(config.facilities().getInputFile()));
     }
