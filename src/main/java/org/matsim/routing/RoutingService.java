@@ -15,6 +15,9 @@ import org.matsim.api.core.v01.population.Leg;
 import org.matsim.api.core.v01.population.Person;
 import org.matsim.api.core.v01.population.PlanElement;
 import org.matsim.core.config.Config;
+import org.matsim.core.config.ConfigReader;
+import org.matsim.core.config.ConfigUtils;
+import org.matsim.core.config.ConfigWriter;
 import org.matsim.core.controler.ControllerUtils;
 import org.matsim.core.controler.OutputDirectoryHierarchy;
 import org.matsim.core.population.routes.NetworkRoute;
@@ -28,11 +31,16 @@ import org.matsim.utils.objectattributes.attributable.Attributes;
 import routing.Routing;
 import routing.RoutingServiceGrpc;
 
+import java.io.ByteArrayOutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
     private static final Logger log = LogManager.getLogger(RoutingService.class);
@@ -244,8 +252,26 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
     public record Factory(Config config, Runnable shutdown) {
         public RoutingService create() {
             config.controller().setOverwriteFileSetting(OutputDirectoryHierarchy.OverwriteFileSetting.overwriteExistingFiles);
+
+            // Serialize config to byte array and create ThreadLocal copies
+            // This is necessary because the config is modified during scenario loading (consistency checks are added in Constructor of NewControler),
+            // consequently java.util.ConcurrentModificationException MIGHT be thrown (not always)
+            URL context = config.getContext();
+            ByteArrayOutputStream stream = new ByteArrayOutputStream();
+            Writer writer = new OutputStreamWriter(stream);
+            new ConfigWriter(config).writeStream(writer);
+            AtomicReference<byte[]> byteArray = new AtomicReference<>(stream.toByteArray());
+
+            ThreadLocal<Config> configThreadLocal = ThreadLocal.withInitial(() -> {
+                Config cfg = ConfigUtils.createConfig();
+                ConfigReader reader = new ConfigReader(cfg);
+                reader.readStream(new java.io.ByteArrayInputStream(byteArray.get()));
+                cfg.setContext(context);
+                return cfg;
+            });
+
             // ThreadLocal for Scenario and RoutingModule
-            ThreadLocal<Scenario> scenarioThreadLocal = ThreadLocal.withInitial(() -> ScenarioUtils.loadScenario(config));
+            ThreadLocal<Scenario> scenarioThreadLocal = ThreadLocal.withInitial(() -> ScenarioUtils.loadScenario(configThreadLocal.get()));
             ThreadLocal<RoutingModule> raptorThreadLocal = ThreadLocal.withInitial(() -> {
                 Scenario scenario = scenarioThreadLocal.get();
                 return ControllerUtils.createAdhocInjector(scenario).getInstance(Key.get(RoutingModule.class, Names.named("pt")));
