@@ -50,6 +50,7 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
     private final Config config;
     private Map<String, Integer> threadNums = new HashMap<>();
     private final ConcurrentMap<Integer, List<ProfilingEntry>> profilingEntries = new ConcurrentHashMap<>(10);
+    private int lastNow = -1;
 
     private RoutingService(ThreadLocal<RoutingModule> raptorThreadLocal, ThreadLocal<Scenario> scenarioThreadLocal, Runnable shutdown, Config config) {
         this.swissRailRaptor = raptorThreadLocal;
@@ -80,13 +81,15 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
 
     @Override
     public void getRoute(Routing.Request request, StreamObserver<Routing.Response> responseObserver) {
-        long startTime = System.nanoTime();
-
-        log.info("Received request for route from {} to {}", request.getFromLinkId(), request.getToLinkId());
-        log.info("Thread: {}", Thread.currentThread().getName());
         Integer threadNum = threadNums.computeIfAbsent(Thread.currentThread().getName(), s -> Integer.valueOf(s.substring(s.lastIndexOf('-') + 1)));
         List<ProfilingEntry> pe = profilingEntries.computeIfAbsent(threadNum, s -> new ArrayList<>());
 
+        if (threadNum == 0 && lastNow < request.getNow() && lastNow / 3600 != request.getNow() / 3600) {
+            log.info("Received route request for simulation hour {}:00", String.format("%02d", request.getNow() / 3600));
+            lastNow = request.getNow();
+        }
+
+        long startTime = System.nanoTime();
         RoutingRequest raptorRequest = createRaptorRequest(request);
         List<? extends PlanElement> planElements = swissRailRaptor.get().calcRoute(raptorRequest);
 
