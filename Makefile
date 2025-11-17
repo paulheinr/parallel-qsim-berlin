@@ -21,6 +21,10 @@ op := ./output/$(BV)/$(PCT)pct
 $(JAR):
 	./mvnw clean package -DskipTests
 
+rebuild-jar:
+	find . -name $(JAR) -type f -delete
+	./mvnw clean package -DskipTests
+
 $(op)/berlin-$(BV)-$(PCT)pct.plans-filtered.xml.gz: $(op)/berlin-$(BV)-$(PCT)pct.plans.xml.gz $(JAR)
 	$(java_prepare) prepare filter-population\
 		--input $<\

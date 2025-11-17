@@ -15,11 +15,13 @@ message Request {
   string mode = 4;
   uint64 departure_time = 5;
   uint32 now = 6;
+  bytes request_id = 7;
 }
 
 message Response {
   repeated Leg legs = 1;
   repeated Activity activities = 2;
+  bytes request_id = 3;
 }
 
 message Activity {

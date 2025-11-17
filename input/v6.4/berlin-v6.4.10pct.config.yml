@@ -17,6 +17,7 @@ modules:
     type: Output
     output_dir: ../../output/v6.4/10pct
     write_events: Proto
+    logging: Info
   routing:
     type: Routing
     mode: UsePlans

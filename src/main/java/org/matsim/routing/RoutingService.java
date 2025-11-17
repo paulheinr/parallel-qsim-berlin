@@ -2,6 +2,7 @@ package org.matsim.routing;
 
 import com.google.inject.Key;
 import com.google.inject.name.Names;
+import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
@@ -48,7 +49,7 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
     private final ThreadLocal<Scenario> scenario;
     private final Runnable shutdown;
     private final Config config;
-    private Map<String, Integer> threadNums = new HashMap<>();
+    private final ConcurrentMap<String, Integer> threadNums = new ConcurrentHashMap<>();
     private final ConcurrentMap<Integer, List<ProfilingEntry>> profilingEntries = new ConcurrentHashMap<>(10);
     private int lastNow = -1;
 
@@ -89,11 +90,13 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
             lastNow = request.getNow();
         }
 
+        ByteString requestId = request.getRequestId();
+
         long startTime = System.nanoTime();
         RoutingRequest raptorRequest = createRaptorRequest(request);
         List<? extends PlanElement> planElements = swissRailRaptor.get().calcRoute(raptorRequest);
 
-        Routing.Response response = convertToProtoResponse(planElements);
+        Routing.Response response = convertToProtoResponse(planElements, requestId);
         responseObserver.onNext(response);
         responseObserver.onCompleted();
 
@@ -104,7 +107,7 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
         pe.add(p);
     }
 
-    private Routing.Response convertToProtoResponse(List<? extends PlanElement> planElements) {
+    private Routing.Response convertToProtoResponse(List<? extends PlanElement> planElements, ByteString requestId) {
         Routing.Response.Builder responseBuilder = Routing.Response.newBuilder();
 
         for (PlanElement element : planElements) {
@@ -117,8 +120,9 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
             }
         }
 
-        Routing.Response response = responseBuilder.build();
-        return response;
+        responseBuilder.setRequestId(requestId);
+
+        return responseBuilder.build();
     }
 
     private Routing.Leg convertToProtoLeg(Leg leg) {
