@@ -5,6 +5,8 @@ import com.google.inject.name.Names;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import io.grpc.stub.StreamObserver;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -35,6 +37,7 @@ import routing.RoutingServiceGrpc;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
+import java.math.BigInteger;
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -50,7 +53,7 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
     private final Runnable shutdown;
     private final Config config;
     private final ConcurrentMap<String, Integer> threadNums = new ConcurrentHashMap<>();
-    private final ConcurrentMap<Integer, List<ProfilingEntry>> profilingEntries = new ConcurrentHashMap<>(10);
+    private final ConcurrentMap<Integer, List<ProfilingEntry>> profilingEntries = new ConcurrentHashMap<>(600_000);
     private int lastNow = -1;
 
     private RoutingService(ThreadLocal<RoutingModule> raptorThreadLocal, ThreadLocal<Scenario> scenarioThreadLocal, Runnable shutdown, Config config) {
@@ -103,7 +106,7 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
         long endTime = System.nanoTime();
 
         int travelTime = response.getLegsList().stream().mapToInt(Routing.Leg::getTravTime).sum();
-        var p = new ProfilingEntry(threadNum, request.getNow(), request.getDepartureTime(), request.getFromLinkId(), request.getToLinkId(), startTime, endTime - startTime, travelTime);
+        var p = new ProfilingEntry(threadNum, request.getNow(), request.getDepartureTime(), request.getFromLinkId(), request.getToLinkId(), startTime, endTime - startTime, travelTime, requestId);
         pe.add(p);
     }
 
@@ -243,12 +246,20 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
 
         List<ProfilingEntry> allEntries = this.profilingEntries.values().stream().flatMap(Collection::stream).sorted(Comparator.comparingInt(e -> e.simulationNow)).toList();
 
-        try (java.io.BufferedWriter writer = java.nio.file.Files.newBufferedWriter(java.nio.file.Paths.get(outputFile))) {
-            writer.write("thread, now, departure_time, from, to, start, duration_ns, travel_time_s");
-            writer.newLine();
+        try (java.io.BufferedWriter writer = java.nio.file.Files.newBufferedWriter(java.nio.file.Paths.get(outputFile));
+             CSVPrinter csv = new CSVPrinter(writer, CSVFormat.DEFAULT.builder().setHeader("thread", "now", "departure_time", "from", "to", "start", "duration_ns", "travel_time_s", "request_id").build())) {
             for (ProfilingEntry profilingEntry : allEntries) {
-                writer.write(profilingEntry.thread + "," + profilingEntry.simulationNow + "," + profilingEntry.departureTime + "," + profilingEntry.from + "," + profilingEntry.to + "," + profilingEntry.duration + "," + profilingEntry.travelTime);
-                writer.newLine();
+                csv.printRecord(
+                        profilingEntry.thread,
+                        profilingEntry.simulationNow,
+                        profilingEntry.departureTime,
+                        profilingEntry.from,
+                        profilingEntry.to,
+                        profilingEntry.start,
+                        profilingEntry.duration,
+                        profilingEntry.travelTime,
+                        new BigInteger(1, profilingEntry.requestId.toByteArray()).toString()
+                );
             }
         } catch (java.io.IOException e) {
             log.error("Error writing to file: {}", outputFile, e);
@@ -288,7 +299,7 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
     }
 
     private record ProfilingEntry(int thread, int simulationNow, long departureTime, String from, String to,
-                                  long start, long duration, int travelTime) {
+                                  long start, long duration, int travelTime, ByteString requestId) {
 
     }
 }
