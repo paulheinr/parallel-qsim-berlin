@@ -3,13 +3,10 @@ package org.matsim.prepare;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.matsim.api.core.v01.Id;
-import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.population.*;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.application.prepare.population.CleanPopulation;
 import org.matsim.core.population.PopulationUtils;
-import org.matsim.core.population.routes.NetworkRoute;
-import org.matsim.core.population.routes.RouteUtils;
 import org.matsim.core.router.TripStructureUtils;
 import picocli.CommandLine;
 
@@ -18,10 +15,10 @@ import java.util.List;
 import java.util.Set;
 
 @CommandLine.Command(
-        name = "filter-population",
-        description = "Filters population by a given set of modes. Preserves all agents using only these modes.")
-public class FilterPopulation implements MATSimAppCommand {
-    public static final Logger log = LogManager.getLogger(FilterPopulation.class);
+        name = "prepare-population",
+        description = "Filters population by a given set of modes. Preserves all agents using only these modes. Attach preplanning horizon to pt legs.")
+public class PreparePopulation implements MATSimAppCommand {
+    public static final Logger log = LogManager.getLogger(PreparePopulation.class);
 
     @CommandLine.Option(names = "--input", description = "Path to population", required = true)
     private Path input;
@@ -29,14 +26,17 @@ public class FilterPopulation implements MATSimAppCommand {
     @CommandLine.Option(names = "--modes", split = ",", description = "Positive set of modes that the population is allowed to use")
     private Set<String> modes;
 
+    @CommandLine.Option(names = "--horizon", description = "Preplanning horizon to attach to pt legs (in seconds)", defaultValue = "600")
+    private int horizon;
+
     @Override
-    public Integer call() throws Exception {
+    public Integer call() {
         Population inputPopulation = PopulationUtils.readPopulation(input.toString());
         log.info("Read population with {} agents", inputPopulation.getPersons().size());
         log.info("Filtering population with the following modes: {}", modes);
 
         List<Id<Person>> filteredPersons = inputPopulation.getPersons().values().stream()
-                .map(p -> p.getSelectedPlan())
+                .map(HasPlansAndId::getSelectedPlan)
                 .filter(p -> TripStructureUtils.getLegs(p).stream().anyMatch(l -> !modes.contains(l.getMode())) || !allActivityLinksSet(p))
                 .map(p -> p.getPerson().getId()).toList();
 
@@ -50,12 +50,12 @@ public class FilterPopulation implements MATSimAppCommand {
             CleanPopulation.removeUnselectedPlans(person);
             TripStructureUtils.getTrips(person.getSelectedPlan()).stream()
                     .filter(t -> TripStructureUtils.identifyMainMode(t.getTripElements()).equals("pt"))
-                    .forEach(t -> t.getLegsOnly().getFirst().getAttributes().putAttribute("preplanningHorizon", 10*60));
+                    .forEach(t -> t.getLegsOnly().getFirst().getAttributes().putAttribute("preplanningHorizon", 10 * 60));
         }
 
         log.info("Filtered population contains {} agents", inputPopulation.getPersons().size());
 
-        String output = input.toString().replace(".xml", "-filtered.xml");
+        String output = input.toString().replace(".xml", "-filtered_" + horizon + ".xml");
         log.info("Writing filtered population to {}", output);
 
         PopulationUtils.writePopulation(inputPopulation, output);
