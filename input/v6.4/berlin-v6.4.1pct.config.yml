@@ -19,7 +19,7 @@ modules:
     write_events: Proto
     logging: Info
     profiling: !CSV
-      level: INFO
+      level: TRACE
   routing:
     type: Routing
     mode: UsePlans
