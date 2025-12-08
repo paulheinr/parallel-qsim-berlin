@@ -19,7 +19,7 @@ modules:
     write_events: Proto
     logging: Info
     profiling: !CSV
-      level: TRACE
+      level: INFO
   routing:
     type: Routing
     mode: UsePlans
@@ -35,4 +35,4 @@ modules:
       - truck
   computational_setup:
     type: ComputationalSetup
-    global_sync: true
+    global_sync: false

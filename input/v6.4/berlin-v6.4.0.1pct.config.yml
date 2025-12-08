@@ -25,7 +25,7 @@ modules:
     type: Simulation
     start_time: 0
     end_time: 84600
-    sample_size: 0.01
+    sample_size: 0.001
     stuck_threshold: 30
     main_modes:
       - car
@@ -33,4 +33,4 @@ modules:
       - truck
   computational_setup:
     type: ComputationalSetup
-    global_sync: true
+    global_sync: false
