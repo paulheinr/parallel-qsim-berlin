@@ -13,6 +13,8 @@ import org.matsim.core.config.ConfigUtils;
 import picocli.CommandLine;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -48,11 +50,14 @@ public class RoutingServer implements MATSimAppCommand {
     public Integer call() throws Exception {
         log.info("Starting server with sample: {}, config: {}, output: {}, threads: {}", sample, config, output, numThreads);
 
+        Files.createDirectories(Path.of(output));
+
         Config config = ConfigUtils.loadConfig(this.config);
         if (sample != null) {
             config.plans().setInputFile(adjustName(config.plans().getInputFile()));
         }
         config.controller().setOutputDirectory(output);
+        config.global().setNumberOfThreads(1); // MATSim internally there should only one thread be used to not mess up with thread local variables
 
         // we do not need plans and counts on the server side
         config.plans().setInputFile(null);

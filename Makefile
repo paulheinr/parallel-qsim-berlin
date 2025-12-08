@@ -164,6 +164,6 @@ router: router-deps
 	else \
 		EXTRA=""; \
 	fi; \
-	CMD="$(java_router) --config $(op)/berlin-$(BV).config.xml --sample $(PCT) --output $(op)/routing $$EXTRA --localFiles"; \
+	CMD="$(java_router) --config $(op)/berlin-$(BV).config.xml --sample $(PCT) --output $(op)/routing-$(RUN_ID) $$EXTRA --localFiles"; \
 	echo "$$CMD"; \
 	eval "$$CMD"
