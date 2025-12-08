@@ -4,6 +4,8 @@ library(scales)
 library(dplyr)
 library(lubridate)
 library(tidyr)
+source("src/main/R/utils.R")
+
 
 # read csv with header thread,now,departure_time,from,to,start,duration_ns,travel_time_s,request_id at /path
 path <- "/Users/paulh/hlrn-cluster/rust-pt-routing/parallel-qsim-berlin/output/v6.4/1pct/routing/routing-profiling-2025-11-18_10-50-16.csv"
@@ -61,7 +63,7 @@ per_thread_long <- per_thread %>%
 ggplot(per_thread_long, aes(x = thread, y = time_ns / 1e6, fill = type)) +
   geom_bar(stat = "identity") +
   labs(
-    x = "Thread",
+    x = "All Threads",
     y = "Time (ms)",
     title = "Per-Thread Busy and Idle Time @ Router",
     fill = "Type"
