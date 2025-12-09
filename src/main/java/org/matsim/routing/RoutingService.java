@@ -10,6 +10,7 @@ import org.apache.commons.csv.CSVPrinter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
+import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.network.Link;
@@ -24,10 +25,11 @@ import org.matsim.core.config.ConfigWriter;
 import org.matsim.core.controler.ControllerUtils;
 import org.matsim.core.controler.OutputDirectoryHierarchy;
 import org.matsim.core.population.routes.NetworkRoute;
-import org.matsim.core.router.LinkWrapperFacility;
 import org.matsim.core.router.RoutingModule;
 import org.matsim.core.router.RoutingRequest;
 import org.matsim.core.scenario.ScenarioUtils;
+import org.matsim.facilities.ActivityFacilitiesFactoryImpl;
+import org.matsim.facilities.ActivityFacility;
 import org.matsim.facilities.Facility;
 import org.matsim.pt.routes.DefaultTransitPassengerRoute;
 import org.matsim.utils.objectattributes.attributable.Attributes;
@@ -212,12 +214,16 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
         return new RoutingRequest() {
             @Override
             public Facility getFromFacility() {
-                return new LinkWrapperFacility(scenario.get().getNetwork().getLinks().get(fromLink));
+                Id<ActivityFacility> fromFacility = Id.create("fromFacility", ActivityFacility.class);
+                Coord from = new Coord(request.getFromX(), request.getFromY());
+                return new ActivityFacilitiesFactoryImpl().createActivityFacility(fromFacility, from, fromLink);
             }
 
             @Override
             public Facility getToFacility() {
-                return new LinkWrapperFacility(scenario.get().getNetwork().getLinks().get(toLink));
+                Id<ActivityFacility> fromFacility = Id.create("toFacility", ActivityFacility.class);
+                Coord from = new Coord(request.getToX(), request.getToY());
+                return new ActivityFacilitiesFactoryImpl().createActivityFacility(fromFacility, from, toLink);
             }
 
             @Override
