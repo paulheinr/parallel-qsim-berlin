@@ -18,6 +18,8 @@ modules:
     output_dir: ../../output/v6.4/10pct
     write_events: Proto
     logging: Info
+    profiling: !Parquet
+      level: TRACE
   routing:
     type: Routing
     mode: UsePlans

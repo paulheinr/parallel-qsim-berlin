@@ -18,7 +18,7 @@ modules:
     output_dir: ../../output/v6.4/1pct
     write_events: Proto
     logging: Info
-    profiling: !CSV
+    profiling: !Parquet
       level: TRACE
   routing:
     type: Routing
