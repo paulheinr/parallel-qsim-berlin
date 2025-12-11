@@ -90,9 +90,9 @@ $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb: $(op)/berlin-$(BV)-$(PCT)pct.plans
 		--vehicles $(op)/berlin-$(BV)-vehicleTypes-including-walk-pt.xml\
 		--transit-schedule $(op)/berlin-$(BV)-transitSchedule.xml.gz\
 		--output-dir $(op)\
-		--run-id binpb/berlin-$(BV)-$(PCT)pct"
+		--run-id binpb-hor$(HORIZON)/berlin-$(BV)-$(PCT)pct"
 
-prepare: mk-output-folders $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb
+prepare: mk-output-folders $(op)/binpb-hor$(HORIZON)/berlin-$(BV)-$(PCT)pct.ids.binpb
 
 # ===== RUN SIMULATION =====
 # Used variables:
@@ -116,13 +116,22 @@ run: prepare
 	echo "$$CMD"; \
 	eval "$$CMD"
 
+# Setting the input files manually in order to reflect the horizon properly
 run-routing: prepare
 	@if [ -n "$(URL)" ]; then \
 		ROUTER_URL="$(URL)"; \
 	else \
 		ROUTER_URL="http://localhost:50051"; \
 	fi; \
-	$(MAKE) run RUST_BIN=local_qsim_routing ARGS="$(ARGS) --set routing.mode=ad-hoc --router-ip $$ROUTER_URL"
+	$(MAKE) run \
+		RUST_BIN=local_qsim_routing \
+		ARGS="$(ARGS) \
+		--set routing.mode=ad-hoc \
+		--router-ip $$ROUTER_URL \
+		--set protofiles.network=../../output/v6.4/1pct/binpb-hor$(HORIZON)/berlin-v6.4-$(PCT)pct.network.binpb \
+		--set protofiles.ids=../../output/v6.4/1pct/binpb-hor$(HORIZON)/berlin-v6.4-$(PCT)pct.ids.binpb \
+		--set protofiles.vehicles=../../output/v6.4/1pct/binpb-hor$(HORIZON)/berlin-v6.4-$(PCT)pct.vehicles.binpb \
+		--set protofiles.population=../../output/v6.4/1pct/binpb-hor$(HORIZON)/berlin-v6.4-$(PCT)pct.plans.binpb"
 
 # ===== POST_PROCESSING =====
 
