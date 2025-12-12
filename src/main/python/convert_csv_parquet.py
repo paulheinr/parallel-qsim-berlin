@@ -1,12 +1,11 @@
 import argparse
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 import re
 import sys
 import uuid
 from pathlib import Path
-
-import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 
 
 def _uuid_string_to_bytes(value: str) -> bytes:
@@ -28,7 +27,7 @@ def _uuid_string_to_bytes(value: str) -> bytes:
         n = int(s, 10)
         if n < 0 or n >= (1 << 128):
             raise ValueError(f"UUID integer out of range for 128-bit value: {s}")
-        return n.to_bytes(16, byteorder="big", signed=False)
+        return n.to_bytes(16, byteorder="little", signed=False)
 
     # Reject scientific-notation / float-like representations which would be lossy
     float_like = re.compile(r'^[+-]?\d*\.\d+([eE][+-]?\d+)?$|^[+-]?\d+([eE][+-]?\d+)$')
