@@ -6,7 +6,7 @@
         <artifactId>matsim-all</artifactId>
 
         <!-- PR-labelled release -->
-        <version>2025.0-2025w15</version>
+        <version>2026.0-2025w50</version>
 
         <!-- snapshot == not recommended: rather use PR-labelled release!-->
         <!--		<version>2025.0-SNAPSHOT</version>-->
@@ -29,7 +29,7 @@
 
         <maven.compiler.release>21</maven.compiler.release>
 
-        <grpc.version>1.67.1</grpc.version>
+        <grpc.version>1.77.0</grpc.version>
         <protobuf.version>4.28.2</protobuf.version>
         <protobuf.plugin.version>0.6.1</protobuf.plugin.version>
         <java.version>21</java.version>
@@ -43,6 +43,12 @@
             <groupId>org.matsim</groupId>
             <artifactId>matsim</artifactId>
             <version>${matsim.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-pool</groupId>
+                    <artifactId>commons-pool</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
@@ -181,6 +187,30 @@
             <version>1.8.0</version>
         </dependency>
 
+        <!-- Avro/Parquet dependencies for writing profiling Parquet files -->
+        <!--        <dependency>-->
+        <!--            <groupId>org.apache.avro</groupId>-->
+        <!--            <artifactId>avro</artifactId>-->
+        <!--            <version>1.12.1</version>-->
+        <!--        </dependency>-->
+        <dependency>
+            <groupId>org.apache.parquet</groupId>
+            <artifactId>parquet-avro</artifactId>
+            <version>1.16.0</version>
+        </dependency>
+        <!-- Hadoop common provides org.apache.hadoop.fs.Path used by Parquet writer -->
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-common</artifactId>
+            <version>3.4.2</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.xerial.snappy</groupId>
+                    <artifactId>snappy-java</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
         <!-- Include the JUnit testing library -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -211,6 +241,11 @@
                 <version>${protobuf.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.google.code.gson</groupId>
+                <artifactId>gson</artifactId>
+                <version>2.13.2</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

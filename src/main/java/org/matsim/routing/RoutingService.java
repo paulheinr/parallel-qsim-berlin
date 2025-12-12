@@ -5,10 +5,16 @@ import com.google.inject.name.Names;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import io.grpc.stub.StreamObserver;
+import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.parquet.avro.AvroParquetWriter;
+import org.apache.parquet.hadoop.ParquetWriter;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.jetbrains.annotations.NotNull;
 import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
@@ -77,7 +83,7 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
     @Override
     public void shutdown(Empty request, StreamObserver<Empty> responseObserver) {
         log.info("Received shutdown request");
-        writeProfilingEntries();
+        writeProfilingEntriesParquet();
 
         log.info("Shutting down routing service");
         responseObserver.onNext(Empty.getDefaultInstance());
@@ -139,16 +145,17 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
 
         for (Map.Entry<String, Object> stringObjectEntry : leg.getAttributes().getAsMap().entrySet()) {
             Object value = stringObjectEntry.getValue();
-            if (value instanceof String) {
-                legBuilder.putAttributes(stringObjectEntry.getKey(), Routing.AttributeValue.newBuilder().setStringValue((String) value).build());
-            } else if (value instanceof Double) {
-                legBuilder.putAttributes(stringObjectEntry.getKey(), Routing.AttributeValue.newBuilder().setDoubleValue((Double) value).build());
-            } else if (value instanceof Integer) {
-                legBuilder.putAttributes(stringObjectEntry.getKey(), Routing.AttributeValue.newBuilder().setIntValue((Integer) value).build());
-            } else if (value instanceof Boolean) {
-                legBuilder.putAttributes(stringObjectEntry.getKey(), Routing.AttributeValue.newBuilder().setBoolValue((Boolean) value).build());
-            } else {
-                throw new IllegalArgumentException("Unsupported attribute type: " + value.getClass().getName());
+            switch (value) {
+                case String s ->
+                        legBuilder.putAttributes(stringObjectEntry.getKey(), Routing.AttributeValue.newBuilder().setStringValue(s).build());
+                case Double d ->
+                        legBuilder.putAttributes(stringObjectEntry.getKey(), Routing.AttributeValue.newBuilder().setDoubleValue(d).build());
+                case Integer i ->
+                        legBuilder.putAttributes(stringObjectEntry.getKey(), Routing.AttributeValue.newBuilder().setIntValue(i).build());
+                case Boolean b ->
+                        legBuilder.putAttributes(stringObjectEntry.getKey(), Routing.AttributeValue.newBuilder().setBoolValue(b).build());
+                default ->
+                        throw new IllegalArgumentException("Unsupported attribute type: " + value.getClass().getName());
             }
         }
 
@@ -269,6 +276,89 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
             }
         } catch (java.io.IOException e) {
             log.error("Error writing to file: {}", outputFile, e);
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Write profiling entries as a Parquet file using Avro/Parquet.
+     * The request_id is stored as a fixed binary of length 16 bytes (the full UUID bytes).
+     */
+    private void writeProfilingEntriesParquet() {
+        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
+        String t = LocalDateTime.now().format(dateTimeFormatter);
+        String outputFile = config.controller().getOutputDirectory() + "/routing-profiling-" + t + ".parquet";
+
+        log.info("Writing profiling entries to Parquet file: {}", outputFile);
+
+        List<ProfilingEntry> allEntries = this.profilingEntries.values().stream().flatMap(Collection::stream).sorted(Comparator.comparingInt(e -> e.simulationNow)).toList();
+
+        // Define Avro schema with a fixed 16-byte request_id (store full UUID bytes)
+        String schemaJson = """
+                {
+                  "type": "record",
+                  "name": "RoutingProfiling",
+                  "fields": [
+                    {"name": "thread", "type": "int"},
+                    {"name": "now", "type": "int"},
+                    {"name": "departure_time", "type": "long"},
+                    {"name": "from", "type": "string"},
+                    {"name": "to", "type": "string"},
+                    {"name": "start", "type": "long"},
+                    {"name": "duration_ns", "type": "long"},
+                    {"name": "travel_time_s", "type": "int"},
+                    {"name": "request_id", "type": {"type": "fixed", "name": "RequestId", "size": 16}}
+                  ]
+                }
+                """;
+        Schema schema = new Schema.Parser().parse(schemaJson);
+//
+        org.apache.hadoop.fs.Path path = new org.apache.hadoop.fs.Path(outputFile);
+
+        // Use builder-based AvroParquetWriter with an explicit Hadoop Configuration (non-deprecated)
+        org.apache.hadoop.conf.Configuration hadoopConf = new org.apache.hadoop.conf.Configuration();
+
+        try (ParquetWriter<GenericRecord> writer = AvroParquetWriter.<GenericRecord>builder(path)
+                .withSchema(schema)
+                .withConf(hadoopConf)
+                .withCompressionCodec(CompressionCodecName.SNAPPY)
+                .withRowGroupSize(ParquetWriter.DEFAULT_BLOCK_SIZE)
+                .withPageSize(ParquetWriter.DEFAULT_PAGE_SIZE)
+                .build()) {
+
+            for (ProfilingEntry profilingEntry : allEntries) {
+                GenericRecord rec = new GenericData.Record(schema);
+                rec.put("thread", profilingEntry.thread);
+                rec.put("now", profilingEntry.simulationNow);
+                rec.put("departure_time", profilingEntry.departureTime);
+                rec.put("from", profilingEntry.from);
+                rec.put("to", profilingEntry.to);
+                rec.put("start", profilingEntry.start);
+                rec.put("duration_ns", profilingEntry.duration);
+                rec.put("travel_time_s", profilingEntry.travelTime);
+
+                // Convert requestId (ByteString) to a 16-byte fixed (store full UUID bytes)
+                byte[] full = profilingEntry.requestId.toByteArray();
+                byte[] sixteen = new byte[16];
+
+                if (full.length > 16) {
+                    log.warn("Request ID byte array is longer than 16 bytes ({} bytes). Truncating to last 16 bytes.", full.length);
+                }
+
+                int srcPos = Math.max(0, full.length - 16);
+                int len = full.length - srcPos;
+                int destPos = 16 - len;
+                System.arraycopy(full, srcPos, sixteen, destPos, len);
+
+                Schema fixedSchema = schema.getField("request_id").schema();
+                GenericData.Fixed fixed = new GenericData.Fixed(fixedSchema, sixteen);
+                rec.put("request_id", fixed);
+
+                writer.write(rec);
+            }
+
+        } catch (Exception e) {
+            log.error("Error writing Parquet file: {}", outputFile, e);
             throw new RuntimeException(e);
         }
     }
