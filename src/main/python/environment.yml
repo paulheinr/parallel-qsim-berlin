@@ -1,0 +1,8 @@
+name: router
+channels:
+  - https://repo.anaconda.com/pkgs/main
+  - https://repo.anaconda.com/pkgs/r
+dependencies:
+  - pandas
+  - pyarrow
+prefix: /opt/homebrew/anaconda3/envs/router
