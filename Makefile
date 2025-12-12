@@ -78,7 +78,7 @@ $(op)/berlin-$(BV).counts-vmz.xml.gz:
 
 # ===== CONVERT TO BINARY PROTOBUF =====
 
-$(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb: $(op)/berlin-$(BV)-$(PCT)pct.plans-filtered_$(HORIZON).xml.gz $(op)/berlin-$(BV)-vehicleTypes-including-walk-pt.xml $(op)/berlin-$(BV)-network-with-pt-prepared.xml.gz $(op)/berlin-$(BV)-transitSchedule.xml.gz
+$(op)/binpb-hor$(HORIZON)/berlin-$(BV)-$(PCT)pct.ids.binpb: $(op)/berlin-$(BV)-$(PCT)pct.plans-filtered_$(HORIZON).xml.gz $(op)/berlin-$(BV)-vehicleTypes-including-walk-pt.xml $(op)/berlin-$(BV)-network-with-pt-prepared.xml.gz $(op)/berlin-$(BV)-transitSchedule.xml.gz
 	if [ "$(MODE)" = "bin" ]; then \
 		RUNNER="$(RUST_BASE)/target/release/convert_to_binary"; \
 	else \
