@@ -128,10 +128,10 @@ run-routing: prepare
 		ARGS="$(ARGS) \
 		--set routing.mode=ad-hoc \
 		--router-ip $$ROUTER_URL \
-		--set protofiles.network=../../output/v6.4/$(PCT)/binpb-hor$(HORIZON)/berlin-v6.4-$(PCT)pct.network.binpb \
-		--set protofiles.ids=../../output/v6.4/$(PCT)/binpb-hor$(HORIZON)/berlin-v6.4-$(PCT)pct.ids.binpb \
-		--set protofiles.vehicles=../../output/v6.4/$(PCT)/binpb-hor$(HORIZON)/berlin-v6.4-$(PCT)pct.vehicles.binpb \
-		--set protofiles.population=../../output/v6.4/$(PCT)/binpb-hor$(HORIZON)/berlin-v6.4-$(PCT)pct.plans.binpb"
+		--set protofiles.network=../../output/v6.4/$(PCT)pct/binpb-hor$(HORIZON)/berlin-v6.4-$(PCT)pct.network.binpb \
+		--set protofiles.ids=../../output/v6.4/$(PCT)pct/binpb-hor$(HORIZON)/berlin-v6.4-$(PCT)pct.ids.binpb \
+		--set protofiles.vehicles=../../output/v6.4/$(PCT)pct/binpb-hor$(HORIZON)/berlin-v6.4-$(PCT)pct.vehicles.binpb \
+		--set protofiles.population=../../output/v6.4/$(PCT)pct/binpb-hor$(HORIZON)/berlin-v6.4-$(PCT)pct.plans.binpb"
 
 # ===== POST_PROCESSING =====
 
