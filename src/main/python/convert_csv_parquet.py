@@ -1,4 +1,6 @@
 import argparse
+import re
+import sys
 import uuid
 from pathlib import Path
 
@@ -21,19 +23,20 @@ def _uuid_string_to_bytes(value: str) -> bytes:
     # Coerce to string first (defensive: pandas may pass non-str objects)
     s = str(value).strip()
 
-    # Reject scientific-notation / float-like representations, which are not lossless for 128-bit integers
-    if ("e" in s.lower()) or ("." in s):
-        raise ValueError(
-            f"request_id looks like a float/scientific notation ({s}). "
-            "Ensure the CSV is read with request_id as a string (see converters in router_csv_to_parquet)."
-        )
-
-    # Fast-path: decimal 128-bit integer (your CSV example uses this form)
+    # Fast-path: decimal 128-bit integer (accept pure digits)
     if s.isdigit():
         n = int(s, 10)
         if n < 0 or n >= (1 << 128):
             raise ValueError(f"UUID integer out of range for 128-bit value: {s}")
         return n.to_bytes(16, byteorder="big", signed=False)
+
+    # Reject scientific-notation / float-like representations which would be lossy
+    float_like = re.compile(r'^[+-]?\d*\.\d+([eE][+-]?\d+)?$|^[+-]?\d+([eE][+-]?\d+)$')
+    if float_like.match(s):
+        raise ValueError(
+            f"request_id looks like a numeric/float value ({s}). "
+            "Ensure the CSV is read with request_id as a string (see converters in router_csv_to_parquet)."
+        )
 
     # Otherwise, treat it as a UUID string (with or without hyphens)
     return uuid.UUID(s).bytes
@@ -90,12 +93,9 @@ def router_csv_to_parquet(csv_path: str) -> None:
         pa.field("request_id", pa.binary(16)),
     ])
 
-    # Convert DataFrame to Arrow Table
-    table = pa.Table.from_pandas(
-        df,
-        schema=arrow_schema,
-        preserve_index=False
-    )
+    # Convert DataFrame to Arrow Table (create then cast to explicit schema)
+    table = pa.table(df)
+    table = table.cast(arrow_schema)
 
     # Write Parquet file
     pq.write_table(
@@ -108,13 +108,42 @@ def router_csv_to_parquet(csv_path: str) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Convert a router CSV file to a Parquet file with a fixed schema."
+        description=(
+            "Convert router CSV files to Parquet.\n"
+            "Usage:\n"
+            " Provide two arguments: <directory> <prefix> — the script will recursively find CSV files under <directory> whose basenames start with <prefix> and convert them."
+        )
     )
     parser.add_argument(
-        "path",
-        type=str,
-        help="Path to the input CSV file"
+        "directory",
+        help="Directory to search for CSV files"
+    )
+    parser.add_argument(
+        "prefix",
+        help="Filename prefix to match (basenames that start with this value)"
     )
 
     args = parser.parse_args()
-    router_csv_to_parquet(args.path)
+
+    # Expect exactly: <directory> <prefix>
+    dir_path = Path(args.directory)
+    prefix = args.prefix
+    if not dir_path.is_dir():
+        print(f"First argument must be an existing directory. Got: {dir_path}")
+        sys.exit(2)
+
+    # Find CSV files whose basename starts with the prefix (recursive)
+    matched = [p for p in dir_path.rglob("*") if
+               p.is_file() and p.name.startswith(prefix) and p.suffix.lower() == ".csv"]
+    if not matched:
+        print(f"No matching CSV files starting with '{prefix}' found under {dir_path}")
+        sys.exit(0)
+
+    matched = sorted(matched)
+    for p in matched:
+        print(f"Converting: {p}")
+        try:
+            router_csv_to_parquet(str(p))
+        except Exception as e:
+            print(f"Failed to convert {p}: {e}")
+    sys.exit(0)
