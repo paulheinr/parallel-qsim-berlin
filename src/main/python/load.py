@@ -89,6 +89,7 @@ def discover_runs(root: Union[str, Path]) -> list[RunMeta]:
 
 
 def _read_parquet(path: Path) -> pd.DataFrame:
+    print("Reading parquet: ", path)
     table = pq.read_table(path)
     return table.to_pandas(types_mapper=None)
 
@@ -317,7 +318,7 @@ def aggregate_instrument_timebins(
             "duration_min_ns",
             "duration_max_ns",
             "duration_mean_ns",
-            "duration_average_ns",
+            "duration_median_ns",
         ]
         if include_source_path:
             cols_order.insert(7, "source_path")
@@ -336,3 +337,39 @@ def aggregate_instrument_timebins(
         result.to_parquet(outp, index=False)
 
     return result
+
+
+def read_aggregated_instrument(run: RunMeta) -> pd.DataFrame:
+    """
+    Read an aggregated instrument parquet for `run` if it exists; otherwise compute the
+    aggregation on-the-fly by delegating to `aggregate_instrument_timebins` (without
+    writing to disk) and return the resulting DataFrame.
+
+    Behavior:
+    - Looks for `instrument/instrument_aggregated.parquet` first, then any files matching
+      `instrument/instrument_aggregated*.parquet`.
+    - If a matching file is found, uses the module's `_read_parquet` helper to load it.
+    - If no file is found, calls `aggregate_instrument_timebins` with `output_path=None`
+      to compute the aggregation in memory and returns that DataFrame.
+
+    - If no file is found, calls `aggregate_instrument_timebins` with `output_path=False`
+    - run: RunMeta for the run whose instrument aggregation should be read/created
+
+    Returns
+    - pandas.DataFrame with the aggregated instrument data
+    """
+    instr_dir = run.path / "instrument"
+    if not instr_dir.is_dir():
+        raise FileNotFoundError(instr_dir)
+
+    # Primary expected path
+    cand = instr_dir / "instrument_aggregated.parquet"
+    if cand.exists():
+        return _read_parquet(cand)
+
+    # Fallback: any other matching aggregated parquet
+    matches = sorted(instr_dir.glob("instrument_aggregated*.parquet"))
+    if matches:
+        return _read_parquet(matches[0])
+
+    raise FileNotFoundError(f"No aggregated instrument parquet found for run at {run.path}")
