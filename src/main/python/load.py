@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional, Tuple, Union, Any
+from typing import Iterable, Optional, Union, Any, NamedTuple
 
 import pandas as pd
 import pyarrow.parquet as pq
@@ -121,6 +121,7 @@ def load_instrument(
     frames: list[pd.DataFrame] = []
 
     for path in sorted(instr_dir.glob("instrument_process_*.parquet")):
+        print(f"Reading instrument data from: {path}")
         pid = _extract_process_id(path)
         if proc_filter is not None and pid not in proc_filter:
             continue
@@ -134,6 +135,7 @@ def load_instrument(
         df["func_name"] = df["func_name"].astype("string")
         df["sim_time"] = pd.to_numeric(df["sim_time"], errors="raise").astype("int64")
         df["rank"] = pd.to_numeric(df["rank"], errors="raise").astype("int64")
+        df.loc[df["rank"] == -1, "rank"] = pid
 
         try:
             df["duration_ns"] = pd.to_numeric(df["duration_ns"], errors="raise").astype("int64")
@@ -179,12 +181,17 @@ def load_routing(
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
+class LoadRunResult(NamedTuple):
+    qsim: pd.DataFrame
+    logic: pd.DataFrame
+
+
 def load_run(
         run: RunMeta,
         processes: Optional[Iterable[int]] = None,
         include_source_path: bool = False,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    return (
-        load_instrument(run, processes, include_source_path),
-        load_routing(run, processes, include_source_path),
+) -> LoadRunResult:
+    return LoadRunResult(
+        qsim=load_instrument(run, processes, include_source_path),
+        logic=load_routing(run, processes, include_source_path),
     )
