@@ -195,3 +195,144 @@ def load_run(
         qsim=load_instrument(run, processes, include_source_path),
         logic=load_routing(run, processes, include_source_path),
     )
+
+
+def aggregate_instrument_timebins(
+        run: RunMeta,
+        bin_size: int = 20,
+        processes: Optional[Iterable[int]] = None,
+        include_source_path: bool = False,
+        output_path: bool = True,
+) -> pd.DataFrame:
+    """
+    Read every `instrument_process_*.parquet` file for `run`, assert that the set of columns
+    (metadata fields) is identical across all files, then for each file group rows by
+    `func_name` and time bins of length `bin_size` (sim_time bins: 0..bin_size-1, bin_size..2*bin_size-1, ...)
+    and compute duration statistics: max, min, mean and average (average is provided as an alias to mean).
+
+    The per-file aggregated results are appended into a single DataFrame which is returned.
+    If `output_path` is provided, the result is written to parquet for fast reads by other Python programs.
+
+    Parameters
+    - run: RunMeta describing the run directory
+    - bin_size: size of sim_time bins (default 20)
+    - processes: optional iterable of allowed process ids (filters instrument files)
+    - include_source_path: whether to include source_path column in metadata
+    - output_path: optional path to write aggregated parquet file
+
+    Returns
+    - pandas.DataFrame with columns: run_id, sim_cpus, horizon, worker_threads, router_threads, pct,
+      process_id, func_name, bin, bin_start, bin_end, duration_min_ns, duration_max_ns, duration_mean_ns,
+      duration_average_ns (alias of mean), and optionally source_path
+    """
+    instr_dir = run.path / "instrument"
+    if not instr_dir.is_dir():
+        raise FileNotFoundError(instr_dir)
+
+    proc_filter = None if processes is None else set(int(p) for p in processes)
+    aggregated_frames: list[pd.DataFrame] = []
+
+    # gather files
+    files = sorted(instr_dir.glob("instrument_process_*.parquet"))
+    if not files:
+        return pd.DataFrame()
+
+    # baseline column set from first file
+    first_path = files[0]
+    base_table = _read_parquet(first_path)
+    base_cols = set(base_table.columns)
+
+    for path in files:
+        pid = _extract_process_id(path)
+        if proc_filter is not None and pid not in proc_filter:
+            continue
+
+        print(f"Processing instrument file: {path}")
+        df = _read_parquet(path)
+
+        # Assert metadata fields (column names) are the same across files
+        cols = set(df.columns)
+        if cols != base_cols:
+            # Provide clear error showing the difference
+            only_in_this = sorted(cols - base_cols)
+            missing_from_this = sorted(base_cols - cols)
+            raise AssertionError(
+                f"Column mismatch for {path.name}:\n"
+                f"Only in this file: {only_in_this}\n"
+                f"Missing from this file: {missing_from_this}"
+            )
+
+        # convert timestamp and duration fields similarly to load_instrument
+        if "timestamp" in df.columns:
+            try:
+                df = _convert_u128_column(df, "timestamp", "timestamp_u128")
+            except KeyError:
+                pass
+
+        # Ensure duration_ns exists and is numeric
+        if "duration_ns" in df.columns:
+            try:
+                df["duration_ns"] = pd.to_numeric(df["duration_ns"], errors="raise").astype("int64")
+            except Exception:
+                df["duration_ns"] = pd.to_numeric(df["duration_ns"], errors="raise").astype("UInt64")
+        else:
+            raise KeyError(f"Missing required 'duration_ns' column in {path.name}")
+
+        if "func_name" not in df.columns:
+            raise KeyError(f"Missing required 'func_name' column in {path.name}")
+
+        # normalize types that are used for grouping
+        df["func_name"] = df["func_name"].astype("string")
+        df["sim_time"] = pd.to_numeric(df["sim_time"], errors="raise").astype("int64")
+
+        # compute bin index
+        df["bin"] = (df["sim_time"] // int(bin_size)).astype("int64")
+        # aggregate per func_name and bin
+        agg = (
+            df.groupby(["func_name", "bin"], dropna=False)["duration_ns"]
+            .agg(duration_max_ns="max", duration_min_ns="min", duration_mean_ns="mean", duration_median_ns="median")
+            .reset_index()
+        )
+
+        # add bin boundaries
+        agg["bin_start"] = (agg["bin"] * int(bin_size)).astype("int64")
+        agg["bin_end"] = (agg["bin"] * int(bin_size) + int(bin_size) - 1).astype("int64")
+
+        # add run + process metadata
+        agg = _add_run_metadata(agg, run, pid, path if include_source_path else None, include_source_path)
+
+        # keep column ordering reasonable
+        cols_order = [
+            "run_id",
+            "sim_cpus",
+            "horizon",
+            "worker_threads",
+            "router_threads",
+            "pct",
+            "process_id",
+            "func_name",
+            "bin",
+            "bin_start",
+            "bin_end",
+            "duration_min_ns",
+            "duration_max_ns",
+            "duration_mean_ns",
+            "duration_average_ns",
+        ]
+        if include_source_path:
+            cols_order.insert(7, "source_path")
+        # ensure all requested columns exist
+        existing_cols_order = [c for c in cols_order if c in agg.columns]
+        agg = agg[existing_cols_order]
+
+        aggregated_frames.append(agg)
+
+    result = pd.concat(aggregated_frames, ignore_index=True) if aggregated_frames else pd.DataFrame()
+
+    if output_path == True and not result.empty:
+        outp = Path(instr_dir / "instrument_aggregated.parquet")
+        print(f"Writing aggregated instrument timebins to: {outp}")
+        # use parquet for fast reads by other python programs
+        result.to_parquet(outp, index=False)
+
+    return result
