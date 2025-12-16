@@ -22,8 +22,11 @@ if __name__ == "__main__":
     parser.add_argument("--root", help="root directory containing instrument data runs")
     parser.add_argument("--instrument", default="true", type=bool)
     parser.add_argument("--routing", default="true", type=bool)
+    parser.add_argument("--dry", default="false", type=bool)
 
     args = parser.parse_args()
     runs = discover_runs(args.root)
     print(f"Found runs at {[run.path for run in runs]}")
-    preprocess_data(runs, routing=args.routing, instrument=args.instrument)
+
+    if not args.dry:
+        preprocess_data(runs, routing=args.routing, instrument=args.instrument)
