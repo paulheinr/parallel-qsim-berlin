@@ -30,6 +30,9 @@ if __name__ == "__main__":
     parser.add_argument("--lazy", default="true", type=bool)
 
     args = parser.parse_args()
+
+    print(f"Discovering runs under root: {args.root}")
+
     runs = discover_runs(args.root)
     print(f"Found runs at {[run.path for run in runs]}")
 
