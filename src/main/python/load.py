@@ -161,6 +161,7 @@ def load_routing(
     frames: list[pd.DataFrame] = []
 
     for path in sorted(instr_dir.glob("routing_process_*.parquet")):
+        print(f"Reading routing data from: {path}")
         pid = _extract_process_id(path)
         if proc_filter is not None and pid not in proc_filter:
             continue
@@ -203,7 +204,7 @@ def aggregate_instrument_timebins(
         bin_size: int = 20,
         processes: Optional[Iterable[int]] = None,
         include_source_path: bool = False,
-        output_path: bool = True,
+        output: bool = True,
 ) -> pd.DataFrame:
     """
     Read every `instrument_process_*.parquet` file for `run`, assert that the set of columns
@@ -219,7 +220,7 @@ def aggregate_instrument_timebins(
     - bin_size: size of sim_time bins (default 20)
     - processes: optional iterable of allowed process ids (filters instrument files)
     - include_source_path: whether to include source_path column in metadata
-    - output_path: optional path to write aggregated parquet file
+    - output: optional to write aggregated parquet file
 
     Returns
     - pandas.DataFrame with columns: run_id, sim_cpus, horizon, worker_threads, router_threads, pct,
@@ -330,7 +331,7 @@ def aggregate_instrument_timebins(
 
     result = pd.concat(aggregated_frames, ignore_index=True) if aggregated_frames else pd.DataFrame()
 
-    if output_path == True and not result.empty:
+    if output == True and not result.empty:
         outp = Path(instr_dir / "instrument_aggregated.parquet")
         print(f"Writing aggregated instrument timebins to: {outp}")
         # use parquet for fast reads by other python programs
@@ -373,3 +374,76 @@ def read_aggregated_instrument(run: RunMeta) -> pd.DataFrame:
         return _read_parquet(matches[0])
 
     raise FileNotFoundError(f"No aggregated instrument parquet found for run at {run.path}")
+
+
+def aggregate_routing(
+        run: RunMeta,
+        processes: Optional[Iterable[int]] = None,
+        output: bool = True,
+) -> pd.DataFrame:
+    """
+    Concatenate all `routing_process_*.parquet` files under `run.path / 'instrument'` into a
+    single pandas DataFrame, add a `rank` column set to the originating process id for every row,
+    and optionally write the result to a parquet file named `routing_aggregated.parquet` in the
+    instrument directory (or to `output_path` if provided).
+
+    Parameters
+    - run: RunMeta pointing to the run directory
+    - processes: optional iterable of process ids to include
+    - output: optional to write aggregated parquet; if True write to
+      run.path / 'instrument' / 'routing_aggregated.parquet'
+
+    Returns
+    - pandas.DataFrame with the concatenated routing rows. Original columns are preserved;
+      an additional integer `rank` column (process_id) is appended.
+    """
+    instr_dir = run.path / "instrument"
+    if not instr_dir.is_dir():
+        raise FileNotFoundError(instr_dir)
+
+    proc_filter = None if processes is None else set(int(p) for p in processes)
+    frames: list[pd.DataFrame] = []
+
+    files = sorted(instr_dir.glob("routing_process_*.parquet"))
+    if not files:
+        return pd.DataFrame()
+
+    # baseline columns from first file
+    base_cols = None
+    for path in files:
+        pid = _extract_process_id(path)
+        if proc_filter is not None and pid not in proc_filter:
+            continue
+
+        print(f"Reading routing file: {path}")
+        df = _read_parquet(path)
+
+        # On-disk columns should remain the same across files; assert that
+        cols = set(df.columns)
+        if base_cols is None:
+            base_cols = cols
+        else:
+            if cols != base_cols:
+                only_in_this = sorted(cols - base_cols)
+                missing_from_this = sorted(base_cols - cols)
+                raise AssertionError(
+                    f"Column mismatch for {path.name}:\n"
+                    f"Only in this file: {only_in_this}\n"
+                    f"Missing from this file: {missing_from_this}"
+                )
+
+        # add rank column equal to process id
+        df["rank"] = pd.Series(pid, index=df.index, dtype="int64")
+
+        frames.append(df)
+
+    result = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+    # determine output path
+    if output and not result.empty:
+        outp = instr_dir / "routing_aggregated.parquet"
+        outp.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Writing aggregated routing to: {outp}")
+        result.to_parquet(outp, index=False)
+
+    return result
