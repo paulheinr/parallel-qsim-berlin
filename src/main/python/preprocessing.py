@@ -1,16 +1,20 @@
 import argparse
+from pathlib import Path
 
 from load import aggregate_instrument_timebins, discover_runs, RunMeta, aggregate_routing
 
 
-def preprocess_data(run_list: list[RunMeta], instrument: bool = True, routing: bool = True):
+def preprocess_data(run_list: list[RunMeta], instrument: bool = True, routing: bool = True, lazy: bool = True):
     for run in run_list:
         print(f"Processing run at: {run.path}")
 
-        if instrument:
+        routing_path = Path(run.path / "instrument" / "routing_aggregated.parquet")
+        instrument_path = Path(run.path / "instrument" / "routing_aggregated.parquet")
+
+        if instrument and (not lazy or not instrument_path.exists()):
             aggregate_instrument_timebins(run, bin_size=30)
 
-        if routing:
+        if routing and (not lazy or not routing_path.exists()):
             aggregate_routing(run)
 
 
@@ -23,10 +27,11 @@ if __name__ == "__main__":
     parser.add_argument("--instrument", default="true", type=bool)
     parser.add_argument("--routing", default="true", type=bool)
     parser.add_argument("--dry", default="false", type=bool)
+    parser.add_argument("--lazy", default="true", type=bool)
 
     args = parser.parse_args()
     runs = discover_runs(args.root)
     print(f"Found runs at {[run.path for run in runs]}")
 
     if not args.dry:
-        preprocess_data(runs, routing=args.routing, instrument=args.instrument)
+        preprocess_data(runs, routing=args.routing, instrument=args.instrument, lazy=args.lazy)
