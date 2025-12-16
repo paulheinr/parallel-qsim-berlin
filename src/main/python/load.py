@@ -466,6 +466,9 @@ def aggregate_routing(
         # add rank column equal to process id
         df["rank"] = pd.Series(pid, index=df.index, dtype="int64")
 
+        pid = _extract_process_id(path)
+        df = _add_run_metadata(df, run, pid, path, False)
+
         frames.append(df)
 
     result = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
