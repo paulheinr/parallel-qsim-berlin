@@ -19,9 +19,9 @@ if __name__ == "__main__":
         description="Preprocess instrument data and aggregate."
     )
 
-    parser.add_argument("root", help="root directory containing instrument data runs")
-    parser.add_argument("instrument", default="true", )
-    parser.add_argument("routing", default="true", )
+    parser.add_argument("--root", help="root directory containing instrument data runs")
+    parser.add_argument("--instrument", default="true", type=bool)
+    parser.add_argument("--routing", default="true", type=bool)
 
     args = parser.parse_args()
     runs = discover_runs(args.root)
