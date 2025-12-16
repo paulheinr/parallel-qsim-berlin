@@ -291,7 +291,7 @@ def aggregate_instrument_timebins(
         df["bin"] = (df["sim_time"] // int(bin_size)).astype("int64")
         # aggregate per func_name and bin
         agg = (
-            df.groupby(["func_name", "bin"], dropna=False)["duration_ns"]
+            df.groupby(["target", "func_name", "bin"], dropna=False)["duration_ns"]
             .agg(duration_max_ns="max", duration_min_ns="min", duration_mean_ns="mean", duration_median_ns="median")
             .reset_index()
         )
@@ -312,6 +312,7 @@ def aggregate_instrument_timebins(
             "router_threads",
             "pct",
             "process_id",
+            "target",
             "func_name",
             "bin",
             "bin_start",
@@ -325,7 +326,9 @@ def aggregate_instrument_timebins(
             cols_order.insert(7, "source_path")
         # ensure all requested columns exist
         existing_cols_order = [c for c in cols_order if c in agg.columns]
-        agg = agg[existing_cols_order]
+        # bracket-selection with a list + .copy() always returns a DataFrame (even single-column)
+        agg = agg[existing_cols_order].copy()
+        agg = pd.DataFrame(agg)
 
         aggregated_frames.append(agg)
 
@@ -374,6 +377,34 @@ def read_aggregated_instrument(run: RunMeta) -> pd.DataFrame:
         return _read_parquet(matches[0])
 
     raise FileNotFoundError(f"No aggregated instrument parquet found for run at {run.path}")
+
+
+def read_aggregated_routing(run: RunMeta) -> pd.DataFrame:
+    """
+    Read an aggregated routing parquet for `run` if it exists; otherwise compute the
+    aggregation on-the-fly by delegating to `aggregate_routing` with `output=False` and
+    return the resulting DataFrame.
+
+    Behavior:
+    - Looks for `instrument/routing_aggregated.parquet` first, then any files matching
+      `instrument/routing_aggregated*.parquet`.
+    - If a matching file is found, uses `_read_parquet` to load it.
+    - If no file is found, calls `aggregate_routing(run, output=False)` to compute the
+      concatenated routing DataFrame in-memory and returns it.
+    """
+    instr_dir = run.path / "instrument"
+    if not instr_dir.is_dir():
+        raise FileNotFoundError(instr_dir)
+
+    cand = instr_dir / "routing_aggregated.parquet"
+    if cand.exists():
+        df = _read_parquet(cand)
+        df = _convert_u128_column(df, "timestamp", "timestamp_u128")
+        df = _convert_u128_column(df, "request_uuid", "request_uuid_u128")
+
+        return df
+
+    raise FileNotFoundError(f"No aggregated routing parquet found for run at {run.path}")
 
 
 def aggregate_routing(
