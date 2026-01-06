@@ -3,6 +3,8 @@ package org.matsim.analysis;
 import com.google.common.util.concurrent.ListenableFuture;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import org.matsim.application.MATSimAppCommand;
+import picocli.CommandLine;
 import routing.Routing;
 import routing.RoutingServiceGrpc;
 
@@ -16,15 +18,26 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class MockRoutingClient {
-    public static void main(String[] args) {
-        java.nio.file.Path path = java.nio.file.Path.of("requests.pb");
+public class MockRoutingClient implements MATSimAppCommand {
+    @CommandLine.Option(names = "--requestsFile", description = "Path to requests file", defaultValue = "requests.pb")
+    private String requestsFile;
 
-        Map<Integer, java.util.List<routing.Routing.Request>> requests = readRequests(path).stream()
+    @CommandLine.Option(names = "--ip", description = "IP Address of the routing server", defaultValue = "localhost")
+    private String ip;
+
+    @CommandLine.Option(names = "--port", description = "Port of the routing server", defaultValue = "50051")
+    private int port;
+
+    public static void main(String[] args) {
+        new MockRoutingClient().execute(args);
+    }
+
+    @Override
+    public Integer call() throws Exception {
+        Map<Integer, java.util.List<routing.Routing.Request>> requests = readRequests(Path.of(requestsFile)).stream()
                 .collect(Collectors.groupingBy(Routing.Request::getNow));
 
-        ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", 50051)
-                .usePlaintext().build();
+        ManagedChannel channel = ManagedChannelBuilder.forAddress(ip, port).usePlaintext().build();
 
         RoutingServiceGrpc.RoutingServiceFutureStub service = RoutingServiceGrpc.newFutureStub(channel);
 
@@ -59,6 +72,8 @@ public class MockRoutingClient {
 
             now++;
         }
+
+        return 0;
     }
 
     private static List<Routing.Request> readRequests(Path path) {
