@@ -50,7 +50,7 @@ public class MockRoutingClient implements MATSimAppCommand {
 
         RoutingServiceGrpc.RoutingServiceFutureStub service = RoutingServiceGrpc.newFutureStub(channel);
 
-        Map<Integer, List<ListenableFuture<Routing.Response>>> openFuturesByDeparture = new java.util.TreeMap<>();
+        Map<Integer, List<ListenableFuture<Routing.Response>>> openFuturesByDeparture = new java.util.HashMap<>();
         int now = 0;
         while (now < 36 * 60 * 60) {
             if (now % 3600 == 0) {
