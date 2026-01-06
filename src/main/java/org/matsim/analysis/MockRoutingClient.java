@@ -1,6 +1,7 @@
 package org.matsim.analysis;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import io.grpc.ConnectivityState;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import org.matsim.application.MATSimAppCommand;
@@ -12,10 +13,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class MockRoutingClient implements MATSimAppCommand {
@@ -34,16 +37,20 @@ public class MockRoutingClient implements MATSimAppCommand {
 
     @Override
     public Integer call() throws Exception {
-        Map<Integer, java.util.List<routing.Routing.Request>> requests = readRequests(Path.of(requestsFile)).stream()
+        Map<Integer, java.util.List<routing.Routing.Request>> requests = readRequests(Path.of(requestsFile))
+                .stream()
                 .collect(Collectors.groupingBy(Routing.Request::getNow));
 
         ManagedChannel channel = ManagedChannelBuilder.forAddress(ip, port).usePlaintext().build();
 
+        System.out.println("Waiting for gRPC channel to become READY...");
+        waitForReady(channel, Duration.ofMinutes(5));
+        System.out.println("gRPC channel is READY.");
+        
         RoutingServiceGrpc.RoutingServiceFutureStub service = RoutingServiceGrpc.newFutureStub(channel);
 
-        int now = 0;
         Map<Integer, List<ListenableFuture<Routing.Response>>> openFuturesByDeparture = new java.util.TreeMap<>();
-
+        int now = 0;
         while (now < 36 * 60 * 60) {
             if (now % 3600 == 0) {
                 System.out.println("Processing now = " + now / 3600 + "h");
@@ -77,6 +84,7 @@ public class MockRoutingClient implements MATSimAppCommand {
     }
 
     private static List<Routing.Request> readRequests(Path path) {
+        System.out.println("Reading requests from " + path);
         List<Routing.Request> messages = new ArrayList<>();
 
         try (InputStream in = Files.newInputStream(path)) {
@@ -88,6 +96,29 @@ public class MockRoutingClient implements MATSimAppCommand {
             throw new RuntimeException(e);
         }
 
+        System.out.println("Read " + messages.size() + " requests");
+
         return messages;
+    }
+
+    private static void waitForReady(ManagedChannel channel, Duration timeout) throws InterruptedException {
+
+        long deadlineNanos = System.nanoTime() + timeout.toNanos();
+
+        ConnectivityState state = channel.getState(true);
+
+        while (state != ConnectivityState.READY) {
+            long remainingNanos = deadlineNanos - System.nanoTime();
+            if (remainingNanos <= 0) {
+                throw new IllegalStateException("gRPC channel did not become READY within " + timeout);
+            }
+
+            channel.notifyWhenStateChanged(state, () -> {
+            });
+
+            // Wait briefly before re-checking
+            TimeUnit.MILLISECONDS.sleep(100);
+            state = channel.getState(false);
+        }
     }
 }
