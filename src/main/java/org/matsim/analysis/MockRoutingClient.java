@@ -1,6 +1,7 @@
 package org.matsim.analysis;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.protobuf.Empty;
 import io.grpc.ConnectivityState;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -46,7 +47,7 @@ public class MockRoutingClient implements MATSimAppCommand {
         System.out.println("Waiting for gRPC channel to become READY...");
         waitForReady(channel, Duration.ofMinutes(5));
         System.out.println("gRPC channel is READY.");
-        
+
         RoutingServiceGrpc.RoutingServiceFutureStub service = RoutingServiceGrpc.newFutureStub(channel);
 
         Map<Integer, List<ListenableFuture<Routing.Response>>> openFuturesByDeparture = new java.util.TreeMap<>();
@@ -79,6 +80,9 @@ public class MockRoutingClient implements MATSimAppCommand {
 
             now++;
         }
+
+        ListenableFuture<Empty> shutdown = service.shutdown(Empty.newBuilder().build());
+        shutdown.get();
 
         return 0;
     }

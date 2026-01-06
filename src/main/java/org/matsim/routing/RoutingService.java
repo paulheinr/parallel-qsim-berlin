@@ -10,6 +10,7 @@ import org.apache.commons.csv.CSVPrinter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
+import org.matsim.GitInfo;
 import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
@@ -37,10 +38,13 @@ import routing.Routing;
 import routing.RoutingServiceGrpc;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.math.BigInteger;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -246,7 +250,15 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
     private void writeProfilingEntries() {
         DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
         String t = LocalDateTime.now().format(dateTimeFormatter);
-        String outputFile = config.controller().getOutputDirectory() + "/routing-profiling-" + t + ".csv";
+        String folder = config.controller().getOutputDirectory() + "/" + GitInfo.commitHash();
+
+        try {
+            Files.createDirectories(Path.of(folder));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        
+        String outputFile = folder + "/routing-profiling-" + t + ".csv";
 
         log.info("Writing profiling entries to file: {}", outputFile);
 
