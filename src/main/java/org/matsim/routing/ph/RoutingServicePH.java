@@ -50,6 +50,7 @@ public class RoutingServicePH extends RoutingServiceGrpc.RoutingServiceImplBase 
     private final ThreadLocal<RoutingModule> swissRailRaptor;
     private final Runnable shutdown;
     private final Config config;
+    private final boolean profile;
     private final ThreadLocal<Integer> threadNum = ThreadLocal.withInitial(() -> {
         String threadName = Thread.currentThread().getName();
         return Integer.valueOf(threadName.substring(threadName.lastIndexOf('-') + 1));
@@ -57,10 +58,11 @@ public class RoutingServicePH extends RoutingServiceGrpc.RoutingServiceImplBase 
     private final ConcurrentMap<Integer, List<ProfilingEntry>> profilingEntries = new ConcurrentHashMap<>(600_000);
     private int lastNow = -1;
 
-    private RoutingServicePH(ThreadLocal<RoutingModule> raptor, Runnable shutdown, Config config) {
+    private RoutingServicePH(ThreadLocal<RoutingModule> raptor, Runnable shutdown, Config config, boolean profile) {
         this.swissRailRaptor = raptor;
         this.shutdown = shutdown;
         this.config = config;
+        this.profile = profile;
     }
 
     /**
@@ -85,8 +87,6 @@ public class RoutingServicePH extends RoutingServiceGrpc.RoutingServiceImplBase 
 
     @Override
     public void getRoute(Routing.Request request, StreamObserver<Routing.Response> responseObserver) {
-        List<ProfilingEntry> pe = profilingEntries.computeIfAbsent(threadNum.get(), s -> new ArrayList<>());
-
         if (threadNum.get() == 0 && lastNow < request.getNow() && lastNow / 3600 != request.getNow() / 3600) {
             log.info("Received route request for simulation hour {}:00", String.format("%02d", request.getNow() / 3600));
             lastNow = request.getNow();
@@ -102,11 +102,14 @@ public class RoutingServicePH extends RoutingServiceGrpc.RoutingServiceImplBase 
         responseObserver.onNext(response);
         responseObserver.onCompleted();
 
-        long endTime = System.nanoTime();
+        if (profile) {
+            List<ProfilingEntry> pe = profilingEntries.computeIfAbsent(threadNum.get(), s -> new ArrayList<>());
+            long endTime = System.nanoTime();
 
-        int travelTime = response.getLegsList().stream().mapToInt(Routing.Leg::getTravTime).sum();
-        var p = new ProfilingEntry(threadNum.get(), request.getNow(), request.getDepartureTime(), request.getFromLinkId(), request.getToLinkId(), startTime, endTime - startTime, travelTime, requestId);
-        pe.add(p);
+            int travelTime = response.getLegsList().stream().mapToInt(Routing.Leg::getTravTime).sum();
+            var p = new ProfilingEntry(threadNum.get(), request.getNow(), request.getDepartureTime(), request.getFromLinkId(), request.getToLinkId(), startTime, endTime - startTime, travelTime, requestId);
+            pe.add(p);
+        }
     }
 
     private Routing.Response convertToProtoResponse(List<? extends PlanElement> planElements, ByteString requestId) {
@@ -241,6 +244,10 @@ public class RoutingServicePH extends RoutingServiceGrpc.RoutingServiceImplBase 
     }
 
     private void writeProfilingEntries() {
+        if (!profile) {
+            return;
+        }
+
         DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
         String t = LocalDateTime.now().format(dateTimeFormatter);
         String folder = config.controller().getOutputDirectory() + "/" + GitInfo.commitHash();
@@ -278,7 +285,7 @@ public class RoutingServicePH extends RoutingServiceGrpc.RoutingServiceImplBase 
         }
     }
 
-    public record Factory(Config config, Runnable shutdown) {
+    public record Factory(Config config, Runnable shutdown, boolean profile) {
         public RoutingServicePH create() {
             config.controller().setOverwriteFileSetting(OutputDirectoryHierarchy.OverwriteFileSetting.overwriteExistingFiles);
 
@@ -303,7 +310,7 @@ public class RoutingServicePH extends RoutingServiceGrpc.RoutingServiceImplBase 
             Scenario sc = ScenarioUtils.loadScenario(config);
             Injector adhocInjector = ControllerUtils.createAdhocInjector(sc);
             ThreadLocal<RoutingModule> raptor = ThreadLocal.withInitial(() -> adhocInjector.getInstance(Key.get(RoutingModule.class, Names.named("pt"))));
-            return new RoutingServicePH(raptor, shutdown, config);
+            return new RoutingServicePH(raptor, shutdown, config, profile);
         }
     }
 

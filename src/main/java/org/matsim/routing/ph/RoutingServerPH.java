@@ -42,13 +42,17 @@ public class RoutingServerPH implements MATSimAppCommand {
     @CommandLine.Option(names = "--threads", description = "Number of threads to use for routing")
     private int numThreads = 1;
 
+    @CommandLine.Option(names = "--no-profile", description = "Enable profiling")
+    private boolean profile = true;
+
     public static void main(String[] args) throws IOException, InterruptedException {
         new RoutingServerPH().execute(args);
     }
 
     @Override
     public Integer call() throws Exception {
-        log.info("Starting server with sample: {}, config: {}, output: {}, threads: {}", sample, config, output, numThreads);
+        //log args
+        log.info("Starting server with sample: {}, config: {}, output: {}, threads: {}, profile: {}", sample, config, output, numThreads, profile);
 
         Files.createDirectories(Path.of(output));
 
@@ -89,7 +93,7 @@ public class RoutingServerPH implements MATSimAppCommand {
     }
 
     @NotNull
-    private static RoutingServicePH getRoutingService(AtomicReference<Server> serverRef, Config config) {
+    private RoutingServicePH getRoutingService(AtomicReference<Server> serverRef, Config config) {
         // use a shutdown hook to stop the server gracefully when it gets a shutdown signal
         Runnable shutdown = () -> {
             log.info("Running shutdown hook");
@@ -106,7 +110,7 @@ public class RoutingServerPH implements MATSimAppCommand {
             }
         };
 
-        return new RoutingServicePH.Factory(config, shutdown).create();
+        return new RoutingServicePH.Factory(config, shutdown, profile).create();
     }
 
     @NotNull
