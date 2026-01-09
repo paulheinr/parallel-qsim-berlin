@@ -50,7 +50,11 @@ public class RoutingServerTest {
         Routing.Request request = Routing.Request.newBuilder()
                 .setPersonId("1")
                 .setFromLinkId("1112")
+                .setFromX(1000)
+                .setFromY(1500)
                 .setToLinkId("4142")
+                .setToX(4000)
+                .setToY(1500)
                 .setMode("pt")
                 .setDepartureTime(27126)
                 .build();

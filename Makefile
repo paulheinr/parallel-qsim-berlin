@@ -11,9 +11,9 @@ MODE ?= cargo
 
 HORIZON := 600
 
-java_prepare := java -Xmx$(MEMORY) -XX:+UseParallelGC -cp $(JAR) org.matsim.prepare.RunParallelQSimBerlinPreparation
+java_prepare := java -Xmx$(MEMORY) -XX:+UseZGC -cp $(JAR) org.matsim.prepare.RunParallelQSimBerlinPreparation
 # prefer local DTDs to avoid network access (i.e. on hpc clusters)
-java_router := java -Xmx$(MEMORY) -XX:+UseParallelGC -Dmatsim.preferLocalDtds=true -cp $(JAR) org.matsim.routing.RoutingServer
+java_router := java -Xmx$(MEMORY) -XX:+UseZGC -Dmatsim.preferLocalDtds=true -cp $(JAR) org.matsim.routing.RoutingServer
 
 p := ./input/$(BV)
 op := ./output/$(BV)/$(PCT)pct

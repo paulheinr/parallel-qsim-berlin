@@ -58,7 +58,10 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
     private final ThreadLocal<Scenario> scenario;
     private final Runnable shutdown;
     private final Config config;
-    private final ConcurrentMap<String, Integer> threadNums = new ConcurrentHashMap<>();
+    private final ThreadLocal<Integer> threadNum = ThreadLocal.withInitial(() -> {
+        String threadName = Thread.currentThread().getName();
+        return Integer.valueOf(threadName.substring(threadName.lastIndexOf('-') + 1));
+    });
     private final ConcurrentMap<Integer, List<ProfilingEntry>> profilingEntries = new ConcurrentHashMap<>(600_000);
     private int lastNow = -1;
 
@@ -76,6 +79,7 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
     public void init() {
         this.swissRailRaptor.get();
         this.scenario.get();
+        threadNum.get();
     }
 
     @Override
@@ -91,10 +95,9 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
 
     @Override
     public void getRoute(Routing.Request request, StreamObserver<Routing.Response> responseObserver) {
-        Integer threadNum = threadNums.computeIfAbsent(Thread.currentThread().getName(), s -> Integer.valueOf(s.substring(s.lastIndexOf('-') + 1)));
-        List<ProfilingEntry> pe = profilingEntries.computeIfAbsent(threadNum, s -> new ArrayList<>());
+        List<ProfilingEntry> pe = profilingEntries.computeIfAbsent(threadNum.get(), s -> new ArrayList<>());
 
-        if (threadNum == 0 && lastNow < request.getNow() && lastNow / 3600 != request.getNow() / 3600) {
+        if (threadNum.get() == 0 && lastNow < request.getNow() && lastNow / 3600 != request.getNow() / 3600) {
             log.info("Received route request for simulation hour {}:00", String.format("%02d", request.getNow() / 3600));
             lastNow = request.getNow();
         }
@@ -112,7 +115,7 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
         long endTime = System.nanoTime();
 
         int travelTime = response.getLegsList().stream().mapToInt(Routing.Leg::getTravTime).sum();
-        var p = new ProfilingEntry(threadNum, request.getNow(), request.getDepartureTime(), request.getFromLinkId(), request.getToLinkId(), startTime, endTime - startTime, travelTime, requestId);
+        var p = new ProfilingEntry(threadNum.get(), request.getNow(), request.getDepartureTime(), request.getFromLinkId(), request.getToLinkId(), startTime, endTime - startTime, travelTime, requestId);
         pe.add(p);
     }
 
@@ -257,7 +260,7 @@ public class RoutingService extends RoutingServiceGrpc.RoutingServiceImplBase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        
+
         String outputFile = folder + "/routing-profiling-" + t + ".csv";
 
         log.info("Writing profiling entries to file: {}", outputFile);
