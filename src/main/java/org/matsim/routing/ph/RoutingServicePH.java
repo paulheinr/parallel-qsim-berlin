@@ -259,7 +259,7 @@ public class RoutingServicePH extends RoutingServiceGrpc.RoutingServiceImplBase 
             throw new RuntimeException(e);
         }
 
-        var numaSuffix = JVMFlagsReader.isArgumentEnabled("UseNUMA") ? "numa" : "";
+        var numaSuffix = JVMFlagsReader.isArgumentEnabled("UseNUMA") ? "numa-" : "";
         String outputFile = folder + "/routing-profiling-" + numaSuffix + t + ".csv";
 
         log.info("Writing profiling entries to file: {}", outputFile);
