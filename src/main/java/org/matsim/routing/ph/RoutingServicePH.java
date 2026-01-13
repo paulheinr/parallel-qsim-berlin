@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.matsim.GitInfo;
+import org.matsim.JVMFlagsReader;
 import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
@@ -258,7 +259,8 @@ public class RoutingServicePH extends RoutingServiceGrpc.RoutingServiceImplBase 
             throw new RuntimeException(e);
         }
 
-        String outputFile = folder + "/routing-profiling-" + t + ".csv";
+        var numaSuffix = JVMFlagsReader.isArgumentEnabled("UseNUMA") ? "numa" : "";
+        String outputFile = folder + "/routing-profiling-" + numaSuffix + t + ".csv";
 
         log.info("Writing profiling entries to file: {}", outputFile);
 

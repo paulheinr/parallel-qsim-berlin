@@ -7,6 +7,7 @@ import io.grpc.protobuf.services.ProtoReflectionService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
+import org.matsim.JVMFlagsReader;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
@@ -53,6 +54,8 @@ public class RoutingServerPH implements MATSimAppCommand {
     public Integer call() throws Exception {
         //log args
         log.info("Starting server with sample: {}, config: {}, output: {}, threads: {}, profile: {}", sample, config, output, numThreads, profile);
+
+        log.info("Started with JVM args: {}", JVMFlagsReader.getJVMArguments());
 
         Files.createDirectories(Path.of(output));
 
