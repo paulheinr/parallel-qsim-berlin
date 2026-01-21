@@ -24,8 +24,8 @@ if __name__ == "__main__":
     )
 
     parser.add_argument("--root", help="root directory containing instrument data runs")
-    parser.add_argument("--instrument", default=True, type=bool)
-    parser.add_argument("--routing", default=True, type=bool)
+    parser.add_argument("--instrument", action='store_false', default=True, type=bool)
+    parser.add_argument("--routing", action='store_false', default=True, type=bool)
     parser.add_argument("--dry", default=False, type=bool)
     parser.add_argument("--lazy", default=True, type=bool)
 
