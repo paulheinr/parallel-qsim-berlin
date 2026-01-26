@@ -19,6 +19,7 @@ import java.util.Set;
         description = "Filters population by a given set of modes. Preserves all agents using only these modes. Attach preplanning horizon to pt legs.")
 public class PreparePopulation implements MATSimAppCommand {
     public static final Logger log = LogManager.getLogger(PreparePopulation.class);
+    public static final String PREPLANNING_HORIZON_ATTRIBUTE = "preplanningHorizon";
 
     @CommandLine.Option(names = "--input", description = "Path to population", required = true)
     private Path input;
@@ -50,7 +51,7 @@ public class PreparePopulation implements MATSimAppCommand {
             CleanPopulation.removeUnselectedPlans(person);
             TripStructureUtils.getTrips(person.getSelectedPlan()).stream()
                     .filter(t -> TripStructureUtils.identifyMainMode(t.getTripElements()).equals("pt"))
-                    .forEach(t -> t.getLegsOnly().getFirst().getAttributes().putAttribute("preplanningHorizon", 10 * 60));
+                    .forEach(t -> t.getOriginActivity().getAttributes().putAttribute(PREPLANNING_HORIZON_ATTRIBUTE, horizon));
         }
 
         log.info("Filtered population contains {} agents", inputPopulation.getPersons().size());
