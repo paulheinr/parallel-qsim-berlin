@@ -114,7 +114,7 @@ run: prepare
 	else \
 		RUNNER="cargo run --release --bin $(RUST_BIN) --manifest-path $(RUST_BASE)/Cargo.toml --"; \
 	fi; \
-	CMD="$$RUNNER --config-path $p/berlin-v6.4.$(PCT)pct.config.yml $$EXTRA $(ARGS)"; \
+	CMD="$$RUNNER --config $p/berlin-v6.4.$(PCT)pct.config.yml $$EXTRA $(ARGS)"; \
 	echo "$$CMD"; \
 	eval "$$CMD"
 

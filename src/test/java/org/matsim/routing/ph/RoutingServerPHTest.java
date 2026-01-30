@@ -1,4 +1,4 @@
-package org.matsim.routing;
+package org.matsim.routing.ph;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -19,7 +19,7 @@ import java.io.IOException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-public class RoutingServerTest {
+public class RoutingServerPHTest {
     private Server server;
     private ManagedChannel channel;
 
@@ -27,8 +27,8 @@ public class RoutingServerTest {
     void setUp() throws IOException {
         var ptScenarioURL = ExamplesUtils.getTestScenarioURL("pt-tutorial");
         Config config = ConfigUtils.loadConfig(IOUtils.extendUrl(ptScenarioURL, "0.config.xml"));
-        RoutingService service = new RoutingService.Factory(config, () -> {
-        }).create();
+        RoutingServicePH service = new RoutingServicePH.Factory(config, () -> {
+        }, false).create();
         server = ServerBuilder.forPort(0).addService(service).build().start();
         channel = ManagedChannelBuilder.forAddress("localhost", server.getPort()).usePlaintext().build();
     }

@@ -120,6 +120,7 @@ public class RoutingServicePH extends RoutingServiceGrpc.RoutingServiceImplBase 
             if (element instanceof Activity activity) {
                 responseBuilder.addActivities(convertToProtoActivity(activity));
             } else if (element instanceof Leg leg) {
+                leg.setRoutingMode("pt"); // Set routing mode by hand because the Raptor does not set it
                 responseBuilder.addLegs(convertToProtoLeg(leg));
             } else {
                 throw new IllegalArgumentException("Unsupported PlanElement type: " + element.getClass().getName());
