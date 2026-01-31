@@ -35,16 +35,16 @@ public class ExperiencedPlansWriter implements MATSimAppCommand {
     private String network = "/Users/paulh/git/parallel-qsim-berlin/output/v6.4/1pct/berlin-v6.4-network-with-pt-prepared.xml.gz";
 
     @CommandLine.Option(names = "--population", description = "Path to population")
-    private String population = "/Users/paulh/git/parallel-qsim-berlin/output/v6.4/1pct/berlin-v6.4-1pct.plans-filtered_600.xml.gz";
+    private String population = "/Users/paulh/git/parallel-qsim-berlin/output/v6.4/1pct/berlin-v6.4-1pct.plans-filtered.xml.gz";
 
     @CommandLine.Option(names = "--transit-schedule", description = "Path to transit schedule")
     private String transitSchedule = "/Users/paulh/git/parallel-qsim-berlin/output/v6.4/1pct/berlin-v6.4-transitSchedule.xml.gz";
 
     @CommandLine.Option(names = "--events", description = "Path to events file")
-    private Path eventsFile = Path.of("/Users/paulh/git/parallel-qsim-berlin/output/v6.4/1pct/output-12/events.xml.gz");
+    private Path eventsFile = Path.of("/Users/paulh/git/parallel-qsim-berlin/output/v6.4/1pct/output/events.xml.gz");
 
     @CommandLine.Option(names = "--output", description = "Path to output experienced plans file")
-    private String output = "/Users/paulh/git/parallel-qsim-berlin/output/v6.4/1pct/output-12/experiencedPlans.xml.gz";
+    private String output = "/Users/paulh/git/parallel-qsim-berlin/output/v6.4/1pct/output/experiencedPlans.xml.gz";
 
     public static void main(String[] args) {
         new ExperiencedPlansWriter().execute(args);

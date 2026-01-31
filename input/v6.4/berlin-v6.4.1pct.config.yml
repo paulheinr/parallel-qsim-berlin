@@ -1,10 +1,16 @@
 modules:
-  protofiles:
-    type: ProtoFiles
-    network: ../../output/v6.4/1pct/binpb/berlin-v6.4-1pct.network.binpb
-    population: ../../output/v6.4/1pct/binpb/berlin-v6.4-1pct.plans.binpb
-    vehicles: ../../output/v6.4/1pct/binpb/berlin-v6.4-1pct.vehicles.binpb
-    ids: ../../output/v6.4/1pct/binpb/berlin-v6.4-1pct.ids.binpb
+  network:
+    type: Network
+    path: ../../output/v6.4/1pct/binpb/berlin-v6.4-1pct.network.binpb
+  population:
+    type: Population
+    path: ../../output/v6.4/1pct/binpb/berlin-v6.4-1pct.plans.binpb
+  vehicles:
+    type: Vehicles
+    path: ../../output/v6.4/1pct/binpb/berlin-v6.4-1pct.vehicles.binpb
+  ids:
+    type: Ids
+    path: ../../output/v6.4/1pct/binpb/berlin-v6.4-1pct.ids.binpb
   partitioning:
     type: Partitioning
     num_parts: 16

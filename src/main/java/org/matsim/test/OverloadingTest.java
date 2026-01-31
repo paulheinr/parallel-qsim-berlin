@@ -20,12 +20,18 @@ import org.matsim.core.controler.OutputDirectoryHierarchy;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.scenario.ScenarioUtils;
+import org.matsim.vehicles.VehicleType;
+import org.matsim.vehicles.VehicleUtils;
+import org.matsim.vehicles.Vehicles;
 
 public class OverloadingTest {
     public static void main(String[] args) {
+        double sample = 0.01;
+        double rate = 0.03;
+
         Config config = ConfigUtils.createConfig();
         config.qsim().setLinkDynamics(QSimConfigGroup.LinkDynamics.FIFO);
-        config.controller().setOutputDirectory("./output/overloading-test-1");
+        config.controller().setOutputDirectory("./output/overloading-test-r" + rate + "-s" + sample);
         config.controller().setLastIteration(0);
         config.controller().setOverwriteFileSetting(OutputDirectoryHierarchy.OverwriteFileSetting.deleteDirectoryIfExists);
         config.routing().setNetworkRouteConsistencyCheck(RoutingConfigGroup.NetworkRouteConsistencyCheck.disable);
@@ -38,10 +44,19 @@ public class OverloadingTest {
 //        config.qsim().setStorageCapFactor(0.01);
         config.qsim().setTrafficDynamics(QSimConfigGroup.TrafficDynamics.queue);
         config.qsim().setStuckTime(30);
+        config.qsim().setVehiclesSource(QSimConfigGroup.VehiclesSource.modeVehicleTypesFromVehiclesData);
+
+        config.qsim().setFlowCapFactor(sample);
+        config.qsim().setStorageCapFactor(sample);
 
         Network network = createNetwork();
-        Population population = createPopulation(1, 1);
-        Scenario scenario = new ScenarioUtils.ScenarioBuilder(config).setNetwork(network).setPopulation(population).build();
+        Population population = createPopulation(network, rate, rate);
+
+        Scenario scenario = new ScenarioUtils.ScenarioBuilder(config)
+                .setNetwork(network).setPopulation(population).build();
+
+        Vehicles vehicles = scenario.getVehicles();
+        vehicles.addVehicleType(VehicleUtils.createVehicleType(Id.create("car", VehicleType.class)));
 
         Controller controller = ControllerUtils.createController(scenario);
         controller.run();
@@ -141,7 +156,7 @@ public class OverloadingTest {
         return network;
     }
 
-    static private Population createPopulation(double rateLink1, double rateLink2) {
+    static private Population createPopulation(Network network, double rateLink1, double rateLink2) {
         Population population = PopulationUtils.createPopulation(ConfigUtils.createConfig());
         PopulationFactory factory = population.getFactory();
 
@@ -158,13 +173,17 @@ public class OverloadingTest {
             Person person = factory.createPerson(Id.createPersonId("link1_" + agentId++));
             Plan plan = factory.createPlan();
 
-            Activity originActivity = factory.createActivityFromLinkId("origin", Id.createLinkId("1a"));
+            Id<Link> linkId = Id.createLinkId("1a");
+            Activity originActivity = factory.createActivityFromLinkId("origin", linkId);
             originActivity.setEndTime(startTime + i * intervalLink1);
+            originActivity.setCoord(network.getLinks().get(linkId).getCoord());
             plan.addActivity(originActivity);
 
             plan.addLeg(factory.createLeg(TransportMode.car));
 
-            Activity destinationActivity = factory.createActivityFromLinkId("destination", Id.createLinkId("5"));
+            Id<Link> linkId5 = Id.createLinkId("5");
+            Activity destinationActivity = factory.createActivityFromLinkId("destination", linkId5);
+            destinationActivity.setCoord(network.getLinks().get(linkId5).getCoord());
             plan.addActivity(destinationActivity);
 
             person.addPlan(plan);
@@ -178,13 +197,17 @@ public class OverloadingTest {
             Person person = factory.createPerson(Id.createPersonId("link2_" + agentId++));
             Plan plan = factory.createPlan();
 
-            Activity originActivity = factory.createActivityFromLinkId("origin", Id.createLinkId("2a"));
+            Id<Link> linkId = Id.createLinkId("2a");
+            Activity originActivity = factory.createActivityFromLinkId("origin", linkId);
             originActivity.setEndTime(startTime + i * intervalLink2);
+            originActivity.setCoord(network.getLinks().get(linkId).getCoord());
             plan.addActivity(originActivity);
 
             plan.addLeg(factory.createLeg(TransportMode.car));
 
-            Activity destinationActivity = factory.createActivityFromLinkId("destination", Id.createLinkId("5"));
+            Id<Link> linkId5 = Id.createLinkId("5");
+            Activity destinationActivity = factory.createActivityFromLinkId("destination", linkId5);
+            destinationActivity.setCoord(network.getLinks().get(linkId5).getCoord());
             plan.addActivity(destinationActivity);
 
             person.addPlan(plan);
