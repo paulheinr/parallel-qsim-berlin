@@ -32,19 +32,19 @@ public class ExperiencedPlansWriter implements MATSimAppCommand {
     private static final Logger log = LogManager.getLogger(ExperiencedPlansWriter.class);
 
     @CommandLine.Option(names = "--network", description = "Path to network")
-    private String network = "/Users/paulh/git/parallel-qsim-berlin/output/v6.4/1pct/berlin-v6.4-network-with-pt-prepared.xml.gz";
+    private String network = "/Users/paulh/git/matsim-berlin-ph/output/1pct-no-pt/berlin-v6.4.output_network.xml.gz";
 
     @CommandLine.Option(names = "--population", description = "Path to population")
-    private String population = "/Users/paulh/git/parallel-qsim-berlin/output/v6.4/1pct/berlin-v6.4-1pct.plans-filtered.xml.gz";
+    private String population = "/Users/paulh/git/matsim-berlin-ph/output/1pct-no-pt/berlin-v6.4.output_plans.xml.gz";
 
     @CommandLine.Option(names = "--transit-schedule", description = "Path to transit schedule")
-    private String transitSchedule = "/Users/paulh/git/parallel-qsim-berlin/output/v6.4/1pct/berlin-v6.4-transitSchedule.xml.gz";
+    private String transitSchedule = "/Users/paulh/git/matsim-berlin-ph/output/1pct-no-pt/berlin-v6.4.output_transitSchedule.xml.gz";
 
     @CommandLine.Option(names = "--events", description = "Path to events file")
-    private Path eventsFile = Path.of("/Users/paulh/git/parallel-qsim-berlin/output/v6.4/1pct/output/events.xml.gz");
+    private Path eventsFile = Path.of("/Users/paulh/git/matsim-berlin-ph/output/1pct-no-pt-rust/events.0.xml.gz");
 
     @CommandLine.Option(names = "--output", description = "Path to output experienced plans file")
-    private String output = "/Users/paulh/git/parallel-qsim-berlin/output/v6.4/1pct/output/experiencedPlans.xml.gz";
+    private String output = "/Users/paulh/git/matsim-berlin-ph/output/1pct-no-pt-rust/experienced-plans.xml.gz";
 
     public static void main(String[] args) {
         new ExperiencedPlansWriter().execute(args);
