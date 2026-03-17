@@ -18,13 +18,13 @@ import java.util.List;
 
 public class ActivityAnalysis implements MATSimAppCommand {
     @CommandLine.Option(names = "--base", description = "Path to plans file")
-    private String basePlans = "/Users/paulh/git/matsim-berlin/output/berlin-v6.4-1pct/berlin-v6.4.output_experienced_plans.xml.gz";
+    private String basePlans = "/Users/paulh/Documents/run-archive/20260213/output/10pct-no-pt/berlin-v6.4.output_experienced_plans.xml.gz";
 
     @CommandLine.Option(names = "--rust")
-    private String rustPlans = "/Users/paulh/git/parallel-qsim-berlin/output/v6.4/1pct/output-16/experiencedPlans.xml.gz";
+    private String rustPlans = "/Users/paulh/Documents/run-archive/20260213/output/10pct-no-pt-rust/experienced-plans.xml.gz";
 
     @CommandLine.Option(names = "--output")
-    private String output = "/Users/paulh/git/parallel-qsim-berlin/output/v6.4/1pct/output-16/";
+    private String output = "/Users/paulh/Documents/run-archive/20260213/output/";
 
     public static void main(String[] args) {
         new ActivityAnalysis().execute(args);
@@ -35,9 +35,9 @@ public class ActivityAnalysis implements MATSimAppCommand {
         Population population = PopulationUtils.readPopulation(basePlans);
         Population rustPopulation = PopulationUtils.readPopulation(rustPlans);
 
-        if (population.getPersons().size() - 6 != rustPopulation.getPersons().size()) {
-            throw new RuntimeException("Number of persons does not match number of rust plans.");
-        }
+//        if (population.getPersons().size() - 6 != rustPopulation.getPersons().size()) {
+//            throw new RuntimeException("Number of persons does not match number of rust plans.");
+//        }
 
         List<LegEntry> baseLegs = new LinkedList<>();
         List<LegEntry> rustLegs = new LinkedList<>();

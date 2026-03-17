@@ -4,7 +4,7 @@ use rust_qsim::simulation::events::{
 };
 use rust_qsim::simulation::id::Id;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
-use rust_qsim::simulation::population::InternalPerson;
+use rust_qsim::simulation::scenario::population::InternalPerson;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
