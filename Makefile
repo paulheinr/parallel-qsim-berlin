@@ -18,7 +18,11 @@ java_prepare := java -Xmx$(MEMORY) -XX:+UseG1GC -cp $(JAR) org.matsim.prepare.Ru
 # prefer local DTDs to avoid network access (i.e. on hpc clusters)
 java_router := java -Xmx$(MEMORY) -XX:+UseG1GC $(JVM_ARGS_EXTRA) -Dmatsim.preferLocalDtds=true -cp $(JAR) org.matsim.routing.ph.RoutingServerPH
 
-p := ./input/$(BV)
+SHARED_SVN_BASE:=~/shared-svn
+SHARED_SVN_FOLDER:=/projects/rust-qsim
+
+#p := ./input/$(BV)
+p := $(SHARED_SVN_BASE)$(SHARED_SVN_FOLDER)
 op := ./output/$(BV)/$(PCT)pct
 
 .PHONY: prepare
@@ -91,7 +95,7 @@ prepare: mk-output-folders $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb
 #   RUST_BIN  Name of the rust binary to run (default: local_qsim)
 #   ARGS      Additional arguments to pass to the simulation
 
-run: prepare
+run: # prepare
 	@if [ -n "$(N)" ]; then \
 		EXTRA="--set partitioning.num_parts=$(N)"; \
 	else \
@@ -102,7 +106,7 @@ run: prepare
 	else \
 		RUNNER="cargo run --release --bin $(RUST_BIN) --manifest-path $(RUST_BASE)/Cargo.toml --"; \
 	fi; \
-	CMD="$$RUNNER --config $p/berlin-v6.4.$(PCT)pct.config.yml $$EXTRA $(ARGS)"; \
+	CMD="$$RUNNER --config $p/berlin-v6.4.$(PCT)pct.config.yml $$EXTRA $(ARGS) --set output.output_dir=$(op)/$(RUN_ID)"; \
 	echo "$$CMD"; \
 	eval "$$CMD"
 
@@ -158,6 +162,6 @@ router: router-deps
 	else \
 		EXTRA=""; \
 	fi; \
-	CMD="$(java_router) --config $(op)/berlin-$(BV).config.xml --sample $(PCT) --output $(op)/routing-$(RUN_ID) $$EXTRA --localFiles"; \
+	CMD="$(java_router) --config $(op)/berlin-$(BV).config.xml --sample $(PCT) --output $(op)/$(RUN_ID)/routing $$EXTRA --localFiles"; \
 	echo "$$CMD"; \
 	eval "$$CMD"
