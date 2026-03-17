@@ -1,9 +1,8 @@
 JAR := parallel-qsim-berlin-*.jar
 BV := v6.4
 
-RUST_BASE_LIBS := ~/git/parallel_qsim_rust
-RUST_BASE := ./src/main/rust
-RUST_BIN := berlin
+RUST_BASE := ~/git/parallel_qsim_rust
+RUST_BIN := local_qsim
 
 MEMORY ?= 20G
 PCT := 1
@@ -41,10 +40,11 @@ clean:
 
 # ===== ORIGINAL INPUT_FILES =====
 
-$(op)/berlin-$(BV)-$(PCT)pct.plans-filtered.xml.gz: $(op)/berlin-$(BV)-$(PCT)pct.plans.xml.gz $(JAR)
+$(op)/berlin-$(BV)-$(PCT)pct.plans-filtered_$(HORIZON).xml.gz: $(op)/berlin-$(BV)-$(PCT)pct.plans.xml.gz $(JAR)
 	$(java_prepare) prepare prepare-population\
 		--input $<\
-		--modes car,walk,ride,bike,freight,truck,pt
+		--modes car,walk,ride,bike,freight,truck,pt\
+		--horizon $(HORIZON)
 
 $(op)/berlin-$(BV)-$(PCT)pct.plans.xml.gz:
 	curl https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/berlin/berlin-$(BV)/input/$(notdir $@) -o $@
@@ -58,11 +58,19 @@ $(op)/berlin-$(BV)-transitVehicles.xml.gz:
 $(op)/berlin-$(BV)-vehicleTypes.xml:
 	curl https://raw.githubusercontent.com/matsim-scenarios/matsim-berlin/refs/heads/main/input/$(BV)/$(notdir $@) -o $@
 
+$(op)/berlin-$(BV)-vehicleTypes-including-walk-pt.xml: $(op)/berlin-$(BV)-vehicleTypes.xml $(JAR)
+	$(java_prepare) prepare adapt-vehicle-types\
+		--input $<
+
 $(op)/berlin-$(BV)-network-with-pt.xml.gz:
 	curl https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/berlin/berlin-$(BV)/input/berlin-$(BV)-network-with-pt.xml.gz -o $@
 
+$(op)/berlin-$(BV)-network-with-pt-prepared.xml.gz: $(op)/berlin-$(BV)-network-with-pt.xml.gz
+	$(java_prepare) prepare prepare-network\
+		--input $<
+
 $(op)/berlin-$(BV).config.xml:
-	curl https://raw.githubusercontent.com/matsim-scenarios/matsim-berlin/refs/heads/main/input/$(BV)/berlin-$(BV)-$(PCT)pct.config.xml -o $@
+	curl https://raw.githubusercontent.com/matsim-scenarios/matsim-berlin/refs/heads/main/input/$(BV)/berlin-$(BV).config.xml -o $@
 
 $(op)/berlin-$(BV)-facilities.xml.gz:
 	curl https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/berlin/berlin-$(BV)/input/berlin-$(BV)-facilities.xml.gz -o $@
@@ -72,17 +80,21 @@ $(op)/berlin-$(BV).counts-vmz.xml.gz:
 
 # ===== CONVERT TO BINARY PROTOBUF =====
 
-$(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb: $(op)/berlin-$(BV)-$(PCT)pct.plans-filtered.xml.gz $(op)/berlin-$(BV)-vehicleTypes.xml $(op)/berlin-$(BV)-network-with-pt.xml.gz $(op)/berlin-$(BV)-transitSchedule.xml.gz
-	RUNNER="cargo run --release --bin convert_to_binary --manifest-path $(RUST_BASE_LIBS)/Cargo.toml --"; \
+$(op)/binpb-hor$(HORIZON)/berlin-$(BV)-$(PCT)pct.ids.binpb: $(op)/berlin-$(BV)-$(PCT)pct.plans-filtered_$(HORIZON).xml.gz $(op)/berlin-$(BV)-vehicleTypes-including-walk-pt.xml $(op)/berlin-$(BV)-network-with-pt-prepared.xml.gz $(op)/berlin-$(BV)-transitSchedule.xml.gz
+	if [ "$(MODE)" = "bin" ]; then \
+		RUNNER="$(RUST_BASE)/target/release/convert_to_binary"; \
+	else \
+		RUNNER="cargo run --release --bin convert_to_binary --manifest-path $(RUST_BASE)/Cargo.toml --"; \
+	fi; \
 	eval "$$RUNNER \
-		--network $(op)/berlin-$(BV)-network-with-pt.xml.gz\
-		--population $(op)/berlin-$(BV)-$(PCT)pct.plans-filtered.xml.gz\
-		--vehicles $(op)/berlin-$(BV)-vehicleTypes.xml\
+		--network $(op)/berlin-$(BV)-network-with-pt-prepared.xml.gz\
+		--population $(op)/berlin-$(BV)-$(PCT)pct.plans-filtered_$(HORIZON).xml.gz\
+		--vehicles $(op)/berlin-$(BV)-vehicleTypes-including-walk-pt.xml\
 		--transit-schedule $(op)/berlin-$(BV)-transitSchedule.xml.gz\
 		--output-dir $(op)\
-		--run-id binpb/berlin-$(BV)-$(PCT)pct"
+		--run-id binpb-hor$(HORIZON)/berlin-$(BV)-$(PCT)pct"
 
-prepare: mk-output-folders $(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb
+prepare: mk-output-folders $(op)/binpb-hor$(HORIZON)/berlin-$(BV)-$(PCT)pct.ids.binpb
 
 # ===== RUN SIMULATION =====
 # Used variables:
@@ -106,6 +118,7 @@ run: prepare
 	echo "$$CMD"; \
 	eval "$$CMD"
 
+# Setting the input files manually in order to reflect the horizon properly
 run-routing: prepare
 	@if [ -n "$(URL)" ]; then \
 		ROUTER_URL="$(URL)"; \
@@ -113,10 +126,14 @@ run-routing: prepare
 		ROUTER_URL="http://localhost:50051"; \
 	fi; \
 	$(MAKE) run \
+		RUST_BIN=local_qsim_routing \
 		ARGS="$(ARGS) \
 		--set routing.mode=ad-hoc \
-		--horizon $(HORIZON) \
-		--router-ip $$ROUTER_URL"
+		--router-ip $$ROUTER_URL \
+		--set protofiles.network=../../output/v6.4/$(PCT)pct/binpb-hor$(HORIZON)/berlin-v6.4-$(PCT)pct.network.binpb \
+		--set protofiles.ids=../../output/v6.4/$(PCT)pct/binpb-hor$(HORIZON)/berlin-v6.4-$(PCT)pct.ids.binpb \
+		--set protofiles.vehicles=../../output/v6.4/$(PCT)pct/binpb-hor$(HORIZON)/berlin-v6.4-$(PCT)pct.vehicles.binpb \
+		--set protofiles.population=../../output/v6.4/$(PCT)pct/binpb-hor$(HORIZON)/berlin-v6.4-$(PCT)pct.plans.binpb"
 
 # ===== POST_PROCESSING =====
 

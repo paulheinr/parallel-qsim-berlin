@@ -16,7 +16,7 @@ import java.util.Set;
 
 @CommandLine.Command(
         name = "prepare-population",
-        description = "Filters population by a given set of modes. Preserves all agents using only these modes. Attach preplanning horizon to pt legs.")
+        description = "Filters population by a given set of modes. Preserves all agents using only these modes.")
 public class PreparePopulation implements MATSimAppCommand {
     public static final Logger log = LogManager.getLogger(PreparePopulation.class);
     public static final String PREPLANNING_HORIZON_ATTRIBUTE = "preplanningHorizon";
@@ -26,9 +26,6 @@ public class PreparePopulation implements MATSimAppCommand {
 
     @CommandLine.Option(names = "--modes", split = ",", description = "Positive set of modes that the population is allowed to use")
     private Set<String> modes;
-
-    @CommandLine.Option(names = "--horizon", description = "Preplanning horizon to attach to pt legs (in seconds)", defaultValue = "600")
-    private int horizon;
 
     @Override
     public Integer call() {
@@ -49,14 +46,11 @@ public class PreparePopulation implements MATSimAppCommand {
 
         for (Person person : inputPopulation.getPersons().values()) {
             CleanPopulation.removeUnselectedPlans(person);
-            TripStructureUtils.getTrips(person.getSelectedPlan()).stream()
-                    .filter(t -> TripStructureUtils.identifyMainMode(t.getTripElements()).equals("pt"))
-                    .forEach(t -> t.getOriginActivity().getAttributes().putAttribute(PREPLANNING_HORIZON_ATTRIBUTE, horizon));
         }
 
         log.info("Filtered population contains {} agents", inputPopulation.getPersons().size());
 
-        String output = input.toString().replace(".xml", "-filtered_" + horizon + ".xml");
+        String output = input.toString().replace(".xml", "-filtered" + ".xml");
         log.info("Writing filtered population to {}", output);
 
         PopulationUtils.writePopulation(inputPopulation, output);
