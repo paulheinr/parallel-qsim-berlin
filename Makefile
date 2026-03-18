@@ -65,7 +65,7 @@ $(op)/berlin-$(BV)-vehicleTypes.xml:
 $(op)/berlin-$(BV)-network-with-pt.xml.gz:
 	curl https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/berlin/berlin-$(BV)/input/berlin-$(BV)-network-with-pt.xml.gz -o $@
 
-$(op)/berlin-$(BV).config.xml:
+$(op)/berlin-$(BV)-$(PCT)pct.config.xml:
 	curl https://raw.githubusercontent.com/matsim-scenarios/matsim-berlin/refs/heads/main/input/$(BV)/berlin-$(BV)-$(PCT)pct.config.xml -o $@
 
 $(op)/berlin-$(BV)-facilities.xml.gz:
@@ -76,7 +76,7 @@ $(op)/berlin-$(BV).counts-vmz.xml.gz:
 
 # ===== CONVERT TO BINARY PROTOBUF =====
 
-$(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb: $(op)/berlin-$(BV)-$(PCT)pct.plans-filtered.xml.gz $(op)/berlin-$(BV)-vehicleTypes.xml $(op)/berlin-$(BV)-network-with-pt.xml.gz $(op)/berlin-$(BV)-transitSchedule.xml.gz
+$(op)/binpb/berlin-$(BV)-$(PCT)pct.ids.binpb: $(op)/berlin-$(BV)-transitVehicles.xml.gz $(op)/berlin-$(BV)-facilities.xml.gz $(op)/berlin-$(BV)-$(PCT)pct.config.xml $(op)/berlin-$(BV)-$(PCT)pct.plans-filtered.xml.gz $(op)/berlin-$(BV)-vehicleTypes.xml $(op)/berlin-$(BV)-network-with-pt.xml.gz $(op)/berlin-$(BV)-transitSchedule.xml.gz
 	RUNNER="cargo run --release --bin convert_to_binary --manifest-path $(RUST_BASE_LIBS)/Cargo.toml --"; \
 	eval "$$RUNNER \
 		--network $(op)/berlin-$(BV)-network-with-pt.xml.gz\
@@ -148,20 +148,12 @@ convert-events:
 
 # ===== ROUTER =====
 
-router-deps: $(JAR) \
-             $(op)/berlin-$(BV).config.xml \
-             $(op)/berlin-$(BV)-facilities.xml.gz \
-             $(op)/berlin-$(BV)-network-with-pt.xml.gz \
-             $(op)/berlin-$(BV)-vehicleTypes.xml \
-             $(op)/berlin-$(BV)-transitVehicles.xml.gz
-	@echo "Dependencies for router are up to date."
-
-router: router-deps
+router:
 	@if [ -n "$(THREADS)" ]; then \
 		EXTRA="--threads $(THREADS)"; \
 	else \
 		EXTRA=""; \
 	fi; \
-	CMD="$(java_router) --config $(op)/berlin-$(BV).config.xml --sample $(PCT) --output $(op)/$(RUN_ID)/routing $$EXTRA --localFiles"; \
+	CMD="$(java_router) --config $(p)/$(PCT)pct/berlin-$(BV)-$(PCT)pct.config.xml --sample $(PCT) --output $(op)/$(RUN_ID)/routing $$EXTRA --localFiles"; \
 	echo "$$CMD"; \
 	eval "$$CMD"
