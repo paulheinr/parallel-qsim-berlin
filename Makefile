@@ -110,7 +110,7 @@ run: # prepare
 	echo "$$CMD"; \
 	eval "$$CMD"
 
-run-routing: prepare
+run-routing: #prepare
 	@if [ -n "$(URL)" ]; then \
 		ROUTER_URL="$(URL)"; \
 	else \
