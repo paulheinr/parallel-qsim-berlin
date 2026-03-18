@@ -3,15 +3,25 @@ use rust_qsim::external_services::routing::RoutingServiceAdapterFactory;
 use rust_qsim::external_services::{
     AdapterHandle, AdapterHandleBuilder, AsyncExecutor, ExternalServiceType,
 };
-use rust_qsim::simulation::config::{CommandLineArgs, Config};
+use rust_qsim::simulation::agents::agent::SimulationAgent;
+use rust_qsim::simulation::agents::agent_logic::AdaptivePlanBasedSimulationLogic;
+use rust_qsim::simulation::agents::{
+    AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState,
+};
+use rust_qsim::simulation::config::{CommandLineArgs, Config, RoutingMode};
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::controller::ExternalServices;
 use rust_qsim::simulation::id::Id;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
+use rust_qsim::simulation::population::agent_source::AgentSource;
 use rust_qsim::simulation::scenario::network::Link;
-use rust_qsim::simulation::scenario::population::PREPLANNING_HORIZON;
+use rust_qsim::simulation::scenario::population::{
+    InternalActivity, InternalLeg, InternalPerson, PREPLANNING_HORIZON,
+};
 use rust_qsim::simulation::scenario::vehicles::InternalVehicleType;
-use rust_qsim::simulation::scenario::{trip_structure_utils, MutableScenario};
+use rust_qsim::simulation::scenario::{trip_structure_utils, MutableScenario, ScenarioPartition};
+use rust_qsim::simulation::time_queue::{EndTime, Identifiable};
+use std::collections::HashMap;
 use std::sync::{Arc, Barrier};
 use tracing::info;
 
@@ -49,6 +59,7 @@ fn main() {
 
     // create controller
     let mut builder = ControllerBuilder::default_with_scenario(scenario);
+    builder = builder.agent_source(MyAgentSource);
 
     let (service, barrier, adapter) = if let Some(ips) = args.router_ip {
         create_router_adapter(&config, ips)
@@ -76,6 +87,142 @@ fn main() {
 
     // run controller
     builder.build().unwrap().run();
+}
+
+struct MyAgentSource;
+
+impl AgentSource for MyAgentSource {
+    fn create_agents(
+        &self,
+        scenario: &mut ScenarioPartition,
+    ) -> HashMap<Id<InternalPerson>, SimulationAgent> {
+        // take Persons and copy them into queues. This way we can keep the population around to translate
+        // ids for events processing...
+        let persons = std::mem::take(&mut scenario.population.persons);
+        let mut agents = HashMap::with_capacity(persons.len());
+
+        for (id, person) in persons {
+            Self::identify_logic_and_insert(&mut agents, id, person, &scenario.config);
+        }
+        agents
+    }
+}
+
+impl MyAgentSource {
+    fn identify_logic_and_insert(
+        agents: &mut HashMap<Id<InternalPerson>, SimulationAgent>,
+        id: Id<InternalPerson>,
+        person: InternalPerson,
+        config: &Config,
+    ) {
+        if config.routing().mode == RoutingMode::UsePlans {
+            agents.insert(id, SimulationAgent::new_plan_based(person));
+            return;
+        }
+
+        // go through all attributes of person's legs and check whether there is some marked as rolling horizon logic
+        let has_at_least_one_preplanning_horizon = person
+            .selected_plan()
+            .as_ref()
+            .unwrap_or_else(|| panic!("Plan does not exist for person with id: {}", id.external()))
+            .acts()
+            .iter()
+            .any(|l| l.attributes.get::<u32>(PREPLANNING_HORIZON).is_some());
+
+        if has_at_least_one_preplanning_horizon {
+            let delegate = AdaptivePlanBasedSimulationLogic::new(person);
+            let agent = SimulationAgent::new(Box::new(MinActivityTimeLogic::new(5 * 60, delegate)));
+            agents.insert(id, agent);
+        } else {
+            // if there is no rolling horizon logic, we assume that the person has a plan logic
+            // and we create a InternalSimulationAgent with plan logic
+            agents.insert(id, SimulationAgent::new_plan_based(person));
+        }
+    }
+}
+
+struct MinActivityTimeLogic {
+    time: u32, // seconds
+    delegate: AdaptivePlanBasedSimulationLogic,
+}
+
+impl MinActivityTimeLogic {
+    fn new(time: u32, delegate: AdaptivePlanBasedSimulationLogic) -> Self {
+        Self { time, delegate }
+    }
+}
+
+impl EndTime for MinActivityTimeLogic {
+    fn end_time(&self, now: u32) -> u32 {
+        let delegate_time = self.delegate.end_time(now);
+        match self.state() {
+            SimulationAgentState::LEG => delegate_time,
+            SimulationAgentState::ACTIVITY => {
+                if delegate_time < self.time {
+                    self.time
+                } else {
+                    delegate_time
+                }
+            }
+            SimulationAgentState::STUCK => {
+                panic!("Agent got stuck")
+            }
+        }
+    }
+}
+
+impl Identifiable<InternalPerson> for MinActivityTimeLogic {
+    fn id(&self) -> &Id<InternalPerson> {
+        self.delegate.id()
+    }
+}
+
+impl EnvironmentalEventObserver for MinActivityTimeLogic {
+    fn notify_event(&mut self, event: &mut AgentEvent, now: u32) {
+        self.delegate.notify_event(event, now);
+    }
+}
+
+impl SimulationAgentLogic for MinActivityTimeLogic {
+    fn curr_act(&self) -> &InternalActivity {
+        self.delegate.curr_act()
+    }
+
+    fn next_act(&self) -> &InternalActivity {
+        self.delegate.next_act()
+    }
+
+    fn curr_leg(&self) -> &InternalLeg {
+        self.delegate.curr_leg()
+    }
+
+    fn next_leg(&self) -> Option<&InternalLeg> {
+        self.delegate.next_leg()
+    }
+
+    fn advance_plan(&mut self) {
+        self.delegate.advance_plan()
+    }
+
+    fn state(&self) -> SimulationAgentState {
+        self.delegate.state()
+    }
+
+    fn is_wanting_to_arrive_on_current_link(&self) -> bool {
+        self.delegate.is_wanting_to_arrive_on_current_link()
+    }
+
+    fn curr_link_id(&self) -> Option<&Id<Link>> {
+        self.delegate.curr_link_id()
+    }
+
+    fn peek_next_link_id(&self) -> Option<&Id<Link>> {
+        self.delegate.peek_next_link_id()
+    }
+
+    fn wakeup_time(&self, now: u32) -> u32 {
+        self.delegate.wakeup_time(now)
+    }
 }
 
 fn create_router_adapter(
