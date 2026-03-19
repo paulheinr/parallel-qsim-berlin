@@ -87,6 +87,12 @@ fn main() {
 
     // run controller
     builder.build().unwrap().run();
+
+    rust_qsim::simulation::events::utils::convert_proto_to_xml_events(
+        config.output().output_dir.join("events"),
+        config.partitioning().num_parts,
+        config.output().output_dir.join("output_events.xml.gz"),
+    )
 }
 
 struct MyAgentSource;
@@ -121,23 +127,23 @@ impl MyAgentSource {
         }
 
         // go through all attributes of person's legs and check whether there is some marked as rolling horizon logic
-        let has_at_least_one_preplanning_horizon = person
-            .selected_plan()
-            .as_ref()
-            .unwrap_or_else(|| panic!("Plan does not exist for person with id: {}", id.external()))
-            .acts()
-            .iter()
-            .any(|l| l.attributes.get::<u32>(PREPLANNING_HORIZON).is_some());
+        // let has_at_least_one_preplanning_horizon = person
+        //     .selected_plan()
+        //     .as_ref()
+        //     .unwrap_or_else(|| panic!("Plan does not exist for person with id: {}", id.external()))
+        //     .acts()
+        //     .iter()
+        //     .any(|l| l.attributes.get::<u32>(PREPLANNING_HORIZON).is_some());
 
-        if has_at_least_one_preplanning_horizon {
-            let delegate = AdaptivePlanBasedSimulationLogic::new(person);
-            let agent = SimulationAgent::new(Box::new(MinActivityTimeLogic::new(5 * 60, delegate)));
-            agents.insert(id, agent);
-        } else {
-            // if there is no rolling horizon logic, we assume that the person has a plan logic
-            // and we create a InternalSimulationAgent with plan logic
-            agents.insert(id, SimulationAgent::new_plan_based(person));
-        }
+        // if has_at_least_one_preplanning_horizon {
+        let delegate = AdaptivePlanBasedSimulationLogic::new(person);
+        let agent = SimulationAgent::new(Box::new(MinActivityTimeLogic::new(5 * 60, delegate)));
+        agents.insert(id, agent);
+        // } else {
+        //     // if there is no rolling horizon logic, we assume that the person has a plan logic
+        //     // and we create a InternalSimulationAgent with plan logic
+        //     agents.insert(id, SimulationAgent::new_plan_based(person));
+        // }
     }
 }
 
@@ -154,14 +160,19 @@ impl MinActivityTimeLogic {
 
 impl EndTime for MinActivityTimeLogic {
     fn end_time(&self, now: u32) -> u32 {
-        let delegate_time = self.delegate.end_time(now);
+        let original_end_time = self.delegate.end_time(now);
         match self.state() {
-            SimulationAgentState::LEG => delegate_time,
+            SimulationAgentState::LEG => original_end_time,
             SimulationAgentState::ACTIVITY => {
-                if delegate_time < self.time {
-                    self.time
+                if self.delegate.curr_act().is_interaction() {
+                    return original_end_time;
+                }
+
+                let diff = original_end_time as i64 - now as i64;
+                if diff < self.time as i64 {
+                    now + self.time
                 } else {
-                    delegate_time
+                    original_end_time
                 }
             }
             SimulationAgentState::STUCK => {
