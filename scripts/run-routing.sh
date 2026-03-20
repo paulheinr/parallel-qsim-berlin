@@ -125,6 +125,7 @@ echo "Final ARGS for Rust client: $ARGS"
       SHARED_SVN_BASE=/home/bemheinr/scratch/rust-pt-routing/shared-svn \
       MODE=bin \
       PCT="$PCT"\
+      HORIZON="$HORIZON" \
       URL="$server_urls" \
       RUN_ID="${CONFIG_TAG}_sim" \
       ARGS="$ARGS"
