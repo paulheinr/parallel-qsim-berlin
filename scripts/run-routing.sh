@@ -116,7 +116,7 @@ echo "Final ARGS for Rust client: $ARGS"
 # ----------------------------------------------------------------------
 
 (
-  cd parallel-qsim-berlin
+#  cd parallel-qsim-berlin -> We are already in this folder.
   srun -N1 -n1 -w "$client_node" \
     --output="$LOG_DIR/${CONFIG_TAG}_${JOB_SUFFIX}_client.log" \
     make run-routing \
@@ -139,7 +139,7 @@ sleep 2
 for (( i=0; i<NUM_ROUTING_NODES; i++ )); do
     server_node="${server_nodes[$i]}"
     (
-      cd parallel-qsim-berlin
+#      cd parallel-qsim-berlin -> we are already in this folder.
       srun -N1 -n1 -w "$server_node" \
         --output="$LOG_DIR/${CONFIG_TAG}_${JOB_SUFFIX}_server_${i}.log" \
         make router \
