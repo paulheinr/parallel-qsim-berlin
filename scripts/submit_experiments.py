@@ -242,7 +242,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Submit experiment jobs to Slurm.")
     parser.add_argument("--dry-run", "--dry", dest="dry_run", action="store_true")
     parser.add_argument("--pct", type=int, default=1)
-    parser.add_argument("--router", type=int, default=192)
+    parser.add_argument("--router", type=int, default=24)
 
     args = parser.parse_args()
 
