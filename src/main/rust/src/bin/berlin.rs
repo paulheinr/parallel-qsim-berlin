@@ -32,6 +32,8 @@ struct BerlinCommandLineArgs {
     delegate: CommandLineArgs,
     #[clap(long)]
     horizon: Option<usize>,
+    #[clap(long, default_value = "300")]
+    min_activity_time: Option<u32>,
     #[clap(long, short, num_args = 1.., value_delimiter = ' ')]
     router_ip: Option<Vec<String>>,
 }
@@ -59,7 +61,7 @@ fn main() {
 
     // create controller
     let mut builder = ControllerBuilder::default_with_scenario(scenario);
-    builder = builder.agent_source(MyAgentSource);
+    builder = builder.agent_source(MyAgentSource::new(args.min_activity_time.unwrap()));
 
     let (service, barrier, adapter) = if let Some(ips) = args.router_ip {
         create_router_adapter(&config, ips)
@@ -95,7 +97,9 @@ fn main() {
     )
 }
 
-struct MyAgentSource;
+struct MyAgentSource {
+    min_activity_time: u32,
+}
 
 impl AgentSource for MyAgentSource {
     fn create_agents(
@@ -108,7 +112,7 @@ impl AgentSource for MyAgentSource {
         let mut agents = HashMap::with_capacity(persons.len());
 
         for (id, person) in persons {
-            Self::identify_logic_and_insert(&mut agents, id, person, &scenario.config);
+            self.identify_logic_and_insert(&mut agents, id, person, &scenario.config);
         }
         agents
     }
@@ -116,6 +120,7 @@ impl AgentSource for MyAgentSource {
 
 impl MyAgentSource {
     fn identify_logic_and_insert(
+        &self,
         agents: &mut HashMap<Id<InternalPerson>, SimulationAgent>,
         id: Id<InternalPerson>,
         person: InternalPerson,
@@ -137,13 +142,20 @@ impl MyAgentSource {
 
         // if has_at_least_one_preplanning_horizon {
         let delegate = AdaptivePlanBasedSimulationLogic::new(person);
-        let agent = SimulationAgent::new(Box::new(MinActivityTimeLogic::new(5 * 60, delegate)));
+        let agent = SimulationAgent::new(Box::new(MinActivityTimeLogic::new(
+            self.min_activity_time,
+            delegate,
+        )));
         agents.insert(id, agent);
         // } else {
         //     // if there is no rolling horizon logic, we assume that the person has a plan logic
         //     // and we create a InternalSimulationAgent with plan logic
         //     agents.insert(id, SimulationAgent::new_plan_based(person));
         // }
+    }
+
+    pub fn new(min_activity_time: u32) -> Self {
+        Self { min_activity_time }
     }
 }
 
