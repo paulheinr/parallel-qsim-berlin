@@ -14,6 +14,7 @@ MAX_CPUS = 192
 BASE_TIME_MIN = 2  # base runtime (in minutes) measured for SIM_CPUS = MAX_CPUS
 SAFETY_FACTOR = 2  # safety margin
 THREADS_PER_ROUTING_NODE = 24  # max threads per routing node
+BASE_HORIZON = 600
 
 
 def minutes_to_hhmmss(mins: int) -> str:
@@ -22,15 +23,15 @@ def minutes_to_hhmmss(mins: int) -> str:
     return f"{hours:02d}:{rem:02d}:00"
 
 
-def time_for_sim_cpus(sim_cpus: int, pct: int = 1) -> str:
+def time_for_sim_cpus(sim_cpus: int, pct: int, horizon: int, max_h: int = 4) -> str:
     if sim_cpus <= 0:
         sim_cpus = 1
 
-    # Very rough scaling: T ~ BASE * (MAX_CPUS / SIM_CPUS) * SAFETY
-    t = 10 + BASE_TIME_MIN * MAX_CPUS * SAFETY_FACTOR * pct // sim_cpus
+    # Very rough scaling: T ~ BASE * (MAX_CPUS / SIM_CPUS) * (horizon / BASE_HORIZON) * SAFETY
+    t = 10 + BASE_TIME_MIN * MAX_CPUS * SAFETY_FACTOR * pct * horizon // sim_cpus // BASE_HORIZON
 
-    # Cap at 4 hours (adjust if needed)
-    t = min(t, 4 * 60)
+    # Cap at max_h hours (adjust if needed)
+    t = min(t, max_h * 60)
 
     return minutes_to_hhmmss(t)
 
@@ -57,7 +58,7 @@ class JobConfig:
 
 def submit_job(cfg: JobConfig, dry_run: bool = False) -> None:
     """Submit a single job to Slurm using sbatch and the low-level script."""
-    tlimit = time_for_sim_cpus(cfg.sim_cpus, cfg.pct)
+    tlimit = time_for_sim_cpus(cfg.sim_cpus, cfg.pct, cfg.horizon)
     num_nodes = calculate_num_nodes(cfg.router_threads)
     num_routing_nodes = num_nodes - 1  # for display purposes
 
@@ -204,13 +205,18 @@ def make_test(pct: int, router: int) -> List[JobConfig]:
     return [JobConfig(phase="test", sim_cpus=192, horizon=600, worker_threads=4, router_threads=int(router), pct=pct)]
 
 
+def make_baseline(pct: int, router: int) -> List[JobConfig]:
+    return [JobConfig(phase="baseline", sim_cpus=192, horizon=0, worker_threads=4, router_threads=int(router), pct=pct)]
+
+
 # ----------------------------------------------------------------------
 # Main
 # ----------------------------------------------------------------------
 
 def main(dry_run: bool = False, pct: int = 1, router: int = 192) -> None:
     jobs: List[JobConfig] = []
-    jobs.extend(make_test(pct, router))
+    # jobs.extend(make_test(pct, router))
+    jobs.extend(make_baseline(pct, router))
     # jobs.extend(make_phase1_jobs(pct, router))
     # jobs.extend(make_phase2_jobs(pct, router))
     # jobs.extend(make_phase3a_jobs(pct, router))
