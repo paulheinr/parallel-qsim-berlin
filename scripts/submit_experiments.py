@@ -31,7 +31,7 @@ def time_for_sim_cpus(sim_cpus: int, pct: int, horizon: int, max_h: int = 4) -> 
         horizon = 1
 
     # Very rough scaling: T ~ BASE * (MAX_CPUS / SIM_CPUS) * (BASE_HORIZON / horizon) * SAFETY
-    t = 10 + BASE_TIME_MIN * MAX_CPUS * SAFETY_FACTOR * pct * horizon // sim_cpus // BASE_HORIZON
+    t = 10 + BASE_TIME_MIN * MAX_CPUS * SAFETY_FACTOR * pct * BASE_HORIZON // sim_cpus // horizon
 
     # Cap at max_h hours (adjust if needed)
     t = min(t, max_h * 60)
