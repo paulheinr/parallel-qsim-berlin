@@ -4,15 +4,15 @@ from dataclasses import dataclass
 from typing import List
 
 # Path to your low-level slurm script
-LOWLEVEL_SCRIPT = "run-routing.sh"   # adjust if the filename is different
+LOWLEVEL_SCRIPT = "run-routing.sh"  # adjust if the filename is different
 
 # ----------------------------------------------------------------------
 # Time limit heuristic
 # ----------------------------------------------------------------------
 
 MAX_CPUS = 192
-BASE_TIME_MIN = 2    # base runtime (in minutes) measured for SIM_CPUS = MAX_CPUS
-SAFETY_FACTOR = 2     # safety margin
+BASE_TIME_MIN = 2  # base runtime (in minutes) measured for SIM_CPUS = MAX_CPUS
+SAFETY_FACTOR = 2  # safety margin
 THREADS_PER_ROUTING_NODE = 24  # max threads per routing node
 
 
@@ -72,7 +72,7 @@ def submit_job(cfg: JobConfig, dry_run: bool = False) -> None:
         f"HORIZON={cfg.horizon}",
         f"WORKER_THREADS={cfg.worker_threads}",
         f"ROUTER_THREADS={cfg.router_threads}",
-        f"PCT={cfg.pct}"
+        f"PCT={cfg.pct}",
     ]
 
     print("Submitting job:")
@@ -93,16 +93,14 @@ def submit_job(cfg: JobConfig, dry_run: bool = False) -> None:
 # ----------------------------------------------------------------------
 # Phases
 # ----------------------------------------------------------------------
-
-def make_phase1_jobs(pct=1) -> List[JobConfig]:
+def make_phase1_jobs(pct: int, router: int) -> List[JobConfig]:
     """
     Phase 1 - Strong scaling of the simulation.
-    HORIZON=600, WORKER=4, ROUTER=192.
+    HORIZON=600, WORKER=4, ROUTER=<router>.
     """
     phase = "phase1_strong_scaling"
     horizon = 600
     worker = 4
-    router = 192
 
     sim_values = [1, 2, 4, 8, 16, 32, 64, 128, 192]
     return [
@@ -118,7 +116,7 @@ def make_phase1_jobs(pct=1) -> List[JobConfig]:
     ]
 
 
-def make_phase2_jobs(pct=1) -> List[JobConfig]:
+def make_phase2_jobs(pct: int, router: int) -> List[JobConfig]:
     """
     Phase 2 - Horizon variation.
     Use 2-3 SIM_CPUS values that you found interesting in Phase 1.
@@ -126,7 +124,6 @@ def make_phase2_jobs(pct=1) -> List[JobConfig]:
     """
     phase = "phase2_horizon"
     worker = 4
-    router = 192
 
     # TODO: adjust these after Phase 1 results
     sim_values = [8, 64, 192]
@@ -148,16 +145,15 @@ def make_phase2_jobs(pct=1) -> List[JobConfig]:
     return jobs
 
 
-def make_phase3a_jobs(pct=1) -> List[JobConfig]:
+def make_phase3a_jobs(pct: int, router: int) -> List[JobConfig]:
     """
     Phase 3a - Worker thread variation.
     Fix SIM_CPUS at the "knee" and vary WORKER_THREADS.
     Example: SIM_CPUS=64 (adjust after Phase 1).
     """
     phase = "phase3a_workers"
-    sim = 64          # TODO: set to your actual knee point
-    horizon = 600     # or the most stressful horizon from Phase 2
-    router = 192
+    sim = 64  # TODO: set to your actual knee point
+    horizon = 600  # or the most stressful horizon from Phase 2
 
     worker_values = [1, 8]
 
@@ -174,7 +170,7 @@ def make_phase3a_jobs(pct=1) -> List[JobConfig]:
     ]
 
 
-def make_phase3b_jobs(pct=1) -> List[JobConfig]:
+def make_phase3b_jobs(pct: int) -> List[JobConfig]:
     """
     Phase 3b - Router thread variation.
     Use one low and one high SIM_CPUS value and vary ROUTER_THREADS.
@@ -204,25 +200,25 @@ def make_phase3b_jobs(pct=1) -> List[JobConfig]:
     return jobs
 
 
-def make_test(pct=1) -> List[JobConfig]: 
-    return [JobConfig(phase="test", sim_cpus=192, horizon=600, worker_threads=4, router_threads=int(24), pct=pct)]
+def make_test(pct: int, router: int) -> List[JobConfig]:
+    return [JobConfig(phase="test", sim_cpus=192, horizon=600, worker_threads=4, router_threads=int(router), pct=pct)]
 
 
 # ----------------------------------------------------------------------
 # Main
 # ----------------------------------------------------------------------
 
-def main(dry_run: bool = False, pct: int = 1) -> None:
+def main(dry_run: bool = False, pct: int = 1, router: int = 192) -> None:
     jobs: List[JobConfig] = []
-    # jobs.extend(make_test(pct))
-    jobs.extend(make_phase1_jobs(pct))
-    # jobs.extend(make_phase2_jobs(pct))
-    # jobs.extend(make_phase3a_jobs(pct))
+    jobs.extend(make_test(pct, router))
+    # jobs.extend(make_phase1_jobs(pct, router))
+    # jobs.extend(make_phase2_jobs(pct, router))
+    # jobs.extend(make_phase3a_jobs(pct, router))
     # jobs.extend(make_phase3b_jobs(pct))
 
     for cfg in jobs:
         submit_job(cfg, dry_run=dry_run)
-    
+
     print()
     print(f"Total jobs to submit: {len(jobs)}")
 
@@ -231,19 +227,14 @@ if __name__ == "__main__":
     # Simple CLI: if you call `python submit_experiments.py --dry-run`
     # it will only print the sbatch commands without executing them.
     # Use --pct <value> to set the pct parameter (default: 1)
-    import sys
+    # Use --router <value> to set the router thread count for fixed-router phases.
+    import argparse
 
-    dry = "--dry" in sys.argv
-    
-    # Parse --pct argument
-    pct = 1
-    if "--pct" in sys.argv:
-        try:
-            pct_idx = sys.argv.index("--pct")
-            if pct_idx + 1 < len(sys.argv):
-                pct = int(sys.argv[pct_idx + 1])
-        except (ValueError, IndexError):
-            print("Error: --pct requires an integer value")
-            sys.exit(1)
-    
-    main(dry_run=dry, pct=pct)
+    parser = argparse.ArgumentParser(description="Submit experiment jobs to Slurm.")
+    parser.add_argument("--dry-run", "--dry", dest="dry_run", action="store_true")
+    parser.add_argument("--pct", type=int, default=1)
+    parser.add_argument("--router", type=int, default=192)
+
+    args = parser.parse_args()
+
+    main(dry_run=args.dry_run, pct=args.pct, router=args.router)
