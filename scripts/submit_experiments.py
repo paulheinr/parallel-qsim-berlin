@@ -27,7 +27,10 @@ def time_for_sim_cpus(sim_cpus: int, pct: int, horizon: int, max_h: int = 4) -> 
     if sim_cpus <= 0:
         sim_cpus = 1
 
-    # Very rough scaling: T ~ BASE * (MAX_CPUS / SIM_CPUS) * (horizon / BASE_HORIZON) * SAFETY
+    if horizon <= 0:
+        horizon = 1
+
+    # Very rough scaling: T ~ BASE * (MAX_CPUS / SIM_CPUS) * (BASE_HORIZON / horizon) * SAFETY
     t = 10 + BASE_TIME_MIN * MAX_CPUS * SAFETY_FACTOR * pct * horizon // sim_cpus // BASE_HORIZON
 
     # Cap at max_h hours (adjust if needed)
