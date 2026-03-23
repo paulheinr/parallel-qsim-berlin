@@ -51,6 +51,11 @@ fn main() {
     // load scenario
     let mut scenario = MutableScenario::load(config.clone());
 
+    // scenario
+    //     .population
+    //     .persons
+    //     .retain(|i, _| i.external().eq("berlin_423098b6"));
+
     add_teleported_vehicle(&mut scenario, "walk");
     add_teleported_vehicle(&mut scenario, "pt");
     add_dummy_link(&mut scenario);
@@ -162,11 +167,30 @@ impl MyAgentSource {
 struct MinActivityTimeLogic {
     time: u32, // seconds
     delegate: AdaptivePlanBasedSimulationLogic,
+    last_act_start: u32,
 }
 
 impl MinActivityTimeLogic {
     fn new(time: u32, delegate: AdaptivePlanBasedSimulationLogic) -> Self {
-        Self { time, delegate }
+        Self {
+            time,
+            delegate,
+            last_act_start: 0,
+        }
+    }
+
+    fn fix_end_time(&self, original_end_time: u32) -> u32 {
+        if self.delegate.curr_act().is_interaction() {
+            return original_end_time;
+        }
+
+        let diff = original_end_time as i64 - self.last_act_start as i64;
+        if diff < self.time as i64 {
+            // This is the problem: Now is not the beginning of the activity, but it can be any other time
+            self.last_act_start + self.time
+        } else {
+            original_end_time
+        }
     }
 }
 
@@ -175,18 +199,7 @@ impl EndTime for MinActivityTimeLogic {
         let original_end_time = self.delegate.end_time(now);
         match self.state() {
             SimulationAgentState::LEG => original_end_time,
-            SimulationAgentState::ACTIVITY => {
-                if self.delegate.curr_act().is_interaction() {
-                    return original_end_time;
-                }
-
-                let diff = original_end_time as i64 - now as i64;
-                if diff < self.time as i64 {
-                    now + self.time
-                } else {
-                    original_end_time
-                }
-            }
+            SimulationAgentState::ACTIVITY => self.fix_end_time(original_end_time),
             SimulationAgentState::STUCK => {
                 panic!("Agent got stuck")
             }
@@ -202,6 +215,9 @@ impl Identifiable<InternalPerson> for MinActivityTimeLogic {
 
 impl EnvironmentalEventObserver for MinActivityTimeLogic {
     fn notify_event(&mut self, event: &mut AgentEvent, now: u32) {
+        if let AgentEvent::ActivityStarted(_) = event {
+            self.last_act_start = now;
+        }
         self.delegate.notify_event(event, now);
     }
 }
@@ -244,7 +260,30 @@ impl SimulationAgentLogic for MinActivityTimeLogic {
     }
 
     fn wakeup_time(&self, now: u32) -> u32 {
-        self.delegate.wakeup_time(now)
+        // this is only called when the agent is transferred to the activity engine.
+        // thus, "now" is the beginning of the activity
+        // we haven't received an activityStartedEvent, so we need to trust the now parameter
+        let original_end = self.delegate.curr_act().cmp_end_time(now);
+        let mut new_end = self.fix_end_time(original_end);
+
+        if self.delegate.next_leg().is_none() {
+            // no need to wake up if there is no other leg.
+            return new_end;
+        }
+
+        let horizon: Option<u32> = self.delegate.curr_act().attributes.get(PREPLANNING_HORIZON);
+
+        if let Some(h) = horizon {
+            if h > new_end {
+                // if horizon is larger than the current end time, then end - h would be negative (might be the case at the very beginning of the simulation)
+                // and thus there would be an error.
+                new_end = 0;
+            } else {
+                new_end -= h;
+            }
+        }
+
+        new_end
     }
 }
 

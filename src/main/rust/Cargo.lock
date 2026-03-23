@@ -1039,7 +1039,7 @@ dependencies = [
 [[package]]
 name = "macros"
 version = "0.1.0"
-source = "git+https://github.com/matsim-vsp/parallel_qsim_rust#51be9dbfaca0055d1a0e318a8051e893e32d5c09"
+source = "git+https://github.com/matsim-vsp/parallel_qsim_rust#ee57696a4bba0d2d210dab70216f6417641577d6"
 dependencies = [
  "quote",
  "syn",
@@ -1473,7 +1473,7 @@ dependencies = [
 [[package]]
 name = "rust_qsim"
 version = "0.2.0"
-source = "git+https://github.com/matsim-vsp/parallel_qsim_rust#51be9dbfaca0055d1a0e318a8051e893e32d5c09"
+source = "git+https://github.com/matsim-vsp/parallel_qsim_rust#ee57696a4bba0d2d210dab70216f6417641577d6"
 dependencies = [
  "ahash",
  "arrow2",
