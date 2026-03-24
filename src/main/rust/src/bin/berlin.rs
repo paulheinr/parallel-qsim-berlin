@@ -6,7 +6,7 @@ use rust_qsim::external_services::{
 use rust_qsim::simulation::agents::agent::SimulationAgent;
 use rust_qsim::simulation::agents::agent_logic::AdaptivePlanBasedSimulationLogic;
 use rust_qsim::simulation::agents::{
-    AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState,
+    AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState, WokeUpEvent,
 };
 use rust_qsim::simulation::config::{CommandLineArgs, Config, RoutingMode};
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
@@ -51,10 +51,10 @@ fn main() {
     // load scenario
     let mut scenario = MutableScenario::load(config.clone());
 
-    // scenario
-    //     .population
-    //     .persons
-    //     .retain(|i, _| i.external().eq("berlin_423098b6"));
+    scenario
+        .population
+        .persons
+        .retain(|i, _| i.external().eq("berlin_423098b6"));
 
     add_teleported_vehicle(&mut scenario, "walk");
     add_teleported_vehicle(&mut scenario, "pt");
@@ -217,7 +217,17 @@ impl Identifiable<InternalPerson> for MinActivityTimeLogic {
 
 impl EnvironmentalEventObserver for MinActivityTimeLogic {
     fn notify_event(&mut self, event: &mut AgentEvent, now: u32) {
-        self.delegate.notify_event(event, now);
+        if let AgentEvent::WokeUp(w) = event {
+            let new_time = self.end_time(self.last_act_start);
+            let mut event = AgentEvent::WokeUp(WokeUpEvent {
+                comp_env: w.comp_env,
+                end_time: new_time,
+            });
+
+            self.delegate.notify_event(&mut event, now);
+        } else {
+            self.delegate.notify_event(event, now);
+        }
     }
 }
 
@@ -238,8 +248,11 @@ impl SimulationAgentLogic for MinActivityTimeLogic {
         self.delegate.next_leg()
     }
 
-    fn advance_plan(&mut self) {
-        self.delegate.advance_plan()
+    fn advance_plan(&mut self, now: u32) {
+        self.delegate.advance_plan(now);
+        if self.state() == SimulationAgentState::ACTIVITY {
+            self.last_act_start = now;
+        }
     }
 
     fn state(&self) -> SimulationAgentState {
@@ -259,7 +272,7 @@ impl SimulationAgentLogic for MinActivityTimeLogic {
     }
 
     fn wakeup_time(&self, now: u32) -> u32 {
-        let original_end = self.delegate.curr_act().cmp_end_time(now);
+        let original_end = self.delegate.end_time(now);
 
         // this is only called when the agent is transferred to the activity engine.
         // thus, "now" is the beginning of the activity
