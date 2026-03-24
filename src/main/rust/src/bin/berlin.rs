@@ -179,15 +179,15 @@ impl MinActivityTimeLogic {
         }
     }
 
-    fn fix_end_time(&self, original_end_time: u32) -> u32 {
+    fn fix_end_time(&self, original_end_time: u32, last_act_start: u32) -> u32 {
         if self.delegate.curr_act().is_interaction() {
             return original_end_time;
         }
 
-        let diff = original_end_time as i64 - self.last_act_start as i64;
+        let diff = original_end_time as i64 - last_act_start as i64;
         if diff < self.time as i64 {
             // This is the problem: Now is not the beginning of the activity, but it can be any other time
-            self.last_act_start + self.time
+            last_act_start + self.time
         } else {
             original_end_time
         }
@@ -199,7 +199,9 @@ impl EndTime for MinActivityTimeLogic {
         let original_end_time = self.delegate.end_time(now);
         match self.state() {
             SimulationAgentState::LEG => original_end_time,
-            SimulationAgentState::ACTIVITY => self.fix_end_time(original_end_time),
+            SimulationAgentState::ACTIVITY => {
+                self.fix_end_time(original_end_time, self.last_act_start)
+            }
             SimulationAgentState::STUCK => {
                 panic!("Agent got stuck")
             }
@@ -215,9 +217,6 @@ impl Identifiable<InternalPerson> for MinActivityTimeLogic {
 
 impl EnvironmentalEventObserver for MinActivityTimeLogic {
     fn notify_event(&mut self, event: &mut AgentEvent, now: u32) {
-        if let AgentEvent::ActivityStarted(_) = event {
-            self.last_act_start = now;
-        }
         self.delegate.notify_event(event, now);
     }
 }
@@ -260,11 +259,12 @@ impl SimulationAgentLogic for MinActivityTimeLogic {
     }
 
     fn wakeup_time(&self, now: u32) -> u32 {
+        let original_end = self.delegate.curr_act().cmp_end_time(now);
+
         // this is only called when the agent is transferred to the activity engine.
         // thus, "now" is the beginning of the activity
         // we haven't received an activityStartedEvent, so we need to trust the now parameter
-        let original_end = self.delegate.curr_act().cmp_end_time(now);
-        let mut new_end = self.fix_end_time(original_end);
+        let mut new_end = self.fix_end_time(original_end, now);
 
         if self.delegate.next_leg().is_none() {
             // no need to wake up if there is no other leg.
