@@ -51,10 +51,10 @@ fn main() {
     // load scenario
     let mut scenario = MutableScenario::load(config.clone());
 
-    scenario
-        .population
-        .persons
-        .retain(|i, _| i.external().eq("berlin_423098b6"));
+    // scenario
+    //     .population
+    //     .persons
+    //     .retain(|i, _| i.external().eq("berlin_423098b6"));
 
     add_teleported_vehicle(&mut scenario, "walk");
     add_teleported_vehicle(&mut scenario, "pt");
