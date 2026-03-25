@@ -117,7 +117,7 @@ echo "Final ARGS for Rust client: $ARGS"
 
 (
   cd .. # move to parent folder
-  srun -N1 -n1 -w "$client_node" \
+  srun --kill-on-bad-exit=1 -N1 -n1 -w "$client_node" \
     --output="$LOG_DIR/${CONFIG_TAG}_${JOB_SUFFIX}_client.log" \
     make run-routing \
       N="$N" \
@@ -141,7 +141,7 @@ for (( i=0; i<NUM_ROUTING_NODES; i++ )); do
     server_node="${server_nodes[$i]}"
     (
       cd .. # move to parent folder
-      srun -N1 -n1 -w "$server_node" \
+      srun --kill-on-bad-exit=1 -N1 -n1 -w "$server_node" \
         --output="$LOG_DIR/${CONFIG_TAG}_${JOB_SUFFIX}_server_${i}.log" \
         make router \
           SHARED_SVN_BASE=/home/bemheinr/scratch/rust-pt-routing/shared-svn \
@@ -155,6 +155,17 @@ done
 # ----------------------------------------------------------------------
 # 9) Wait for both processes to complete
 # ----------------------------------------------------------------------
-wait
+remaining=$((NUM_ROUTING_NODES + 1))   # routers + client
+while (( remaining > 0 )); do
+    wait -n
+    rc=$?
+    if (( rc != 0 )); then
+        echo "A sub-process failed with exit code $rc; cancelling whole job"
+        scancel "$SLURM_JOB_ID" || true
+        wait || true
+        exit "$rc"
+    fi
+    ((remaining--))
+done
 
 echo "Run completed for configuration: $CONFIG_TAG"
