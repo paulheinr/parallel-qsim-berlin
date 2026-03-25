@@ -273,6 +273,134 @@ def aggregate_routing(
     return result
 
 
+def aggregate_qsim(
+        run: RunMeta,
+        bin_size: int = 20,
+        processes: Optional[Iterable[int]] = None,
+        output: bool = True,
+) -> pd.DataFrame:
+    """
+    Aggregate qsim instrument parquet files into time bins per target, function, and
+    process. The aggregated parquet is written to the sim instrument folder when
+    `output` is true.
+    """
+    instr_dir = run.instrument_path
+    if not instr_dir.is_dir():
+        raise FileNotFoundError(instr_dir)
+
+    proc_filter = None if processes is None else {int(process) for process in processes}
+    aggregated_frames: list[pd.DataFrame] = []
+
+    files = sorted(instr_dir.glob("instrument_process_*.parquet"))
+    if not files:
+        return pd.DataFrame()
+
+    first_path = files[0]
+    base_table = _read_parquet(first_path)
+    base_cols = set(base_table.columns)
+
+    for path in files:
+        pid = _extract_process_id(path)
+        if proc_filter is not None and pid not in proc_filter:
+            continue
+
+        print(f"Processing instrument file: {path}")
+        df = _read_parquet(path)
+
+        cols = set(df.columns)
+        if cols != base_cols:
+            only_in_this = sorted(cols - base_cols)
+            missing_from_this = sorted(base_cols - cols)
+            raise AssertionError(
+                f"Column mismatch for {path.name}:\n"
+                f"Only in this file: {only_in_this}\n"
+                f"Missing from this file: {missing_from_this}"
+            )
+
+        if "timestamp" in df.columns:
+            df = _convert_u128_column(df, "timestamp", "timestamp_u128")
+
+        if "duration_ns" not in df.columns:
+            raise KeyError(f"Missing required 'duration_ns' column in {path.name}")
+        if "func_name" not in df.columns:
+            raise KeyError(f"Missing required 'func_name' column in {path.name}")
+        if "target" not in df.columns:
+            raise KeyError(f"Missing required 'target' column in {path.name}")
+        if "sim_time" not in df.columns:
+            raise KeyError(f"Missing required 'sim_time' column in {path.name}")
+
+        try:
+            df["duration_ns"] = pd.to_numeric(df["duration_ns"], errors="raise").astype("int64")
+        except Exception:
+            df["duration_ns"] = pd.to_numeric(df["duration_ns"], errors="raise").astype("UInt64")
+
+        df["func_name"] = df["func_name"].astype("string")
+        df["target"] = df["target"].astype("string")
+        df["sim_time"] = pd.to_numeric(df["sim_time"], errors="raise").astype("int64")
+
+        df["bin"] = (df["sim_time"] // int(bin_size)).astype("int64")
+        agg = (
+            df.groupby(["target", "func_name", "bin"], dropna=False)["duration_ns"]
+            .agg(
+                duration_max_ns="max",
+                duration_min_ns="min",
+                duration_mean_ns="mean",
+                duration_median_ns="median",
+            )
+            .reset_index()
+        )
+
+        agg["bin_start"] = (agg["bin"] * int(bin_size)).astype("int64")
+        agg["bin_end"] = (agg["bin"] * int(bin_size) + int(bin_size) - 1).astype("int64")
+        agg = _add_run_metadata(agg, run, pid, path, False)
+
+        cols_order = [
+            "run_id",
+            "sim_thread_count",
+            "horizon",
+            "worker",
+            "routing_threads",
+            "pct",
+            "process_id",
+            "target",
+            "func_name",
+            "bin",
+            "bin_start",
+            "bin_end",
+            "duration_min_ns",
+            "duration_max_ns",
+            "duration_mean_ns",
+            "duration_median_ns",
+        ]
+        agg = agg[[column for column in cols_order if column in agg.columns]].copy()
+        aggregated_frames.append(agg)
+
+    result = pd.concat(aggregated_frames, ignore_index=True) if aggregated_frames else pd.DataFrame()
+
+    if output and not result.empty:
+        outp = instr_dir / "instrument_aggregated.parquet"
+        outp.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Writing aggregated qsim to: {outp}")
+        result.to_parquet(outp, index=False)
+
+    return result
+
+
+def read_aggregated_qsim(run: RunMeta) -> pd.DataFrame:
+    instr_dir = run.instrument_path
+    if not instr_dir.is_dir():
+        raise FileNotFoundError(instr_dir)
+
+    for candidate in (
+            instr_dir / "instrument_aggregated.parquet",
+            instr_dir / "qsim_aggregated.parquet",
+    ):
+        if candidate.exists():
+            return _read_parquet(candidate)
+
+    return aggregate_qsim(run, output=True)
+
+
 def read_router(run: RunMeta, commit_hash: str) -> pd.DataFrame:
     if not run.server_paths:
         return pd.DataFrame(columns=[*_ROUTING_PROFILE_COLUMNS, "server_id"])
