@@ -13,6 +13,8 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.matsim.routing.ph.RoutingServicePH.sToNs;
+
 public class RequestConverter {
     public static void main(String[] args) {
         Network network = NetworkUtils.readNetwork("/Users/paulh/git/parallel-qsim-berlin/output/v6.4/10pct/berlin-v6.4-network-with-pt.xml.gz");
@@ -29,16 +31,22 @@ public class RequestConverter {
                 String to = strings.get(4);
                 Entry entry = new Entry(Integer.parseInt(now), Integer.parseInt(departureTime), Id.createLinkId(from), Id.createLinkId(to));
 
+                Routing.Coordinate.Builder fromCoord = Routing.Coordinate.newBuilder()
+                        .setX(network.getLinks().get(entry.from()).getCoord().getX())
+                        .setY(network.getLinks().get(entry.from()).getCoord().getY());
+
+                Routing.Coordinate.Builder toCoord = Routing.Coordinate.newBuilder()
+                        .setX(network.getLinks().get(entry.to()).getCoord().getX())
+                        .setY(network.getLinks().get(entry.to()).getCoord().getY());
+
                 Routing.Request request = Routing.Request.newBuilder()
                         .setMode("pt")
                         .setFromLinkId(entry.from().toString())
                         .setToLinkId(entry.to().toString())
-                        .setFromX(network.getLinks().get(entry.from()).getCoord().getX())
-                        .setFromY(network.getLinks().get(entry.from()).getCoord().getY())
-                        .setToX(network.getLinks().get(entry.to()).getCoord().getX())
-                        .setToY(network.getLinks().get(entry.to()).getCoord().getY())
-                        .setDepartureTime(entry.departureTime())
-                        .setNow(entry.now())
+                        .setFrom(fromCoord)
+                        .setTo(toCoord)
+                        .setDepartureTimeNs(sToNs(entry.departureTime()))
+                        .setNowNs(sToNs(entry.now()))
                         .build();
                 try {
                     request.writeDelimitedTo(outputStream);

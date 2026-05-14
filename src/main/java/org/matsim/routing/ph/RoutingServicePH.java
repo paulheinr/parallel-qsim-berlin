@@ -47,6 +47,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 public class RoutingServicePH extends RoutingServiceGrpc.RoutingServiceImplBase {
+    private static final int NANO_SEC_PER_SEC = 1_000_000_000;
+
     private static final Logger log = LogManager.getLogger(RoutingServicePH.class);
     private final ThreadLocal<RoutingModule> swissRailRaptor;
     private final Runnable shutdown;
@@ -88,9 +90,10 @@ public class RoutingServicePH extends RoutingServiceGrpc.RoutingServiceImplBase 
 
     @Override
     public void getRoute(Routing.Request request, StreamObserver<Routing.Response> responseObserver) {
-        if (threadNum.get() == 0 && lastNow < request.getNow() && lastNow / 3600 != request.getNow() / 3600) {
-            log.info("Received route request for simulation hour {}:00", String.format("%02d", request.getNow() / 3600));
-            lastNow = request.getNow();
+        int now = nsToS(request.getNowNs());
+        if (threadNum.get() == 0 && lastNow < now && lastNow / 3600 != now / 3600) {
+            log.info("Received route request for simulation hour {}:00", String.format("%02d", now / 3600));
+            lastNow = now;
         }
 
         ByteString requestId = request.getRequestId();
@@ -107,8 +110,8 @@ public class RoutingServicePH extends RoutingServiceGrpc.RoutingServiceImplBase 
             List<ProfilingEntry> pe = profilingEntries.computeIfAbsent(threadNum.get(), s -> new ArrayList<>());
             long endTime = System.nanoTime();
 
-            int travelTime = response.getLegsList().stream().mapToInt(Routing.Leg::getTravTime).sum();
-            var p = new ProfilingEntry(threadNum.get(), request.getNow(), request.getDepartureTime(), request.getFromLinkId(), request.getToLinkId(), startTime, endTime - startTime, travelTime, requestId);
+            int travelTime = response.getLegsList().stream().mapToLong(Routing.Leg::getTravTimeNs).mapToInt(RoutingServicePH::nsToS).sum();
+            var p = new ProfilingEntry(threadNum.get(), now, nsToS(request.getDepartureTimeNs()), request.getFromLinkId(), request.getToLinkId(), startTime, endTime - startTime, travelTime, requestId);
             pe.add(p);
         }
     }
@@ -135,8 +138,8 @@ public class RoutingServicePH extends RoutingServiceGrpc.RoutingServiceImplBase 
     private Routing.Leg convertToProtoLeg(Leg leg) {
         Routing.Leg.Builder legBuilder = Routing.Leg.newBuilder()
                 .setMode(leg.getMode())
-                .setTravTime((int) leg.getTravelTime().orElseThrow(() -> new IllegalArgumentException("Leg must have travel time")));
-        leg.getDepartureTime().ifDefined(d -> legBuilder.setDepTime((int) d));
+                .setTravTimeNs(sToNs(leg.getTravelTime().orElseThrow(() -> new IllegalArgumentException("Leg must have travel time"))));
+        leg.getDepartureTime().ifDefined(d -> legBuilder.setDepTimeNs(sToNs(d)));
         Optional.ofNullable(leg.getRoutingMode()).ifPresent(legBuilder::setRoutingMode);
 
         for (Map.Entry<String, Object> stringObjectEntry : leg.getAttributes().getAsMap().entrySet()) {
@@ -158,7 +161,7 @@ public class RoutingServicePH extends RoutingServiceGrpc.RoutingServiceImplBase 
                 .setStartLink(leg.getRoute().getStartLinkId().toString())
                 .setEndLink(leg.getRoute().getEndLinkId().toString())
                 .setDistance(leg.getRoute().getDistance());
-        leg.getRoute().getTravelTime().ifDefined(d -> protoGenericRoute.setTravTime((int) d));
+        leg.getRoute().getTravelTime().ifDefined(d -> protoGenericRoute.setTravTimeNs(sToNs(d)));
 
         if (leg.getRoute() instanceof DefaultTransitPassengerRoute ptRoute) {
             // PT Route
@@ -166,7 +169,7 @@ public class RoutingServicePH extends RoutingServiceGrpc.RoutingServiceImplBase 
             Routing.PtRouteDescription routeDescription = Routing.PtRouteDescription.newBuilder()
                     .setAccessFacilityId(ptRoute.getAccessStopId().toString())
                     .setEgressFacilityId(ptRoute.getEgressStopId().toString())
-                    .setBoardingTime((int) ptRoute.getBoardingTime().orElseThrow(() -> new IllegalArgumentException("PT route must have boarding time")))
+                    .setBoardingTimeNs(sToNs(ptRoute.getBoardingTime().orElseThrow(() -> new IllegalArgumentException("PT route must have boarding time"))))
                     .setTransitRouteId(ptRoute.getRouteId().toString())
                     .setTransitLineId(ptRoute.getLineId().toString()).build();
 
@@ -198,12 +201,11 @@ public class RoutingServicePH extends RoutingServiceGrpc.RoutingServiceImplBase 
         Routing.Activity.Builder builder = Routing.Activity.newBuilder();
         builder.setActType(activity.getType())
                 .setLinkId(activity.getLinkId().toString())
-                .setX(activity.getCoord().getX())
-                .setY(activity.getCoord().getY());
+                .setCoordinate(Routing.Coordinate.newBuilder().setX(activity.getCoord().getX()).setY(activity.getCoord().getY()));
 
-        activity.getStartTime().ifDefined(t -> builder.setStartTime((int) t));
-        activity.getEndTime().ifDefined(t -> builder.setEndTime((int) t));
-        activity.getMaximumDuration().ifDefined(d -> builder.setMaxDur((int) d));
+        activity.getStartTime().ifDefined(t -> builder.setStartTimeNs(sToNs(t)));
+        activity.getEndTime().ifDefined(t -> builder.setEndTimeNs(sToNs(t)));
+        activity.getMaximumDuration().ifDefined(d -> builder.setMaxDurNs(sToNs(d)));
 
         return builder.build();
     }
@@ -217,20 +219,20 @@ public class RoutingServicePH extends RoutingServiceGrpc.RoutingServiceImplBase 
             @Override
             public Facility getFromFacility() {
                 Id<ActivityFacility> fromFacility = Id.create("fromFacility", ActivityFacility.class);
-                Coord from = new Coord(request.getFromX(), request.getFromY());
+                Coord from = new Coord(request.getFrom().getX(), request.getFrom().getY());
                 return new ActivityFacilitiesFactoryImpl().createActivityFacility(fromFacility, from, fromLink);
             }
 
             @Override
             public Facility getToFacility() {
                 Id<ActivityFacility> fromFacility = Id.create("toFacility", ActivityFacility.class);
-                Coord from = new Coord(request.getToX(), request.getToY());
-                return new ActivityFacilitiesFactoryImpl().createActivityFacility(fromFacility, from, toLink);
+                Coord to = new Coord(request.getTo().getX(), request.getTo().getY());
+                return new ActivityFacilitiesFactoryImpl().createActivityFacility(fromFacility, to, toLink);
             }
 
             @Override
             public double getDepartureTime() {
-                return request.getDepartureTime();
+                return nsToS(request.getDepartureTimeNs());
             }
 
             @Override
@@ -286,6 +288,14 @@ public class RoutingServicePH extends RoutingServiceGrpc.RoutingServiceImplBase 
             log.error("Error writing to file: {}", outputFile, e);
             throw new RuntimeException(e);
         }
+    }
+
+    public static int nsToS(long ns) {
+        return (int) (ns / NANO_SEC_PER_SEC);
+    }
+
+    public static long sToNs(double s) {
+        return (long) s * NANO_SEC_PER_SEC;
     }
 
     public record Factory(Config config, Runnable shutdown, boolean profile) {

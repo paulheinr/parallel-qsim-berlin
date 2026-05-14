@@ -27,10 +27,6 @@ public class RoutingServerPH implements MATSimAppCommand {
 
     private static final Pattern PATTERN = Pattern.compile("\\d+pct");
 
-    // we are not using SampleOptions here because it does not accept double values like 0.1
-    @CommandLine.Option(names = "--sample", description = "Sample options for the server")
-    private String sample;
-
     @CommandLine.Option(names = "--config", description = "Path to config", required = true)
     private String config;
 
@@ -53,16 +49,13 @@ public class RoutingServerPH implements MATSimAppCommand {
     @Override
     public Integer call() throws Exception {
         //log args
-        log.info("Starting server with sample: {}, config: {}, output: {}, threads: {}, profile: {}", sample, config, output, numThreads, profile);
+        log.info("Starting server with config: {}, output: {}, threads: {}, profile: {}", config, output, numThreads, profile);
 
         log.info("Started with JVM args: {}", JVMFlagsReader.getJVMArguments());
 
         Files.createDirectories(Path.of(output));
 
         Config config = ConfigUtils.loadConfig(this.config);
-        if (sample != null) {
-            config.plans().setInputFile(adjustName(config.plans().getInputFile()));
-        }
         config.controller().setOutputDirectory(output);
         config.global().setNumberOfThreads(1); // MATSim internally there should only one thread be used to not mess up with thread local variables
 
@@ -131,15 +124,6 @@ public class RoutingServerPH implements MATSimAppCommand {
         }
         for (var f : futures) f.get();
         return executor;
-    }
-
-    private String adjustName(String name) {
-        String postfix = this.sample + "pct";
-        String adjusted = PATTERN.matcher(name).replaceAll(postfix);
-
-        log.info("Adjusting name from {} to {}", name, adjusted);
-
-        return adjusted;
     }
 
     private void adaptToLocalFileNames(Config config) {

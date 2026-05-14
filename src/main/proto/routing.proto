@@ -11,14 +11,14 @@ service RoutingService {
 message Request {
   string person_id = 1;
   string from_link_id = 2;
-  double from_x = 3;
-  double from_y = 4;
-  double to_x = 5;
-  double to_y = 6;
+  Coordinate from = 3;
+  Coordinate to = 5;
   string to_link_id = 7;
   string mode = 8;
-  uint32 departure_time = 9;
-  uint32 now = 10;
+  // Simulation clock instant in nanoseconds since simulation start.
+  uint64 departure_time_ns = 9;
+  // Simulation clock instant in nanoseconds since simulation start.
+  uint64 now_ns = 10;
   bytes request_id = 11;
 }
 
@@ -31,18 +31,23 @@ message Response {
 message Activity {
   string act_type = 1;
   string link_id = 2;
-  double x = 3;
-  double y = 4;
-  optional uint32 start_time = 5;
-  optional uint32 end_time = 6;
-  optional uint32 max_dur = 7;
+  Coordinate coordinate = 3;
+  // Simulation clock instant in nanoseconds since simulation start.
+  optional uint64 start_time_ns = 5;
+  // Simulation clock instant in nanoseconds since simulation start.
+  optional uint64 end_time_ns = 6;
+  // Duration in nanoseconds.
+  optional uint64 max_dur_ns = 7;
+  map<string, AttributeValue> attributes = 8;
 }
 
 message Leg {
   string mode = 1;
   string routing_mode = 2;
-  optional uint32 dep_time = 3;
-  uint32 trav_time = 4;
+  // Simulation clock instant in nanoseconds since simulation start.
+  optional uint64 dep_time_ns = 3;
+  // Duration in nanoseconds.
+  optional uint64 trav_time_ns = 4;
   map<string, AttributeValue> attributes = 6;
   oneof route {
     GenericRoute generic_route = 7;
@@ -54,7 +59,8 @@ message Leg {
 message GenericRoute {
   string start_link = 1;
   string end_link = 2;
-  optional uint64 trav_time = 3;
+  // Duration in nanoseconds.
+  optional uint64 trav_time_ns = 3;
   optional double distance = 4;
   optional string veh_id = 5;
 }
@@ -71,7 +77,8 @@ message PtRoute {
 
 message PtRouteDescription {
   string transit_route_id = 1;
-  optional uint32 boarding_time = 2;
+  // Duration in nanoseconds.
+  optional uint64 boarding_time_ns = 2;
   string transit_line_id = 3;
   string access_facility_id = 4;
   string egress_facility_id = 5;
@@ -85,4 +92,10 @@ message AttributeValue {
     bool bool_value = 4;
     // to be expanded
   }
+}
+
+message Coordinate {
+  double x = 1;
+  double y = 2;
+  optional double z = 3;
 }
