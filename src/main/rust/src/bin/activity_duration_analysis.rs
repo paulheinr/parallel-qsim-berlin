@@ -1,13 +1,13 @@
-use rust_qsim::simulation::events::utils::read_proto_events;
 use rust_qsim::simulation::events::{
     ActivityEndEvent, ActivityStartEvent, EventsManager, PersonDepartureEvent,
 };
 use rust_qsim::simulation::id::Id;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
 use rust_qsim::simulation::scenario::population::InternalPerson;
+use rust_qsim::simulation::time::SimTime;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::rc::Rc;
 
 fn main() {
@@ -42,17 +42,17 @@ fn main() {
         ));
     });
 
-    read_proto_events(
-        &mut events,
-        &PathBuf::from("/Users/paulh/git/parallel-qsim-berlin/output/v6.4/1pct/output-12"),
-        "events".to_string(),
-        12,
-    );
+    // read_proto_events(
+    //     &mut events,
+    //     &PathBuf::from("/Users/paulh/git/parallel-qsim-berlin/output/v6.4/1pct/output-12"),
+    //     "events".to_string(),
+    //     12,
+    // );
 }
 
 #[derive(Default)]
 struct MyHandler {
-    act_start_by_person: HashMap<Id<InternalPerson>, u32>,
+    act_start_by_person: HashMap<Id<InternalPerson>, SimTime>,
     act_count: HashMap<Id<InternalPerson>, u32>,
     act_record: HashMap<Id<InternalPerson>, Vec<ActivitySummary>>,
 }
@@ -77,7 +77,8 @@ impl MyHandler {
             act_type: event.act_type.external().to_string(),
             person: event.person.external().to_string(),
             link: event.person.external().to_string(),
-            duration: event.time - start.unwrap_or(0),
+            duration: event.time.as_duration().as_secs()
+                - start.unwrap_or(SimTime::default()).as_secs(),
             count: *self.act_count.entry(event.person.clone()).or_insert(1),
             mode: "".to_string(),
             routing_mode: "".to_string(),
@@ -138,7 +139,7 @@ struct ActivitySummary {
     act_type: String,
     person: String,
     link: String,
-    duration: u32,
+    duration: u64,
     count: u32,
     mode: String,
     routing_mode: String,

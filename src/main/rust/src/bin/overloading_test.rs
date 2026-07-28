@@ -1,7 +1,7 @@
 use rust_qsim::simulation::config::{Config, Network, Population, Vehicles, WriteEvents};
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
-use rust_qsim::simulation::scenario::MutableScenario;
+use rust_qsim::simulation::scenario::Scenario;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -12,14 +12,14 @@ fn main() {
     let sample = 0.01;
 
     let mut config = Config::default();
-    config.simulation_mut().stuck_threshold = 30;
-    config.simulation_mut().sample_size = sample;
+    config.qsim_mut().stuck_threshold = 30;
+    config.qsim_mut().sample_size = sample;
     let output = config.output_mut();
     output.output_dir = PathBuf::from(format!(
         "../../../output/overloading_test-rust-r{:}-s{sample}",
         rate
     ));
-    output.write_events = WriteEvents::XmlGz;
+    output.write_events = WriteEvents::File;
 
     config.set_population(Population {
         path: Option::from(PathBuf::from(format!(
@@ -40,7 +40,7 @@ fn main() {
         ))),
     });
 
-    let scenario = MutableScenario::load(Arc::new(config));
+    let scenario = Scenario::load(Arc::new(config));
     let controller = ControllerBuilder::default_with_scenario(scenario)
         .build()
         .unwrap();

@@ -6,23 +6,28 @@ use rust_qsim::external_services::{
 use rust_qsim::simulation::agents::agent::SimulationAgent;
 use rust_qsim::simulation::agents::agent_logic::AdaptivePlanBasedSimulationLogic;
 use rust_qsim::simulation::agents::{
-    AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState, WokeUpEvent,
+    AgentEvent, EndTime, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState,
+    WokeUpEvent,
 };
 use rust_qsim::simulation::config::{CommandLineArgs, Config, RoutingMode};
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::controller::ExternalServices;
 use rust_qsim::simulation::id::Id;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
-use rust_qsim::simulation::population::agent_source::AgentSource;
+use rust_qsim::simulation::population::agent_source::{AgentSet, AgentSource};
 use rust_qsim::simulation::scenario::network::Link;
 use rust_qsim::simulation::scenario::population::{
     InternalActivity, InternalLeg, InternalPerson, PREPLANNING_HORIZON,
 };
 use rust_qsim::simulation::scenario::vehicles::InternalVehicleType;
-use rust_qsim::simulation::scenario::{trip_structure_utils, MutableScenario, ScenarioPartition};
-use rust_qsim::simulation::time_queue::{EndTime, Identifiable};
+use rust_qsim::simulation::scenario::{
+    trip_structure_utils, MobsimScenarioPartition, PopulationShard, Scenario,
+};
+use rust_qsim::simulation::time::SimTime;
+use rust_qsim::simulation::Identifiable;
 use std::collections::HashMap;
 use std::sync::{Arc, Barrier};
+use std::time::Duration;
 use tracing::info;
 
 #[derive(Parser, Debug, Clone)]
@@ -33,7 +38,7 @@ struct BerlinCommandLineArgs {
     #[clap(long)]
     horizon: Option<usize>,
     #[clap(long, default_value = "300")]
-    min_activity_time: Option<u32>,
+    min_activity_time: Option<u64>,
     #[clap(long, short, num_args = 1.., value_delimiter = ' ')]
     router_ip: Option<Vec<String>>,
 }
@@ -46,10 +51,12 @@ fn main() {
     info!("Starting Berlin example with args: {:?}", args);
 
     // load config
-    let config = Arc::new(Config::from_args(args.delegate));
+    let mut config = Config::from_args(args.delegate);
+    config.controller_mut().last_iteration = 0;
+    let config = Arc::new(config);
 
     // load scenario
-    let mut scenario = MutableScenario::load(config.clone());
+    let mut scenario = Scenario::load(config.clone());
 
     // scenario
     //     .population
@@ -66,9 +73,9 @@ fn main() {
 
     // create controller
     let mut builder = ControllerBuilder::default_with_scenario(scenario);
-    builder = builder.agent_source(MyAgentSource::new(args.min_activity_time.unwrap()));
 
     let (service, barrier, adapter) = if let Some(ips) = args.router_ip {
+        builder = builder.agent_source(MyAgentSource::new(args.min_activity_time.unwrap()));
         create_router_adapter(&config, ips)
     } else {
         (None, None, None)
@@ -96,28 +103,29 @@ fn main() {
     builder.build().unwrap().run();
 
     rust_qsim::simulation::events::utils::convert_proto_to_xml_events(
-        config.output().output_dir.join("events"),
+        config.output().output_dir.join("ITERS/it.0/events"),
         config.partitioning().num_parts,
-        config.output().output_dir.join("output_events.xml.gz"),
+        config.output().output_dir.join("output_events.xml.zst"),
     )
+    .unwrap()
 }
 
 struct MyAgentSource {
-    min_activity_time: u32,
+    min_activity_time: u64,
 }
 
 impl AgentSource for MyAgentSource {
     fn create_agents(
         &self,
-        scenario: &mut ScenarioPartition,
-    ) -> HashMap<Id<InternalPerson>, SimulationAgent> {
+        population: PopulationShard,
+        partition: &MobsimScenarioPartition,
+    ) -> AgentSet {
         // take Persons and copy them into queues. This way we can keep the population around to translate
         // ids for events processing...
-        let persons = std::mem::take(&mut scenario.population.persons);
-        let mut agents = HashMap::with_capacity(persons.len());
+        let mut agents = HashMap::with_capacity(population.population.persons.len());
 
-        for (id, person) in persons {
-            self.identify_logic_and_insert(&mut agents, id, person, &scenario.config);
+        for (id, person) in population.population.persons {
+            self.identify_logic_and_insert(&mut agents, id, person, &partition.scenario.config);
         }
         agents
     }
@@ -159,35 +167,35 @@ impl MyAgentSource {
         // }
     }
 
-    pub fn new(min_activity_time: u32) -> Self {
+    pub fn new(min_activity_time: u64) -> Self {
         Self { min_activity_time }
     }
 }
 
 struct MinActivityTimeLogic {
-    time: u32, // seconds
+    time: Duration,
     delegate: AdaptivePlanBasedSimulationLogic,
-    last_act_start: u32,
+    last_act_start: SimTime,
 }
 
 impl MinActivityTimeLogic {
-    fn new(time: u32, delegate: AdaptivePlanBasedSimulationLogic) -> Self {
+    fn new(time: u64, delegate: AdaptivePlanBasedSimulationLogic) -> Self {
         Self {
-            time,
+            time: Duration::from_secs(time),
             delegate,
-            last_act_start: 0,
+            last_act_start: SimTime::default(),
         }
     }
 
-    fn fix_end_time(&self, original_end_time: u32, last_act_start: u32) -> u32 {
+    fn fix_end_time(&self, original_end_time: SimTime, last_act_start: SimTime) -> SimTime {
         if self.delegate.curr_act().is_interaction() {
             return original_end_time;
         }
 
-        let diff = original_end_time as i64 - last_act_start as i64;
-        if diff < self.time as i64 {
+        let diff = original_end_time.saturating_sub(last_act_start.as_duration());
+        if diff.as_duration() < self.time {
             // This is the problem: Now is not the beginning of the activity, but it can be any other time
-            last_act_start + self.time
+            last_act_start.saturating_add(self.time)
         } else {
             original_end_time
         }
@@ -195,7 +203,7 @@ impl MinActivityTimeLogic {
 }
 
 impl EndTime for MinActivityTimeLogic {
-    fn end_time(&self, now: u32) -> u32 {
+    fn end_time(&self, now: SimTime) -> SimTime {
         let original_end_time = self.delegate.end_time(now);
         match self.state() {
             SimulationAgentState::LEG => original_end_time,
@@ -207,6 +215,18 @@ impl EndTime for MinActivityTimeLogic {
             }
         }
     }
+    // fn end_time(&self, now: u32) -> u32 {
+    //     let original_end_time = self.delegate.end_time(now);
+    //     match self.state() {
+    //         SimulationAgentState::LEG => original_end_time,
+    //         SimulationAgentState::ACTIVITY => {
+    //             self.fix_end_time(original_end_time, self.last_act_start)
+    //         }
+    //         SimulationAgentState::STUCK => {
+    //             panic!("Agent got stuck")
+    //         }
+    //     }
+    // }
 }
 
 impl Identifiable<InternalPerson> for MinActivityTimeLogic {
@@ -216,7 +236,7 @@ impl Identifiable<InternalPerson> for MinActivityTimeLogic {
 }
 
 impl EnvironmentalEventObserver for MinActivityTimeLogic {
-    fn notify_event(&mut self, event: &mut AgentEvent, now: u32) {
+    fn notify_event(&mut self, event: &mut AgentEvent, now: SimTime) {
         if let AgentEvent::WokeUp(w) = event {
             let new_time = self.end_time(self.last_act_start);
             let mut event = AgentEvent::WokeUp(WokeUpEvent {
@@ -248,7 +268,7 @@ impl SimulationAgentLogic for MinActivityTimeLogic {
         self.delegate.next_leg()
     }
 
-    fn advance_plan(&mut self, now: u32) {
+    fn advance_plan(&mut self, now: SimTime) {
         self.delegate.advance_plan(now);
         if self.state() == SimulationAgentState::ACTIVITY {
             self.last_act_start = now;
@@ -271,7 +291,7 @@ impl SimulationAgentLogic for MinActivityTimeLogic {
         self.delegate.peek_next_link_id()
     }
 
-    fn wakeup_time(&self, now: u32) -> u32 {
+    fn wakeup_time(&self, now: SimTime) -> SimTime {
         let original_end = self.delegate.end_time(now);
 
         // this is only called when the agent is transferred to the activity engine.
@@ -284,19 +304,28 @@ impl SimulationAgentLogic for MinActivityTimeLogic {
             return new_end;
         }
 
-        let horizon: Option<u32> = self.delegate.curr_act().attributes.get(PREPLANNING_HORIZON);
+        let horizon: Option<Duration> = self
+            .delegate
+            .curr_act()
+            .attributes
+            .get(PREPLANNING_HORIZON)
+            .map(|h| Duration::from_secs(h));
 
         if let Some(h) = horizon {
-            if h > new_end {
+            if h > new_end.as_duration() {
                 // if horizon is larger than the current end time, then end - h would be negative (might be the case at the very beginning of the simulation)
                 // and thus there would be an error.
-                new_end = 0;
+                new_end = SimTime::default();
             } else {
-                new_end -= h;
+                new_end = new_end.saturating_sub(h);
             }
         }
 
         new_end
+    }
+
+    fn into_person(self: Box<Self>) -> Option<InternalPerson> {
+        Box::new(self.delegate).into_person()
     }
 }
 
@@ -343,7 +372,7 @@ fn create_router_adapter(
     (Some(services), Some(barrier), Some(adapters))
 }
 
-fn add_preplanning_horizon(scenario: &mut MutableScenario, horizon: usize) {
+fn add_preplanning_horizon(scenario: &mut Scenario, horizon: usize) {
     for (_, person) in &mut scenario.population.persons {
         let spans =
             trip_structure_utils::get_trip_spans_default(&person.selected_plan().unwrap().elements);
@@ -361,7 +390,7 @@ fn add_preplanning_horizon(scenario: &mut MutableScenario, horizon: usize) {
 }
 
 // Adds a dummy link between PT and car network at Gotzkowskybrücke
-fn add_dummy_link(scenario: &mut MutableScenario) {
+fn add_dummy_link(scenario: &mut Scenario) {
     let partition = scenario
         .network
         .get_node(&Id::get_from_ext("pt_648553_bus"))
@@ -381,7 +410,7 @@ fn add_dummy_link(scenario: &mut MutableScenario) {
     });
 }
 
-fn add_teleported_vehicle(scenario: &mut MutableScenario, mode: &str) {
+pub fn add_teleported_vehicle(scenario: &mut Scenario, mode: &str) {
     let id = Id::create(mode);
     scenario.garage.vehicle_types.insert(
         id.clone(),
