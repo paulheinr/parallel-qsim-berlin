@@ -41,10 +41,10 @@ public class ExperiencedPlansWriter implements MATSimAppCommand {
     private String transitSchedule = "/Users/paulh/git/parallel-qsim-berlin/output/v6.4/0.1pct/berlin-v6.4-transitSchedule.xml.gz";
 
     @CommandLine.Option(names = "--events", description = "Path to events file")
-    private Path eventsFile = Path.of("/Users/paulh/git/parallel-qsim-berlin/output/v6.4/0.1pct/test-min5/output_events.xml.gz");
+    private Path eventsFile = Path.of("/Users/paulh/git/parallel-qsim-berlin/output/v6.4/0.1pct/base1/output_events.xml.zst");
 
     @CommandLine.Option(names = "--output", description = "Path to output experienced plans file")
-    private String output = "/Users/paulh/git/parallel-qsim-berlin/output/v6.4/0.1pct/test-min5/output_experienced_plans.xml.gz";
+    private String output = "/Users/paulh/git/parallel-qsim-berlin/output/v6.4/0.1pct/base1/output_experienced_plans.xml.zst";
 
     public static void main(String[] args) {
         new ExperiencedPlansWriter().execute(args);

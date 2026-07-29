@@ -18,6 +18,8 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
+import static org.matsim.analysis.MockRoutingClient.NS_PER_SEC;
+
 public class ProfileRouting implements MATSimAppCommand {
     private static final Logger log = LogManager.getLogger(ProfileRouting.class);
 
@@ -70,7 +72,7 @@ public class ProfileRouting implements MATSimAppCommand {
 
         Routing.Request request = Routing.Request.newBuilder()
                 .setMode("pt")
-                .setDepartureTime(36000)
+                .setDepartureTimeNs(36000 * NS_PER_SEC)
                 .setFromLinkId(from)
                 .setToLinkId(to)
                 .setPersonId("1")
@@ -78,7 +80,7 @@ public class ProfileRouting implements MATSimAppCommand {
 
         long startTime = System.nanoTime();
         Routing.Response response = routingService.getRoute(request);
-        int sum = response.getLegsList().stream().mapToInt(Routing.Leg::getTravTime).sum();
+        int sum = response.getLegsList().stream().mapToInt(l -> MockRoutingClient.nsToSec(l.getTravTimeNs())).sum();
         long endTime = System.nanoTime();
         return new R(endTime - startTime, sum);
     }

@@ -1,4 +1,6 @@
+use ahash::HashMapExt;
 use clap::Parser;
+use nohash_hasher::IntMap;
 use rust_qsim::external_services::routing::RoutingServiceAdapterFactory;
 use rust_qsim::external_services::{
     AdapterHandle, AdapterHandleBuilder, AsyncExecutor, ExternalServiceType,
@@ -25,7 +27,6 @@ use rust_qsim::simulation::scenario::{
 };
 use rust_qsim::simulation::time::SimTime;
 use rust_qsim::simulation::Identifiable;
-use std::collections::HashMap;
 use std::sync::{Arc, Barrier};
 use std::time::Duration;
 use tracing::info;
@@ -122,7 +123,7 @@ impl AgentSource for MyAgentSource {
     ) -> AgentSet {
         // take Persons and copy them into queues. This way we can keep the population around to translate
         // ids for events processing...
-        let mut agents = HashMap::with_capacity(population.population.persons.len());
+        let mut agents = IntMap::with_capacity(population.population.persons.len());
 
         for (id, person) in population.population.persons {
             self.identify_logic_and_insert(&mut agents, id, person, &partition.scenario.config);
@@ -134,7 +135,7 @@ impl AgentSource for MyAgentSource {
 impl MyAgentSource {
     fn identify_logic_and_insert(
         &self,
-        agents: &mut HashMap<Id<InternalPerson>, SimulationAgent>,
+        agents: &mut IntMap<Id<InternalPerson>, SimulationAgent>,
         id: Id<InternalPerson>,
         person: InternalPerson,
         config: &Config,
@@ -173,7 +174,7 @@ impl MyAgentSource {
 }
 
 struct MinActivityTimeLogic {
-    time: Duration,
+    min_dur: Duration,
     delegate: AdaptivePlanBasedSimulationLogic,
     last_act_start: SimTime,
 }
@@ -181,7 +182,7 @@ struct MinActivityTimeLogic {
 impl MinActivityTimeLogic {
     fn new(time: u64, delegate: AdaptivePlanBasedSimulationLogic) -> Self {
         Self {
-            time: Duration::from_secs(time),
+            min_dur: Duration::from_secs(time),
             delegate,
             last_act_start: SimTime::default(),
         }
@@ -193,9 +194,8 @@ impl MinActivityTimeLogic {
         }
 
         let diff = original_end_time.saturating_sub(last_act_start.as_duration());
-        if diff.as_duration() < self.time {
-            // This is the problem: Now is not the beginning of the activity, but it can be any other time
-            last_act_start.saturating_add(self.time)
+        if diff.as_duration() < self.min_dur {
+            last_act_start.saturating_add(self.min_dur)
         } else {
             original_end_time
         }
@@ -215,18 +215,6 @@ impl EndTime for MinActivityTimeLogic {
             }
         }
     }
-    // fn end_time(&self, now: u32) -> u32 {
-    //     let original_end_time = self.delegate.end_time(now);
-    //     match self.state() {
-    //         SimulationAgentState::LEG => original_end_time,
-    //         SimulationAgentState::ACTIVITY => {
-    //             self.fix_end_time(original_end_time, self.last_act_start)
-    //         }
-    //         SimulationAgentState::STUCK => {
-    //             panic!("Agent got stuck")
-    //         }
-    //     }
-    // }
 }
 
 impl Identifiable<InternalPerson> for MinActivityTimeLogic {

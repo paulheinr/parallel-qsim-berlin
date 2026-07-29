@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 
 public class MockRoutingClient implements MATSimAppCommand {
     private final static int SIM_TIME = 36 * 60 * 60;
+    public final static long NS_PER_SEC = 1_000_000_000;
 
     @CommandLine.Option(names = "--requestsFile", description = "Path to requests file", defaultValue = "requests.pb")
     private String requestsFile;
@@ -63,7 +64,7 @@ public class MockRoutingClient implements MATSimAppCommand {
 
             List<Routing.Request> currentRequests = requests.get(now);
             for (Routing.Request currentRequest : currentRequests) {
-                int dep = currentRequest.getDepartureTime();
+                int dep = nsToSec(currentRequest.getDepartureTimeNs());
                 ListenableFuture<Routing.Response> future = service.getRoute(currentRequest);
                 openFuturesByDeparture.get(dep).add(future);
             }
@@ -87,6 +88,10 @@ public class MockRoutingClient implements MATSimAppCommand {
         return 0;
     }
 
+    public static int nsToSec(long time) {
+        return Math.toIntExact(time / NS_PER_SEC);
+    }
+
     private static List<List<Routing.Request>> readRequests(Path path) {
         System.out.println("Reading requests from " + path);
         List<Routing.Request> messages = new LinkedList<>();
@@ -102,7 +107,7 @@ public class MockRoutingClient implements MATSimAppCommand {
 
         System.out.println("Read " + messages.size() + " requests");
 
-        messages.sort(Comparator.comparing(Routing.Request::getNow));
+        messages.sort(Comparator.comparing(m -> nsToSec(m.getDepartureTimeNs())));
 
         List<List<Routing.Request>> res = new ArrayList<>(SIM_TIME);
 
@@ -112,12 +117,12 @@ public class MockRoutingClient implements MATSimAppCommand {
 
         int now = 0;
         for (Routing.Request message : messages) {
-            if (message.getNow() < now) {
+            if (nsToSec(message.getNowNs()) < now) {
                 throw new IllegalStateException("Messages are not sorted by now");
-            } else if (message.getNow() == now) {
+            } else if (nsToSec(message.getNowNs()) == now) {
                 res.get(now).add(message);
             } else {
-                now = message.getNow();
+                now = nsToSec(message.getNowNs());
                 res.get(now).add(message);
             }
         }
