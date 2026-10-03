@@ -1,0 +1,45 @@
+modules:
+  network:
+    type: Network
+    path: ../../../../shared-svn/projects/rust-qsim/berlin-v7.1/1pct/berlin-v7.1.network.binpb
+  population:
+    type: Population
+    path: ../../../../shared-svn/projects/rust-qsim/berlin-v7.1/1pct/berlin-v7.1.plans.binpb
+  vehicles:
+    type: Vehicles
+    path: ../../../../shared-svn/projects/rust-qsim/berlin-v7.1/1pct/berlin-v7.1.vehicles.binpb
+  ids:
+    type: Ids
+    path: ../../../../shared-svn/projects/rust-qsim/berlin-v7.1/1pct/berlin-v7.1.ids.binpb
+  partitioning:
+    type: Partitioning
+    num_parts: 16
+    method: !Metis
+      vertex_weight:
+        - InLinkCount
+      imbalance_factor: 1.1
+      edge_weight: Capacity
+  output:
+    type: Output
+    output_dir: ../../output/v7.1/1pct/output
+    write_events: None
+    logging: Info
+    profiling: !CSV
+      level: INFO
+  routing:
+    type: Routing
+    mode: UsePlans
+  simulation:
+    type: Simulation
+    start_time: 0
+    end_time: 129600
+    sample_size: 0.01
+    stuck_threshold: 30
+    main_modes:
+      - car
+      - freight
+      - truck
+      - bike
+  computational_setup:
+    type: ComputationalSetup
+    global_sync: false
