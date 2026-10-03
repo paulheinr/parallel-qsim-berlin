@@ -12,16 +12,26 @@ use rust_qsim::simulation::scoring::OnlyTravelTimeDependentScoring;
 use std::sync::Arc;
 use tracing::info;
 
+#[derive(Parser, Debug, Clone)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    #[clap(flatten)]
+    delegate: CommandLineArgs,
+    num_parts: usize,
+}
+
+
 fn main() {
     let _g = init_std_out_logging_thread_local();
 
-    let mut args = CommandLineArgs::parse();
-    args.overrides.push(("partitioning.num_parts".to_string(), "16".to_string()));
+    let args = Args::parse();
+    let mut delegate = args.delegate;
+    delegate.overrides.push(("partitioning.num_parts".to_string(), args.num_parts.to_string()));
 
-    info!("Starting Berlin example with args: {:?}", args);
+    info!("Starting Berlin example with args: {:?}", delegate);
 
     // load config
-    let mut config = Config::from_args(args);
+    let mut config = Config::from_args(delegate);
     config.controller_mut().last_iteration = 1;
     config.scoring_mut().mode_params.clear();
     config.scoring_mut().mode_params.push(ModeParameter::default_for_mode("car"));
@@ -33,8 +43,8 @@ fn main() {
     config.replanning_mut().strategy_settings.clear();
     config.replanning_mut().strategy_settings.push(StrategySetting::new(DefaultStrategy::ReRoute.to_string(), 0.2, "person".to_string()));
     config.replanning_mut().strategy_settings.push(StrategySetting::new(DefaultSelector::SelectExpBeta.to_string(), 0.8, "person".to_string()));
-    config.computational_setup_mut().replanning_threads = 16;
-    config.computational_setup_mut().scoring_threads = 16;
+    config.computational_setup_mut().replanning_threads = args.num_parts as u32;
+    config.computational_setup_mut().scoring_threads = args.num_parts as u32;
 
     config.routing_mut().network_modes.append(&mut vec!["bike", "car", "truck", "ride", "freight"].iter().map(|s| s.to_string()).collect());
 
