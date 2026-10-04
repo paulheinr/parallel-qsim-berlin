@@ -5,13 +5,14 @@
 #SBATCH --ntasks=1
 #SBATCH --time=00:30:00
 #SBATCH --job-name=berlin-iterations-v7
-#SBATCH --output=berlin_iterations_v7_%j.log
+#SBATCH --output=output/logs/berlin_iterations_v7_%j.log
 #SBATCH --mail-user=heinrich@vsp.tu-berlin.de
 #SBATCH --mail-type=BEGIN,END,FAIL
 
 set -euo pipefail
 
 # Submit from the repository root (threads, percentage):
+# mkdir -p output/logs
 # sbatch scripts/run-berlin-iterations-v7.sh 16 10
 # sbatch --time=00:10:00 scripts/run-berlin-iterations-v7.sh 16 1
 
