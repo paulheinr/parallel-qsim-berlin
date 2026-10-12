@@ -28,7 +28,7 @@ fn main() {
         facilities: Some(folder.join(facilities_file)),
     };
 
-    convert_to_binary::run(&args, |_, pop, _, _, _| {
-        // pop.persons.retain(|p, _| p.external().eq("berlin_27797753"))
+    convert_to_binary::run(&args, |_, _pop, _, _, _| {
+        // _pop.persons.retain(|p, _| p.external().eq("berlin_27797753"))
     });
 }

@@ -23,3 +23,6 @@ output/
 src/main/python/jupyter-notebooks/plots
 
 parallel-qsim-berlin*jar
+
+*/.ipynb_checkpoints
+.ipynb_checkpoints

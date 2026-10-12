@@ -1763,6 +1763,7 @@ dependencies = [
  "hotpath",
  "matsim-rust",
  "nohash-hasher",
+ "rayon",
  "serde_yaml",
  "tracing",
 ]

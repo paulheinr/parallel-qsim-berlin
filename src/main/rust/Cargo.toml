@@ -13,6 +13,7 @@ nohash-hasher = "0.2.0"
 ahash = "0.8.12"
 serde_yaml = "0.9.34"
 hotpath = "0.28"
+rayon = "1.12.0"
 
 [features]
 # Profiling with hotpath (https://hotpath.rs); forwards to the simulation library.

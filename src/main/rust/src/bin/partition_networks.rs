@@ -1,7 +1,8 @@
 use clap::Parser;
-use matsim_rust::simulation::config::PartitionMethod;
+use matsim_rust::simulation::config::{NonMainModeLinks, PartitionMethod, Partitioning};
 use matsim_rust::simulation::logging::init_std_out_logging_thread_local;
 use matsim_rust::simulation::scenario::network::Network;
+use rayon::prelude::*;
 use std::fs;
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -53,6 +54,7 @@ fn main() {
         PartitionMethod::None,
         "Partition method None does not partition anything."
     );
+
     let label = args.method.file_stem().unwrap().to_str().unwrap();
     let prefix = args
         .prefix
@@ -61,19 +63,28 @@ fn main() {
 
     info!("Partitioning {:?} with {label}: {method:?}", args.network);
     fs::create_dir_all(&args.output_dir).unwrap();
-    let network = Network::from_file_as_is(&args.network);
-    
-    for num_parts in args.from..=args.to {
+    let network = Network::from_file(&args.network);
+
+    // logging is thread-local, so pass the subscriber on to the rayon worker threads.
+    let dispatch = tracing::dispatcher::get_default(|d| d.clone());
+    (args.from..=args.to).into_par_iter().for_each(|num_parts| {
+        let _g = tracing::dispatcher::set_default(&dispatch);
         let out_path = args
             .output_dir
             .join(format!("{prefix}.{label}.{num_parts:03}.xml.zst"));
         if args.skip_existing && out_path.exists() {
             info!("Skipping {out_path:?}, it already exists.");
-            continue;
+            return;
         }
 
+        let partitioning = Partitioning {
+            num_parts,
+            method: method.clone(),
+            non_main_mode_links: NonMainModeLinks::AssignAfterPartitioningToNearest,
+        };
+
         let mut partitioned = network.clone();
-        Network::partition_network(&mut partitioned, &method, num_parts);
+        Network::partition_network(&mut partitioned, &partitioning, &vec![String::from("car"), String::from("freight"), String::from("truck"), String::from("bike")]);
 
         // write to a temporary file first, so that an interrupted run does not leave a truncated file which
         // would be skipped with --skip-existing.
@@ -83,7 +94,7 @@ fn main() {
         partitioned.to_file(&tmp_path);
         fs::rename(&tmp_path, &out_path).unwrap();
         info!("Wrote network with {num_parts} partitions to {out_path:?}");
-    }
+    });
 }
 
 fn strip_network_extension(path: &Path) -> String {
