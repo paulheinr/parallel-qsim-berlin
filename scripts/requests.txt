@@ -1,0 +1,11 @@
+CLI request: Hohenstaufenstr. -> Zoo, 10:00 Uhr
+
+grpcurl -plaintext \
+  -d '{"person_id": "1", "from_link_id": "4597426#2", "to_link_id": "1082080800#2", "mode": "pt", "departure_time_ns": 27126000000000, "now_ns": 27126000000000, "from": {"x": "792895.81", "y": "5828290.0"}, "to": {"x": "795035.23", "y": "5824742.47"}, "request_id":"MA==" }' \
+  localhost:50051 routing.RoutingService/GetRoute
+
+change schedule:
+
+grpcurl -plaintext \
+  -d '{"id": "u7", "time": "1" }' \
+  localhost:50051 routing.RoutingService/ChangeSchedule

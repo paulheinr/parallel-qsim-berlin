@@ -1,14 +1,14 @@
 use clap::Parser;
-use rust_qsim::simulation::config::{CommandLineArgs, Config, ModeParameter, OverwriteFiles, StrategySetting};
-use rust_qsim::simulation::controller::controller::ControllerBuilder;
-use rust_qsim::simulation::id::Id;
-use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
-use rust_qsim::simulation::replanning::DefaultStrategy;
-use rust_qsim::simulation::replanning::selectors::DefaultSelector;
-use rust_qsim::simulation::scenario::Scenario;
-use rust_qsim::simulation::scenario::network::Link;
-use rust_qsim::simulation::scenario::population::InternalPlanElement;
-use rust_qsim::simulation::scoring::OnlyTravelTimeDependentScoring;
+use matsim_rust::simulation::config::{CommandLineArgs, Config, ModeParameter, OverwriteFiles, StrategySetting};
+use matsim_rust::simulation::controller::controller::ControllerBuilder;
+use matsim_rust::simulation::id::Id;
+use matsim_rust::simulation::logging::init_std_out_logging_thread_local;
+use matsim_rust::simulation::replanning::DefaultStrategy;
+use matsim_rust::simulation::replanning::selectors::DefaultSelector;
+use matsim_rust::simulation::scenario::Scenario;
+use matsim_rust::simulation::scenario::network::Link;
+use matsim_rust::simulation::scenario::population::InternalPlanElement;
+use matsim_rust::simulation::scoring::OnlyTravelTimeDependentScoring;
 use std::sync::Arc;
 use tracing::info;
 
@@ -21,17 +21,19 @@ struct Args {
 }
 
 
+#[hotpath::main]
 fn main() {
     let _g = init_std_out_logging_thread_local();
 
     let args = Args::parse();
-    let mut delegate = args.delegate;
-    delegate.overrides.push(("partitioning.num_parts".to_string(), args.num_parts.to_string()));
+    let delegate = args.delegate;
 
     info!("Starting Berlin example with args: {:?}", delegate);
 
     // load config
     let mut config = Config::from_args(delegate);
+    // set directly instead of the partitioning.num_parts override, which appends "-<num_parts>" to the output dir
+    config.partitioning_mut().num_parts = args.num_parts as u32;
     config.controller_mut().last_iteration = 1;
     config.scoring_mut().mode_params.clear();
     config.scoring_mut().mode_params.push(ModeParameter::default_for_mode("car"));
@@ -74,7 +76,7 @@ fn main() {
     // create controller
     ControllerBuilder::default_with_scenario(scenario).scoring_function(Box::new(OnlyTravelTimeDependentScoring)).build().unwrap().run();
 
-    // rust_qsim::simulation::events::utils::convert_proto_to_xml_events(
+    // matsim_rust::simulation::events::utils::convert_proto_to_xml_events(
     //     config.output().output_dir.join("events"),
     //     config.partitioning().num_parts,
     //     config.output().output_dir.join("output_events.xml.zst"),

@@ -1,10 +1,10 @@
-use rust_qsim::simulation::events::{
+use matsim_rust::simulation::events::{
     ActivityEndEvent, ActivityStartEvent, EventsManager, PersonDepartureEvent,
 };
-use rust_qsim::simulation::id::Id;
-use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
-use rust_qsim::simulation::scenario::population::InternalPerson;
-use rust_qsim::simulation::time::SimTime;
+use matsim_rust::simulation::id::Id;
+use matsim_rust::simulation::logging::init_std_out_logging_thread_local;
+use matsim_rust::simulation::scenario::population::InternalPerson;
+use matsim_rust::simulation::time::SimTime;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::Path;
@@ -13,7 +13,7 @@ use std::rc::Rc;
 fn main() {
     let _g = init_std_out_logging_thread_local();
 
-    rust_qsim::simulation::id::load_from_file(Path::new(
+    matsim_rust::simulation::id::load_from_file(Path::new(
         "/Users/paulh/git/parallel-qsim-berlin/output/v6.4/1pct/binpb-hor600/berlin-v6.4-1pct.ids.binpb",
     ));
 
@@ -117,7 +117,7 @@ impl MyHandler {
             "mode",
             "routing_mode",
         ])
-        .expect("Unable to write header");
+            .expect("Unable to write header");
         for records in self.act_record.values() {
             for record in records {
                 wtr.write_record(&[
@@ -129,7 +129,7 @@ impl MyHandler {
                     &record.mode,
                     &record.routing_mode,
                 ])
-                .expect("Unable to write record");
+                    .expect("Unable to write record");
             }
         }
     }

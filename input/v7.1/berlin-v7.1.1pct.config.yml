@@ -11,6 +11,9 @@ modules:
   ids:
     type: Ids
     path: ../../../../shared-svn/projects/rust-qsim/berlin-v7.1/1pct/berlin-v7.1.ids.binpb
+  facilities:
+    type: Facilities
+    path: ../../../../shared-svn/projects/rust-qsim/berlin-v7.1/1pct/berlin-v7.1.facilities.binpb
   partitioning:
     type: Partitioning
     num_parts: 16

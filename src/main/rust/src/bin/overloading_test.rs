@@ -1,7 +1,7 @@
-use rust_qsim::simulation::config::{Config, Network, Population, Vehicles, WriteEvents};
-use rust_qsim::simulation::controller::controller::ControllerBuilder;
-use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
-use rust_qsim::simulation::scenario::Scenario;
+use matsim_rust::simulation::config::{Config, Network, Population, Vehicles, WriteEvents};
+use matsim_rust::simulation::controller::controller::ControllerBuilder;
+use matsim_rust::simulation::logging::init_std_out_logging_thread_local;
+use matsim_rust::simulation::scenario::Scenario;
 use std::path::PathBuf;
 use std::sync::Arc;
 

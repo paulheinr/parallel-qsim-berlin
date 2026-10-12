@@ -1,32 +1,33 @@
 use ahash::HashMapExt;
 use clap::Parser;
-use nohash_hasher::IntMap;
-use rust_qsim::external_services::routing::RoutingServiceAdapterFactory;
-use rust_qsim::external_services::{
+use matsim_rust::external_services::routing::RoutingServiceAdapterFactory;
+use matsim_rust::external_services::{
     AdapterHandle, AdapterHandleBuilder, AsyncExecutor, ExternalServiceType,
 };
-use rust_qsim::simulation::agents::agent::SimulationAgent;
-use rust_qsim::simulation::agents::agent_logic::AdaptivePlanBasedSimulationLogic;
-use rust_qsim::simulation::agents::{
+use matsim_rust::simulation::Identifiable;
+use matsim_rust::simulation::agents::agent::SimulationAgent;
+use matsim_rust::simulation::agents::agent_logic::AdaptivePlanBasedSimulationLogic;
+use matsim_rust::simulation::agents::{
     AgentEvent, EndTime, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState,
     WokeUpEvent,
 };
-use rust_qsim::simulation::config::{CommandLineArgs, Config, RoutingMode};
-use rust_qsim::simulation::controller::controller::ControllerBuilder;
-use rust_qsim::simulation::controller::ExternalServices;
-use rust_qsim::simulation::id::Id;
-use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
-use rust_qsim::simulation::population::agent_source::{AgentSet, AgentSource};
-use rust_qsim::simulation::scenario::network::Link;
-use rust_qsim::simulation::scenario::population::{
+use matsim_rust::simulation::config::{CommandLineArgs, Config, RoutingMode};
+use matsim_rust::simulation::controller::ExternalServices;
+use matsim_rust::simulation::controller::controller::ControllerBuilder;
+use matsim_rust::simulation::id::Id;
+use matsim_rust::simulation::logging::init_std_out_logging_thread_local;
+use matsim_rust::simulation::population::agent_source::{AgentSet, AgentSource};
+use matsim_rust::simulation::scenario::network::Link;
+use matsim_rust::simulation::scenario::population::{
     InternalActivity, InternalLeg, InternalPerson, PREPLANNING_HORIZON,
 };
-use rust_qsim::simulation::scenario::vehicles::InternalVehicleType;
-use rust_qsim::simulation::scenario::{
-    trip_structure_utils, MobsimScenarioPartition, PopulationShard, Scenario,
+use matsim_rust::simulation::scenario::vehicles::InternalVehicleType;
+use matsim_rust::simulation::scenario::{
+    MobsimScenarioPartition, PopulationShard, Scenario,
+    trip_structure_utils,
 };
-use rust_qsim::simulation::time::SimTime;
-use rust_qsim::simulation::Identifiable;
+use matsim_rust::simulation::time::SimTime;
+use nohash_hasher::IntMap;
 use std::sync::{Arc, Barrier};
 use std::time::Duration;
 use tracing::info;
@@ -103,12 +104,12 @@ fn main() {
     // run controller
     builder.build().unwrap().run();
 
-    rust_qsim::simulation::events::utils::convert_proto_to_xml_events(
+    matsim_rust::simulation::events::utils::convert_proto_to_xml_events(
         config.output().output_dir.join("ITERS/it.0/events"),
         config.partitioning().num_parts,
         config.output().output_dir.join("output_events.xml.zst"),
     )
-    .unwrap()
+        .unwrap()
 }
 
 struct MyAgentSource {
@@ -417,7 +418,7 @@ pub fn add_teleported_vehicle(scenario: &mut Scenario, mode: &str) {
     scenario.population.persons.keys().for_each(|id| {
         scenario.garage.vehicles.insert(
             Id::create(&format!("{}_{}", id, mode)),
-            rust_qsim::simulation::scenario::vehicles::InternalVehicle {
+            matsim_rust::simulation::scenario::vehicles::InternalVehicle {
                 id: Id::create(&format!("{}-{}", id, mode)),
                 max_v: 0.833,
                 pce: 0.1,

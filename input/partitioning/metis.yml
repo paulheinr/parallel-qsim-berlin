@@ -1,0 +1,7 @@
+# Same Metis options as the partitioning module in input/v7.1/*.config.yml.
+# The file stem ("metis") is the method label used in network file names and experiment definitions.
+!Metis
+vertex_weight:
+  - InLinkCount
+edge_weight: Capacity
+imbalance_factor: 1.1

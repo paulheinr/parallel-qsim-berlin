@@ -1,8 +1,8 @@
-use rust_qsim::simulation::id;
-use rust_qsim::simulation::id::Id;
-use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
-use rust_qsim::simulation::scenario::population::Population;
-use rust_qsim::simulation::scenario::vehicles::Garage;
+use matsim_rust::simulation::id;
+use matsim_rust::simulation::id::Id;
+use matsim_rust::simulation::logging::init_std_out_logging_thread_local;
+use matsim_rust::simulation::scenario::population::Population;
+use matsim_rust::simulation::scenario::vehicles::Garage;
 use std::path::PathBuf;
 use tracing::info;
 
