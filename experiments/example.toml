@@ -1,0 +1,29 @@
+# Experiment definition for scripts/cluster/cluster.py. The experiment name is the file name (here: example),
+# unless `name` is set. Every [[grid]] block is expanded to the cartesian product of its values; the runs of all
+# blocks are combined (duplicates are removed).
+#
+#   python scripts/cluster/cluster.py submit experiments/example.toml --dry-run
+
+repetitions = 1                       # per combination, can be overridden in a [[grid]] block
+
+# Slurm time limit per pct: either one value or steps [max_parts, time], the first step with parts <= max_parts wins.
+[time_limit]
+"1" = "00:20:00"
+"3" = "00:40:00"
+"10" = [[4, "04:00:00"], [32, "01:30:00"], [192, "00:45:00"]]
+
+# Strong scaling with and without scoring.
+[[grid]]
+pct = [1]
+parts = [1, 2, 4, 8, 16, 32, 64, 96, 128, 192]
+method = ["metis"]                    # file stem in input/partitioning/, part of the network file name
+scoring = [true, false]
+events = [false]
+
+# Influence of writing events, only with all cores.
+[[grid]]
+pct = [1]
+parts = [192]
+method = ["metis"]
+scoring = [true]
+events = [true]

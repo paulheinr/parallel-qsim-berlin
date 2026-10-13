@@ -1,0 +1,21 @@
+# Settings for scripts/cluster/cluster.py. Relative paths are resolved against the repository root.
+
+# Experiments are written to <out_root>/<experiment>/. On the cluster, point this to scratch.
+out_root = "output/experiments"
+
+# Pre-partitioned networks, created locally with scripts/partition-networks.sh in shared-svn.
+partitions_root = "../../shared-svn/projects/rust-qsim"
+
+scenario_version = "v7.1"
+config_pattern = "input/{version}/berlin-{version}.{pct}pct.config.yml"
+# relative to partitions_root, same layout as written by scripts/partition-networks.sh
+network_pattern = "berlin-{version}/network/berlin-{version}.network.{method}.{parts:03d}.xml.zst"
+
+# Build with `cargo build --release` in src/main/rust. Each experiment keeps its own copy of the binary.
+binary = "src/main/rust/target/release/berlin_iterations_v7"
+
+[slurm]
+partition = "cpu-genoa"
+mail_user = "heinrich@vsp.tu-berlin.de"
+mail_type = "FAIL"            # many jobs per experiment, so no BEGIN/END mails
+default_time = "01:00:00"     # used if the experiment has no time_limit for a pct
