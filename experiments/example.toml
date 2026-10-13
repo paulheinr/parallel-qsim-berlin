@@ -15,7 +15,7 @@ repetitions = 1                       # per combination, can be overridden in a 
 # Strong scaling with and without scoring.
 [[grid]]
 pct = [1]
-parts = [1, 2, 4, 8, 16, 32, 64, 96, 128, 192]
+parts = [1, 64, 192]
 method = ["metis"]                    # file stem in input/partitioning/, part of the network file name
 scoring = [true, false]
 events = [false]
