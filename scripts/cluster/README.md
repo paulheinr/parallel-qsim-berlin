@@ -18,11 +18,13 @@ method label in file names and experiment definitions. A new method is a new fil
 ## 2. Submit an experiment (on the cluster)
 
 ```bash
-conda activate router                       # Python >= 3.11
 cd src/main/rust && cargo build --release && cd -
-python scripts/cluster/cluster.py submit experiments/example.toml --dry-run
-python scripts/cluster/cluster.py submit experiments/example.toml
+uv run scripts/cluster/cluster.py submit experiments/example.toml --dry-run
+uv run scripts/cluster/cluster.py submit experiments/example.toml
 ```
+
+`uv run` uses the Python version and environment from `pyproject.toml`/`uv.lock` in the repository root and
+creates `.venv` on first use (`uv sync` does that explicitly).
 
 - Runs that are already in `manifest.csv` are skipped, so submitting again only adds new runs (e.g. after
   increasing `repetitions` or adding values to the grid). To resubmit a run, delete its line from `manifest.csv`.
@@ -37,7 +39,7 @@ Paths and Slurm settings are in `scripts/cluster/cluster.toml`.
 ## 3. Collect results
 
 ```bash
-python scripts/cluster/cluster.py collect example
+uv run scripts/cluster/cluster.py collect example
 ```
 
 writes `<out_root>/example/runs.csv` with the parameters, Slurm state, elapsed time and peak memory (`sacct`) and

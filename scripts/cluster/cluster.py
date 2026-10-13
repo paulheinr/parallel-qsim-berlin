@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """Submit profiling experiments of berlin_iterations_v7 to Slurm and collect their results.
 
-    python scripts/cluster/cluster.py submit experiments/example.toml --dry-run
-    python scripts/cluster/cluster.py submit experiments/example.toml --only pct=1
-    python scripts/cluster/cluster.py collect example
+    uv run scripts/cluster/cluster.py submit experiments/example.toml --dry-run
+    uv run scripts/cluster/cluster.py submit experiments/example.toml --only pct=1
+    uv run scripts/cluster/cluster.py collect example
 
 Paths and Slurm settings are read from scripts/cluster/cluster.toml. See scripts/cluster/README.md.
 """
 import sys
 
 if sys.version_info < (3, 11):
-    sys.exit("cluster.py needs Python >= 3.11 (tomllib), e.g. `conda activate router`.")
+    sys.exit("cluster.py needs Python >= 3.11 (tomllib), run it with `uv run scripts/cluster/cluster.py`.")
 
 import argparse
 import csv
