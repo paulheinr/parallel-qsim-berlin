@@ -21,9 +21,9 @@ binary = "../matsim-berlin/matsim-berlin-7.1-SNAPSHOT-*.jar"
 ENGINE = "dsim"
 JAVA = "java"
 JAVA_OPTS = "-XX:MaxRAMPercentage=80"
-PLANS = "../..//scratch/public-svn/matsim/scenarios/countries/de/berlin/berlin-{version}/calibrated-{pct}pct/output/berlin-{version}-{pct}pct.output_plans.xml.gz"
-VEHICLES = "../..//scratch/public-svn/matsim/scenarios/countries/de/berlin/berlin-{version}/calibrated-{pct}pct/output/berlin-{version}-{pct}pct.output_vehicles.xml.gz"
-FACILITIES = "../..//scratch/public-svn/matsim/scenarios/countries/de/berlin/berlin-{version}/calibrated-{pct}pct/output/berlin-{version}-{pct}pct.output_facilities.xml.gz"
+PLANS = "../../scratch/public-svn/matsim/scenarios/countries/de/berlin/berlin-{version}/calibrated-{pct}pct/output/berlin-{version}-{pct}pct.output_plans.xml.gz"
+VEHICLES = "../../scratch/public-svn/matsim/scenarios/countries/de/berlin/berlin-{version}/calibrated-{pct}pct/output/berlin-{version}-{pct}pct.output_vehicles.xml.gz"
+FACILITIES = "../../scratch/public-svn/matsim/scenarios/countries/de/berlin/berlin-{version}/calibrated-{pct}pct/output/berlin-{version}-{pct}pct.output_facilities.xml.gz"
 
 [slurm]
 partition = "cpu-genoa"
