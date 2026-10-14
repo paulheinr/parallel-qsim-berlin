@@ -93,6 +93,13 @@ def as_list(value) -> list:
     return value if isinstance(value, list) else [value]
 
 
+def grid_values(value) -> list:
+    """A single value, a list or an inclusive range like { from = 1, to = 64, step = 1 }."""
+    if isinstance(value, dict):
+        return list(range(int(value["from"]), int(value["to"]) + 1, int(value.get("step", 1))))
+    return as_list(value)
+
+
 def expand_runs(exp: dict) -> list[Run]:
     grids = exp.get("grid")
     if not grids:
@@ -104,7 +111,7 @@ def expand_runs(exp: dict) -> list[Run]:
         if unknown or missing:
             sys.exit(f"[[grid]] block {i + 1}: unknown keys {sorted(unknown)}, missing keys {sorted(missing)}")
         repetitions = int(grid.get("repetitions", exp.get("repetitions", 1)))
-        for pct, parts, method, scoring, events in itertools.product(*(as_list(grid[k]) for k in GRID_KEYS)):
+        for pct, parts, method, scoring, events in itertools.product(*(grid_values(grid[k]) for k in GRID_KEYS)):
             if int(parts) < 1:
                 sys.exit(f"[[grid]] block {i + 1}: parts must be at least 1, got {parts}")
             for rep in range(1, repetitions + 1):
@@ -123,6 +130,14 @@ def time_limit(exp: dict, settings: Settings, run: Run) -> str:
         if run.parts <= max_parts:
             return limit
     sys.exit(f"time_limit for {run.pct}pct has no entry for {run.parts} parts.")
+
+
+def iterations(exp: dict) -> int | None:
+    """Number of iterations of every run, None keeps the default of the binary."""
+    value = exp.get("iterations")
+    if value is not None and (not isinstance(value, int) or value < 1):
+        sys.exit(f"iterations must be a positive integer, got {value!r}")
+    return value
 
 
 def apply_filters(runs: list[Run], filters: list[str]) -> list[Run]:
@@ -237,6 +252,7 @@ def submit(args):
     name = exp.get("name", exp_file.stem)
     exp_dir = settings.out_root / name
     runs = apply_filters(expand_runs(exp), args.only)
+    iters = iterations(exp)
 
     # check inputs
     problems = [f"binary {settings.binary} does not exist"] if not settings.binary.exists() else []
@@ -256,7 +272,7 @@ def submit(args):
     todo = [run for run in runs if run.run_id not in manifest]
 
     print(f"Experiment {name}: {len(runs)} runs, {len(runs) - len(todo)} already submitted, "
-          f"{len(todo)} to submit -> {exp_dir}")
+          f"{len(todo)} to submit, {iters or 'default'} iterations -> {exp_dir}")
     for run in todo:
         print(f"  {run.run_id:<48} {time_limit(exp, settings, run)}")
     if args.dry_run:
@@ -277,7 +293,7 @@ def submit(args):
         run_dir.mkdir(parents=True, exist_ok=True)
         (run_dir / "result.json").unlink(missing_ok=True)
         limit = time_limit(exp, settings, run)
-        write_run_files(settings, name, run, run_dir, binary, digest, limit)
+        write_run_files(settings, name, run, run_dir, binary, digest, limit, iters)
         result = subprocess.run(sbatch_command(settings, name, exp_dir, run, limit),
                                 capture_output=True, text=True)
         if result.returncode != 0:
@@ -288,7 +304,7 @@ def submit(args):
 
 
 def write_run_files(settings: Settings, name: str, run: Run, run_dir: Path, binary: Path, digest: str,
-                    limit: str):
+                    limit: str, iters: int | None):
     env = {
         "BIN": binary,
         "CONFIG": settings.config(run.pct),
@@ -297,10 +313,12 @@ def write_run_files(settings: Settings, name: str, run: Run, run_dir: Path, bina
         "SCORING_MODE": "enabled" if run.scoring else "disabled",
         "WRITE_EVENTS": "file" if run.events else "none",
     }
+    if iters is not None:
+        env["LAST_ITERATION"] = iters - 1
     (run_dir / "run.env").write_text("".join(f"{k}={shlex.quote(str(v))}\n" for k, v in env.items()))
-    params = {"experiment": name, "run_id": run.run_id, **run.params(), "scenario_version": settings.version,
-              "time_limit": limit, "config": str(env["CONFIG"]), "network": str(env["NETWORK"]),
-              "binary": str(binary), "binary_sha256": digest, "submitted_at": now()}
+    params = {"experiment": name, "run_id": run.run_id, **run.params(), "iterations": iters,
+              "scenario_version": settings.version, "time_limit": limit, "config": str(env["CONFIG"]),
+              "network": str(env["NETWORK"]), "binary": str(binary), "binary_sha256": digest, "submitted_at": now()}
     (run_dir / "params.json").write_text(json.dumps(params, indent=2) + "\n")
 
 
@@ -336,7 +354,7 @@ def collect(args):
         job_id = manifest.get(run_dir.name, "")
         acc = accounting.get(job_id, {})
         rows.append({
-            **{k: params.get(k) for k in ("run_id", *GRID_KEYS, "rep", "time_limit", "binary_sha256")},
+            **{k: params.get(k) for k in ("run_id", *GRID_KEYS, "rep", "iterations", "time_limit", "binary_sha256")},
             "job_id": job_id,
             "slurm_state": acc.get("state", ""),
             "slurm_elapsed": acc.get("elapsed", ""),

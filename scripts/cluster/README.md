@@ -26,6 +26,10 @@ uv run scripts/cluster/cluster.py submit experiments/example.toml
 `uv run` uses the Python version and environment from `pyproject.toml`/`uv.lock` in the repository root and
 creates `.venv` on first use (`uv sync` does that explicitly).
 
+- `iterations = 10` at the top level of an experiment sets the number of iterations of all runs (passed as
+  `controller.last_iteration=9`). Without it, the binary runs its default of two iterations.
+- A grid value can be an inclusive range: `parts = { from = 1, to = 64 }` (optional `step`).
+
 - Runs that are already in `manifest.csv` are skipped, so submitting again only adds new runs (e.g. after
   increasing `repetitions` or adding values to the grid). To resubmit a run, delete its line from `manifest.csv`.
 - `--only pct=1 --only parts=16,32` submits a subset.

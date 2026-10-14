@@ -29,12 +29,16 @@ fn main() {
     let delegate = args.delegate;
 
     info!("Starting Berlin example with args: {:?}", delegate);
+    let last_iteration_set = delegate.overrides.iter().any(|(key, _)| key == "controller.last_iteration");
 
     // load config
     let mut config = Config::from_args(delegate);
     // set directly instead of the partitioning.num_parts override, which appends "-<num_parts>" to the output dir
     config.partitioning_mut().num_parts = args.num_parts as u32;
-    config.controller_mut().last_iteration = 1;
+    // two iterations by default, more with --set controller.last_iteration=<n> (inclusive)
+    if !last_iteration_set {
+        config.controller_mut().last_iteration = 1;
+    }
     config.scoring_mut().mode_params.clear();
     config.scoring_mut().mode_params.push(ModeParameter::default_for_mode("car"));
     config.scoring_mut().mode_params.push(ModeParameter::default_for_mode("truck"));
