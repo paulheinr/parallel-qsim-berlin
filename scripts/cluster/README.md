@@ -40,6 +40,24 @@ creates `.venv` on first use (`uv sync` does that explicitly).
 
 Paths and Slurm settings are in `scripts/cluster/cluster.toml`.
 
+### DSim (Java)
+
+The same runs with DSim, branch `ph/v7.1.1-dsim` of matsim-berlin (see `README-dsim-benchmark.md` there), use the
+settings `cluster-dsim.toml`. They use the same partitioned networks as rust.
+
+```bash
+cd ../matsim-berlin && ./mvnw clean package -DskipTests && cd -
+uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-dsim.toml submit experiments/dsim-scaling.toml --dry-run
+uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-dsim.toml collect dsim-scaling
+```
+
+- `binary` may be a glob pattern, the newest match is used (the jar name contains the git commit).
+- `[run_env]` is written to `run.env` (`{version}` and `{pct}` are replaced). With `ENGINE = "dsim"`, `run-sim.sh` starts
+  the jar. Inputs (`PLANS`, ...) are checked on submission.
+- DSim always scores, so `scoring = false` is not supported.
+- The stopwatch has a resolution of one second. Phase times in ms per iteration:
+  `python3 ../matsim-berlin/src/main/python/dsim_phase_times.py <run_dir>/output/*.logfile.log <run_dir>/phases.csv`
+
 ## 3. Collect results
 
 ```bash

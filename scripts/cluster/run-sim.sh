@@ -15,6 +15,9 @@
 # optionally NETWORK (pre-partitioned network), LAST_ITERATION (0-based, inclusive) and EXTRA_ARGS (bash array of
 # additional arguments).
 #
+# With ENGINE=dsim (set in cluster-dsim.toml), BIN is the matsim-berlin jar and the run is done with DSim. This also needs
+# PLANS, VEHICLES and FACILITIES, and optionally JAVA and JAVA_OPTS.
+#
 # At the end, result.json is written into the run directory (also on failure, scancel and time limit).
 
 set -euo pipefail
@@ -48,16 +51,38 @@ trap 'write_result $?' EXIT
 trap 'exit 143' TERM
 trap 'exit 130' INT
 
-CMD=("$BIN" --config "$CONFIG" "$NUM_PARTS"
-    --set "output.output_dir=$RUN_DIR/output"
-    --set "scoring.mode=$SCORING_MODE"
-    --set "output.write_events=$WRITE_EVENTS"
-    --set "controller.write_events_interval=1")
-if [[ -n ${NETWORK:-} ]]; then
-    CMD+=(--set "network.path=$NETWORK" --set "partitioning.method=none")
-fi
-if [[ -n ${LAST_ITERATION:-} ]]; then
-    CMD+=(--set "controller.last_iteration=$LAST_ITERATION")
+if [[ ${ENGINE:-rust} == dsim ]]; then
+    if [[ $SCORING_MODE != enabled ]]; then
+        echo "DSim always scores, scoring=off is not supported." >&2
+        exit 2
+    fi
+    read -ra JAVA_ARGS <<< "${JAVA_OPTS:-}"
+    CMD=("${JAVA:-java}" ${JAVA_ARGS[@]+"${JAVA_ARGS[@]}"} --add-exports java.base/jdk.internal.misc=ALL-UNNAMED
+        -cp "$BIN" org.matsim.run.dsim.OpenBerlinDSimBenchmark --config "$CONFIG" --threads "$NUM_PARTS"
+        --output "$RUN_DIR/output"
+        --config:controller.overwriteFiles=deleteDirectoryIfExists
+        --config:controller.writeEventsInterval="$([[ $WRITE_EVENTS == file ]] && echo 1 || echo 0)"
+        --config:plans.inputPlansFile="$PLANS"
+        --config:vehicles.vehiclesFile="$VEHICLES"
+        --config:facilities.inputFacilitiesFile="$FACILITIES")
+    if [[ -n ${NETWORK:-} ]]; then
+        CMD+=(--config:network.inputNetworkFile="$NETWORK" --config:dsim.partitioning=none)
+    fi
+    if [[ -n ${LAST_ITERATION:-} ]]; then
+        CMD+=(--config:controller.lastIteration="$LAST_ITERATION")
+    fi
+else
+    CMD=("$BIN" --config "$CONFIG" "$NUM_PARTS"
+        --set "output.output_dir=$RUN_DIR/output"
+        --set "scoring.mode=$SCORING_MODE"
+        --set "output.write_events=$WRITE_EVENTS"
+        --set "controller.write_events_interval=1")
+    if [[ -n ${NETWORK:-} ]]; then
+        CMD+=(--set "network.path=$NETWORK" --set "partitioning.method=none")
+    fi
+    if [[ -n ${LAST_ITERATION:-} ]]; then
+        CMD+=(--set "controller.last_iteration=$LAST_ITERATION")
+    fi
 fi
 CMD+=(${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"})
 

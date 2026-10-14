@@ -5,7 +5,8 @@
     uv run scripts/cluster/cluster.py submit experiments/example.toml --only pct=1
     uv run scripts/cluster/cluster.py collect example
 
-Paths and Slurm settings are read from scripts/cluster/cluster.toml. See scripts/cluster/README.md.
+Paths and Slurm settings are read from scripts/cluster/cluster.toml. The same runs with DSim (Java) use
+--settings scripts/cluster/cluster-dsim.toml. See scripts/cluster/README.md.
 """
 import sys
 
@@ -73,11 +74,20 @@ class Settings:
         self.version = s["scenario_version"]
         self.config_pattern = s["config_pattern"]
         self.network_pattern = s["network_pattern"]
-        self.binary = resolve(s["binary"])
+        self.binary = newest(resolve(s["binary"]))
+        self.run_env = s.get("run_env", {})
         self.slurm = s.get("slurm", {})
 
     def config(self, pct: int) -> Path:
         return resolve(self.config_pattern.format(version=self.version, pct=pct))
+
+    def extra_env(self, pct: int) -> dict:
+        """Variables from [run_env] with {version} and {pct} replaced. Values starting with '.', '/' or '~' are paths."""
+        env = {}
+        for key, value in self.run_env.items():
+            value = str(value).format(version=self.version, pct=pct)
+            env[key] = resolve(value) if value.startswith((".", "/", "~")) else value
+        return env
 
     def network(self, run: Run) -> Path:
         return self.partitions_root / self.network_pattern.format(
@@ -87,6 +97,14 @@ class Settings:
 def resolve(path: str) -> Path:
     p = Path(path).expanduser()
     return p if p.is_absolute() else (REPO / p).resolve()
+
+
+def newest(path: Path) -> Path:
+    """For a glob pattern like matsim-berlin-*.jar the most recently modified match."""
+    if not any(c in path.name for c in "*?["):
+        return path
+    matches = sorted(path.parent.glob(path.name), key=lambda p: p.stat().st_mtime)
+    return matches[-1] if matches else path
 
 
 def as_list(value) -> list:
@@ -260,6 +278,9 @@ def submit(args):
                  for pct in sorted({r.pct for r in runs}) if not settings.config(pct).exists()]
     missing_networks = sorted({str(settings.network(r)) for r in runs if not settings.network(r).exists()})
     problems += [f"network {n} does not exist" for n in missing_networks]
+    problems += [f"{key} {path} does not exist" for key, path in sorted(
+        {(k, v) for pct in {r.pct for r in runs} for k, v in settings.extra_env(pct).items()
+         if isinstance(v, Path) and not v.exists()})]
     if problems:
         print(f"{len(problems)} problem(s):", *problems, sep="\n  ", file=sys.stderr)
         if missing_networks:
@@ -312,6 +333,7 @@ def write_run_files(settings: Settings, name: str, run: Run, run_dir: Path, bina
         "NETWORK": settings.network(run),
         "SCORING_MODE": "enabled" if run.scoring else "disabled",
         "WRITE_EVENTS": "file" if run.events else "none",
+        **settings.extra_env(run.pct),
     }
     if iters is not None:
         env["LAST_ITERATION"] = iters - 1

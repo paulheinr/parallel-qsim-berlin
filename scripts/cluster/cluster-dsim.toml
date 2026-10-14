@@ -1,0 +1,32 @@
+# Settings for the same runs with DSim (Java), branch ph/v7.1.1-dsim of matsim-berlin:
+#
+#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-dsim.toml submit experiments/dsim-scaling.toml
+#
+# Relative paths are resolved against the repository root. See cluster.toml for the rust runs.
+
+out_root = "output/experiments"
+
+# The networks partitioned for rust are used with dsim.partitioning=none, so both use the same partitions.
+partitions_root = "../../shared-svn/projects/rust-qsim"
+
+scenario_version = "v7.1"
+config_pattern = "../matsim-berlin/input/{version}/berlin-{version}-{pct}pct.dsim.config.xml"
+network_pattern = "berlin-{version}/network/berlin-{version}.network.{method}.{parts:03d}.xml.zst"
+
+# Built with `./mvnw clean package -DskipTests` in matsim-berlin. The newest match is used and copied into the experiment.
+binary = "../matsim-berlin/matsim-berlin-7.1-SNAPSHOT-*.jar"
+
+# Written to run.env, {version} and {pct} are replaced.
+[run_env]
+ENGINE = "dsim"
+JAVA = "java"
+JAVA_OPTS = "-XX:MaxRAMPercentage=80"
+PLANS = "../../public-svn/matsim/scenarios/countries/de/berlin/berlin-{version}/calibrated-{pct}pct/output/berlin-{version}-{pct}pct.output_plans.xml.gz"
+VEHICLES = "../../public-svn/matsim/scenarios/countries/de/berlin/berlin-{version}/calibrated-{pct}pct/output/berlin-{version}-{pct}pct.output_vehicles.xml.gz"
+FACILITIES = "../../public-svn/matsim/scenarios/countries/de/berlin/berlin-{version}/calibrated-{pct}pct/output/berlin-{version}-{pct}pct.output_facilities.xml.gz"
+
+[slurm]
+partition = "cpu-genoa"
+mail_user = "heinrich@vsp.tu-berlin.de"
+mail_type = "FAIL"
+default_time = "01:00:00"
