@@ -10,7 +10,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 from .load import DATA_ROOT, load_phases, load_runs, phase_summary, rtr_summary  # noqa: E402
-from .plots import OUT_DIR, phase_shares, rtr_vs_parts, save, scoring_overhead  # noqa: E402
+from .plots import OUT_DIR, phase_shares, rtr_no_agents, rtr_vs_parts, save, scoring_overhead  # noqa: E402
 
 
 def main():
@@ -24,6 +24,7 @@ def main():
     rtr = rtr_summary(phases)
     shares = phase_summary(phases)
     figures = {
+        "rtr_no_agents": rtr_no_agents(rtr),
         "rtr_vs_parts": rtr_vs_parts(rtr),
         "phase_shares": phase_shares(shares),
         "scoring_overhead": scoring_overhead(rtr),

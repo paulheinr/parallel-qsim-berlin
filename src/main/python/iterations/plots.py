@@ -33,6 +33,7 @@ ENGINES = {"rust": {"label": "Rust", "color": "#e34948", "linestyle": "-", "mark
            "dsim": {"label": "DSim (Java)", "color": "#4a3aa7", "linestyle": (0, (4, 2)), "marker": "s"}}
 TITLE = {"fontsize": 9, "fontweight": "bold"}
 PARTS_TICKS = [1, 2, 4, 8, 16, 32, 64, 128, 192]
+NARROW_TICKS = [1, 2, 4, 8, 16, 32, 64, 192]  # 128 and 192 overlap in narrow panels
 
 STYLE = {
     "font.size": 8, "axes.titlesize": 8, "axes.labelsize": 8, "xtick.labelsize": 7, "ytick.labelsize": 7,
@@ -130,46 +131,73 @@ def log_y(ax, minor_grid=True):
         ax.grid(which="minor", axis="y", color=GRID, linewidth=0.3)
 
 
-def rtr_vs_parts(rtr: pd.DataFrame) -> plt.Figure:
-    """Plot 1: real-time ratio over the number of partitions, one panel per pct with rust (scoring on) and DSim, all
-    panels on the same y scale. The maximum of each line is marked and labeled."""
-    df = rtr[rtr["scoring"] & ~rtr["events"]]
-    pcts = sorted(df["pct"].unique())
-    columns = 2
-    rows = -(-len(pcts) // columns)
-    with plt.rc_context(STYLE):
-        fig, axes = plt.subplots(rows, columns, figsize=(FULL_WIDTH, 2.4 * rows), sharex=True, sharey=True,
-                                 squeeze=False)
-        maxima = {}
-        for i, (ax, pct) in enumerate(zip(axes.flat, pcts)):
-            maxima[ax] = []
-            for engine, style in ENGINES.items():
-                g = df[(df["pct"] == pct) & (df["engine"] == engine)].sort_values("parts")
-                if g.empty:
-                    continue
-                color = style["color"]
-                ax.fill_between(g["parts"], g["rtr_min"], g["rtr_max"], color=color, alpha=0.15, linewidth=0)
-                ax.plot(g["parts"], g["rtr"], color=color, linestyle=style["linestyle"], marker=style["marker"],
-                        markeredgecolor="white", markeredgewidth=0.6)
-                best = maximum(g)
-                ax.plot(best["parts"], best["rtr"], marker="o", markersize=7, markerfacecolor="none",
-                        markeredgecolor=color, markeredgewidth=0.8)
-                maxima[ax].append((best["parts"], best["rtr"], compact(best["rtr"])))
-            parts_axis(ax, label=i // columns == rows - 1, ticks=[t for t in PARTS_TICKS if t != 128])
-            log_y(ax, minor_grid=False)
-            ax.margins(y=0.15)  # room for the labels of the maxima
-            ax.set_title(pct_label(pct), loc="left", **TITLE)
-            if i % columns == 0:
-                ax.set_ylabel("RTR")
-        for ax in axes.flat[len(pcts):]:
-            ax.remove()
+def rtr_lines(ax, df: pd.DataFrame, label_last: bool = False) -> list[tuple[float, float, str]]:
+    """Draws the real-time ratio of rust and DSim over the partitions (median, band: min-max) and marks the maximum of
+    each line. Returns the labels to write with label_points: the maxima and, with label_last, the values at the
+    largest number of partitions."""
+    labels = []
+    for engine, style in ENGINES.items():
+        g = df[df["engine"] == engine].sort_values("parts")
+        if g.empty:
+            continue
+        color = style["color"]
+        ax.fill_between(g["parts"], g["rtr_min"], g["rtr_max"], color=color, alpha=0.15, linewidth=0)
+        ax.plot(g["parts"], g["rtr"], color=color, linestyle=style["linestyle"], marker=style["marker"],
+                markeredgecolor="white", markeredgewidth=0.6)
+        best = maximum(g)
+        ax.plot(best["parts"], best["rtr"], marker="o", markersize=7, markerfacecolor="none", markeredgecolor=color,
+                markeredgewidth=0.8)
+        labels.append((best["parts"], best["rtr"], compact(best["rtr"])))
+        last = g.iloc[-1]
+        if label_last and last["parts"] != best["parts"]:
+            labels.append((last["parts"], last["rtr"], compact(last["rtr"])))
+    return labels
 
-        handles = [Line2D([], [], color=s["color"], linestyle=s["linestyle"], marker=s["marker"], label=s["label"])
-                   for s in ENGINES.values()]
-        fig.legend(handles=handles, ncols=len(handles), loc="lower center", bbox_to_anchor=(0.5, 1.0),
-                   handlelength=2.6)
-        fig.tight_layout(h_pad=1.2, w_pad=2)
-        for ax, points in maxima.items():
+
+def rtr_axes(ax, pct: int, ylabel: bool = True):
+    parts_axis(ax, ticks=NARROW_TICKS)
+    log_y(ax, minor_grid=False)
+    ax.margins(y=0.15)  # room for the labels
+    ax.set_title(pct_label(pct), loc="left", **TITLE)
+    if ylabel:
+        ax.set_ylabel("RTR")
+
+
+def engine_legend(fig):
+    handles = [Line2D([], [], color=s["color"], linestyle=s["linestyle"], marker=s["marker"], label=s["label"])
+               for s in ENGINES.values()]
+    fig.legend(handles=handles, ncols=len(handles), loc="lower center", bbox_to_anchor=(0.5, 1.0), handlelength=2.6)
+
+
+def rtr_no_agents(rtr: pd.DataFrame) -> plt.Figure:
+    """Plot 1a: real-time ratio over the number of partitions without agents (0 %), rust and DSim. The maxima and the
+    values at the largest number of partitions are labeled."""
+    df = rtr[rtr["scoring"] & ~rtr["events"] & (rtr["pct"] == 0)]
+    with plt.rc_context(STYLE):
+        fig, ax = plt.subplots(figsize=(FULL_WIDTH / 2, 2.6))
+        labels = rtr_lines(ax, df, label_last=True)
+        rtr_axes(ax, 0)
+        ax.set_xlim(right=420)  # room for the labels right of the last values
+        engine_legend(fig)
+        fig.tight_layout()
+        label_points(ax, labels)
+    return fig
+
+
+def rtr_vs_parts(rtr: pd.DataFrame) -> plt.Figure:
+    """Plot 1b: real-time ratio over the number of partitions, one panel per pct with agents (rust with scoring, DSim),
+    all on the same y scale. The maximum of each line is marked and labeled."""
+    df = rtr[rtr["scoring"] & ~rtr["events"] & (rtr["pct"] > 0)]
+    pcts = sorted(df["pct"].unique())
+    with plt.rc_context(STYLE):
+        fig, axes = plt.subplots(1, len(pcts), figsize=(FULL_WIDTH, 2.6), sharex=True, sharey=True, squeeze=False)
+        labels = {}
+        for i, (ax, pct) in enumerate(zip(axes.flat, pcts)):
+            labels[ax] = rtr_lines(ax, df[df["pct"] == pct])
+            rtr_axes(ax, pct, ylabel=i == 0)
+        engine_legend(fig)
+        fig.tight_layout(w_pad=1.5)
+        for ax, points in labels.items():
             label_points(ax, points)
     return fig
 
@@ -228,8 +256,7 @@ def scoring_overhead(rtr: pd.DataFrame) -> plt.Figure:
             g = g.sort_values("parts")
             left.plot(g["parts"], g["rtr"], color=PCT_COLORS[pct], linestyle="-" if scoring else (0, (1, 1.5)),
                       marker="o" if scoring else None, markeredgecolor="white", markeredgewidth=0.6)
-        narrow_ticks = [t for t in PARTS_TICKS if t != 128]  # 128 and 192 overlap at half width
-        parts_axis(left, ticks=narrow_ticks)
+        parts_axis(left, ticks=NARROW_TICKS)
         log_y(left, minor_grid=False)
         left.set_ylabel("RTR")
         left.set_title("RTR of the mobsim", loc="left", **TITLE)
@@ -241,7 +268,7 @@ def scoring_overhead(rtr: pd.DataFrame) -> plt.Figure:
             g = g.sort_values("parts")
             right.plot(g["parts"], g["overhead"], color=PCT_COLORS[pct], marker="o", markeredgecolor="white",
                        markeredgewidth=0.6)
-        parts_axis(right, ticks=narrow_ticks)
+        parts_axis(right, ticks=NARROW_TICKS)
         right.axhline(0, color=MUTED, linewidth=0.8)
         right.yaxis.set_major_formatter(PercentFormatter(1, decimals=0))
         right.set_ylabel("Additional mobsim wall time")

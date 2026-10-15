@@ -115,9 +115,12 @@ Always:
   - The 1-second stopwatch of DSim is not needed: the logfile timestamps have millisecond resolution.
 - Colors: pct 1/3/10 use categorical blue, orange and aqua (validated for all pairs), and 0 % is gray. The axis
   label is "RTR"; the paper explains the details.
-- Layout: plot 1 has one panel per pct, all on the same y scale, which the user explicitly wants. Rust is red and DSim
-  violet. The maximum of each line is marked with a ring and labeled (`compact`, e.g. 32.5k); `label_points` picks the
-  label position automatically. The user found a single panel with all pct values too cluttered.
+- Plot 1 is split into two figures:
+  - 1a `rtr_no_agents`: only 0 %, with its own y axis. The maxima and the last values (192 partitions) are labeled.
+  - 1b `rtr_vs_parts`: three panels side by side for 1/3/10 %, on the same y scale (the user explicitly wants that).
+- Rust is red and DSim violet. The maximum of each line is marked with a ring and labeled (`compact`, e.g. 32.5k);
+  `label_points` picks the label position automatically. The user found a single panel with all pct values too
+  cluttered.
 - Panel titles are bold, lines are 1 pt thin, and the y-grids of the RTR axes have major lines only. The user does not
   want pct labels written next to the lines; the legend identifies the pct.
 - Plot 2 shows only the phase shares (rows: rust and DSim; columns: pct). The user removed the row with the wall time
