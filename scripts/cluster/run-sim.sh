@@ -16,7 +16,7 @@
 # additional arguments).
 #
 # With ENGINE=dsim (set in cluster-dsim.toml), BIN is the matsim-berlin jar and the run is done with DSim. This also needs
-# PLANS, VEHICLES and FACILITIES, and optionally JAVA and JAVA_OPTS.
+# PLANS, VEHICLES and FACILITIES, and optionally JAVA, JAVA_OPTS and RUN_ID (prefix of the output files).
 #
 # At the end, result.json is written into the run directory (also on failure, scancel and time limit).
 
@@ -70,6 +70,9 @@ if [[ ${ENGINE:-rust} == dsim ]]; then
     fi
     if [[ -n ${LAST_ITERATION:-} ]]; then
         CMD+=(--config:controller.lastIteration="$LAST_ITERATION")
+    fi
+    if [[ -n ${RUN_ID:-} ]]; then
+        CMD+=(--config:controller.runId="$RUN_ID")
     fi
 else
     CMD=("$BIN" --config "$CONFIG" "$NUM_PARTS"

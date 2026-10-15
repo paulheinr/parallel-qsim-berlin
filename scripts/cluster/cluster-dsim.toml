@@ -24,6 +24,17 @@ JAVA_OPTS = "-XX:MaxRAMPercentage=80"
 PLANS = "../../public-svn/matsim/scenarios/countries/de/berlin/berlin-{version}/calibrated-{pct}pct/output/berlin-{version}-{pct}pct.output_plans.xml.gz"
 VEHICLES = "../../public-svn/matsim/scenarios/countries/de/berlin/berlin-{version}/calibrated-{pct}pct/output/berlin-{version}-{pct}pct.output_vehicles.xml.gz"
 FACILITIES = "../../public-svn/matsim/scenarios/countries/de/berlin/berlin-{version}/calibrated-{pct}pct/output/berlin-{version}-{pct}pct.output_facilities.xml.gz"
+# Prefix of the output files. Same as in the configs, needed for pct values that use the config of another pct.
+RUN_ID = "berlin-{version}-{pct}pct"
+
+# 0pct: empty population, to measure the synchronization without agents. Config, vehicles and facilities of 1pct.
+[pct.0]
+config = "../matsim-berlin/input/{version}/berlin-{version}-1pct.dsim.config.xml"
+
+[pct.0.run_env]
+PLANS = "./input/{version}/berlin-{version}-0pct.plans.xml"
+VEHICLES = "../../public-svn/matsim/scenarios/countries/de/berlin/berlin-{version}/calibrated-1pct/output/berlin-{version}-1pct.output_vehicles.xml.gz"
+FACILITIES = "../../public-svn/matsim/scenarios/countries/de/berlin/berlin-{version}/calibrated-1pct/output/berlin-{version}-1pct.output_facilities.xml.gz"
 
 [slurm]
 partition = "cpu-genoa"

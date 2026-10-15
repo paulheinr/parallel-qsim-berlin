@@ -1,0 +1,50 @@
+# 0pct: empty population, to measure the synchronization without agents. All other inputs are those of 1pct.
+modules:
+  network:
+    type: Network
+    path: ../../../../shared-svn/projects/rust-qsim/berlin-v7.1/1pct/berlin-v7.1.network.binpb
+  # No path: Scenario::load creates an empty population. The module itself is required.
+  population:
+    type: Population
+  vehicles:
+    type: Vehicles
+    path: ../../../../shared-svn/projects/rust-qsim/berlin-v7.1/1pct/berlin-v7.1.vehicles.binpb
+  ids:
+    type: Ids
+    path: ../../../../shared-svn/projects/rust-qsim/berlin-v7.1/1pct/berlin-v7.1.ids.binpb
+  facilities:
+    type: Facilities
+    path: ../../../../shared-svn/projects/rust-qsim/berlin-v7.1/1pct/berlin-v7.1.facilities.binpb
+  partitioning:
+    type: Partitioning
+    num_parts: 16
+    method: !Metis
+      vertex_weight:
+        - InLinkCount
+      imbalance_factor: 1.1
+      edge_weight: Capacity
+  output:
+    type: Output
+    output_dir: ../../output/v7.1/0pct/output
+    write_events: None
+    logging: Info
+    profiling: !CSV
+      level: INFO
+  routing:
+    type: Routing
+    mode: UsePlans
+  simulation:
+    type: Simulation
+    start_time: 0
+    end_time: 129600
+    # as 1pct, no effect without vehicles
+    sample_size: 0.01
+    stuck_threshold: 30
+    main_modes:
+      - car
+      - freight
+      - truck
+      - bike
+  computational_setup:
+    type: ComputationalSetup
+    global_sync: false

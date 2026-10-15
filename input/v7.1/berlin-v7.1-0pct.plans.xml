@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE population SYSTEM "http://www.matsim.org/files/dtd/population_v6.dtd">
+
+<!-- Empty population for the 0pct runs with DSim (cluster-dsim.toml): the same network and partitions as 1pct, but no
+     agents, to measure the synchronization alone. -->
+<population>
+
+	<attributes>
+		<attribute name="coordinateReferenceSystem" class="java.lang.String">EPSG:25832</attribute>
+	</attributes>
+
+</population>

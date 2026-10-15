@@ -94,14 +94,22 @@ class Settings:
         self.run_env = s.get("run_env", {})
         self.slurm = s.get("slurm", {})
         self.fetch = s.get("fetch", {})
+        # [pct.<n>] replaces config_pattern and single [run_env] values for one pct, e.g. for 0pct without own inputs
+        self.pct_overrides = s.get("pct", {})
+        for pct, override in self.pct_overrides.items():
+            if unknown := set(override) - {"config", "run_env"}:
+                sys.exit(f"{path}: [pct.{pct}] has unknown keys {sorted(unknown)}, use config and run_env.")
 
     def config(self, pct: int) -> Path:
-        return resolve(self.config_pattern.format(version=self.version, pct=pct))
+        pattern = self.pct_overrides.get(str(pct), {}).get("config", self.config_pattern)
+        return resolve(pattern.format(version=self.version, pct=pct))
 
     def extra_env(self, pct: int) -> dict:
-        """Variables from [run_env] with {version} and {pct} replaced. Values starting with '.', '/' or '~' are paths."""
+        """Variables from [run_env] and [pct.<pct>.run_env] with {version} and {pct} replaced. Values starting with
+        '.', '/' or '~' are paths."""
         env = {}
-        for key, value in self.run_env.items():
+        run_env = {**self.run_env, **self.pct_overrides.get(str(pct), {}).get("run_env", {})}
+        for key, value in run_env.items():
             value = str(value).format(version=self.version, pct=pct)
             env[key] = resolve(value) if value.startswith((".", "/", "~")) else value
         return env

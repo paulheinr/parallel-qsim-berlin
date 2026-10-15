@@ -40,6 +40,10 @@ creates `.venv` on first use (`uv sync` does that explicitly).
 
 Paths and Slurm settings are in `scripts/cluster/cluster.toml`.
 
+`pct = 0` is an empty population on the same network and partitions, to measure the synchronization without agents.
+Rust uses `input/v7.1/berlin-v7.1.0pct.config.yml` (the 1pct inputs without a population path), DSim the 1pct config
+with the empty `input/v7.1/berlin-v7.1-0pct.plans.xml`.
+
 ### DSim (Java)
 
 The same runs with DSim, branch `ph/v7.1.1-dsim` of matsim-berlin (see `README-dsim-benchmark.md` there), use the
@@ -54,6 +58,8 @@ uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-dsim.toml c
 - `binary` may be a glob pattern, the newest match is used (the jar name contains the git commit).
 - `[run_env]` is written to `run.env` (`{version}` and `{pct}` are replaced). With `ENGINE = "dsim"`, `run-sim.sh` starts
   the jar. Inputs (`PLANS`, ...) are checked on submission.
+- `[pct.<n>]` replaces `config_pattern` (`config = ...`) and single `[run_env]` values (`[pct.<n>.run_env]`) for one
+  pct. `cluster-dsim.toml` uses it for 0pct, which has no scenario of its own in public-svn.
 - DSim always scores, so `scoring = false` is not supported.
 - The stopwatch has a resolution of one second. Phase times in ms per iteration:
   `python3 ../matsim-berlin/src/main/python/dsim_phase_times.py <run_dir>/output/*.logfile.log <run_dir>/phases.csv`
