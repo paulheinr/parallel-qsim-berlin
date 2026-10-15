@@ -5,3 +5,11 @@ requires-python = ">=3.14"
 dependencies = [
     "numpy>=2.5.4",
 ]
+
+[dependency-groups]
+analysis = [
+    "jupyterlab>=4.6.4",
+    "matplotlib>=3.11.2",
+    "pandas>=3.0.6",
+    "seaborn>=0.13.2",
+]

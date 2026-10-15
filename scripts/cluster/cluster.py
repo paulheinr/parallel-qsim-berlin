@@ -261,16 +261,23 @@ def write_build_info(exp_dir: Path, settings: Settings, digest: str):
         "snapshot_at": now(),
         "binary": str(settings.binary),
         "binary_mtime": datetime.datetime.fromtimestamp(settings.binary.stat().st_mtime).isoformat(),
-        "repos": {str(repo): git_info(repo) for repo in (REPO, library_repo())},
+        "repos": {str(REPO): git_info(REPO), **library_info()},
     }
     path.write_text(json.dumps(info, indent=2) + "\n")
 
 
-def library_repo() -> Path:
-    """The simulation library as referenced in the Cargo.toml of this repository."""
-    cargo = REPO / "src/main/rust/Cargo.toml"
-    match = re.search(r'^rust_qsim\s*=\s*\{[^}]*path\s*=\s*"([^"]+)"', cargo.read_text(), re.MULTILINE)
-    return (cargo.parent / match.group(1)).resolve() if match else REPO
+def library_info() -> dict:
+    """git info of the simulation library matsim-rust: of its checkout for a path dependency in Cargo.toml, otherwise
+    the commit that Cargo.lock pins for the git dependency."""
+    rust = REPO / "src/main/rust"
+    dependency = re.search(r'^matsim-rust\s*=\s*\{([^}]*)\}', (rust / "Cargo.toml").read_text(), re.MULTILINE)
+    path = re.search(r'path\s*=\s*"([^"]+)"', dependency.group(1)) if dependency else None
+    if path:
+        repo = (rust / path.group(1)).resolve()
+        return {str(repo): git_info(repo)}
+    lock = re.search(r'name = "matsim-rust"\nversion = "[^"]*"\nsource = "git\+([^#"]+)#([0-9a-f]+)"',
+                     (rust / "Cargo.lock").read_text())
+    return {lock.group(1): {"commit": lock.group(2), "branch": None, "dirty": False}} if lock else {}
 
 
 def git_info(path: Path) -> dict:
