@@ -19,3 +19,9 @@ partition = "cpu-genoa"
 mail_user = "heinrich@vsp.tu-berlin.de"
 mail_type = "FAIL"            # many jobs per experiment, so no BEGIN/END mails
 default_time = "01:00:00"     # used if the experiment has no time_limit for a pct
+
+# `cluster.py fetch` (run locally) copies the evaluation files of an experiment from the cluster into runs-svn.
+[fetch]
+host = "hlrn-genoa"                                             # ssh host from ~/.ssh/config
+remote_repo = "scratch/iterations-rust/parallel-qsim-berlin"    # this repository on the cluster, relative to ~
+target = "../../runs-svn/matsim-rust/iterations-vs-dsim-2026"   # local runs-svn directory, experiments go below it

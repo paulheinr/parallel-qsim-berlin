@@ -4,6 +4,7 @@
     uv run scripts/cluster/cluster.py submit experiments/example.toml --dry-run
     uv run scripts/cluster/cluster.py submit experiments/example.toml --only pct=1
     uv run scripts/cluster/cluster.py collect example
+    uv run scripts/cluster/cluster.py fetch example      # locally: collect on the cluster, copy results into runs-svn
 
 Paths and Slurm settings are read from scripts/cluster/cluster.toml. The same runs with DSim (Java) use
 --settings scripts/cluster/cluster-dsim.toml. See scripts/cluster/README.md.
@@ -23,15 +24,29 @@ import re
 import shlex
 import shutil
 import subprocess
+import tempfile
 import tomllib
+from collections import Counter
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO = SCRIPT_DIR.parents[1]
 RUN_SCRIPT = SCRIPT_DIR / "run-sim.sh"
 GRID_KEYS = ("pct", "parts", "method", "scoring", "events")
 MANIFEST_FIELDS = ["run_id", "job_id", "submitted_at"]
+
+# Files that fetch copies into runs-svn, relative to the experiment directory. Everything else (binary snapshots,
+# plans, events, networks, ITERS/, per-process logs) stays on the cluster. [fetch] extra_files adds patterns.
+FETCH_FILES = [
+    "experiment.*.toml", "build_info.json", "manifest.csv", "runs.csv",
+    "runs/*/params.json", "runs/*/run.env", "runs/*/result.json", "runs/*/slurm-*.log", "runs/*/phases.csv",
+    # rust
+    "runs/*/output/instrument/*", "runs/*/output/output_config.yml", "runs/*/output/logs/log_process_controller.txt",
+    # dsim
+    "runs/*/output/*.csv", "runs/*/output/*.logfile.log", "runs/*/output/*.logfileWarningsErrors.log",
+    "runs/*/output/runtimes-*/runtime-*.csv", "runs/*/output/runtimes-*/*.hgrm",
+]
 
 
 @dataclass(frozen=True)
@@ -69,6 +84,7 @@ class Settings:
     def __init__(self, path: Path):
         with open(path, "rb") as f:
             s = tomllib.load(f)
+        self.out_root_setting = s["out_root"]
         self.out_root = resolve(s["out_root"])
         self.partitions_root = resolve(s["partitions_root"])
         self.version = s["scenario_version"]
@@ -77,6 +93,7 @@ class Settings:
         self.binary = newest(resolve(s["binary"]))
         self.run_env = s.get("run_env", {})
         self.slurm = s.get("slurm", {})
+        self.fetch = s.get("fetch", {})
 
     def config(self, pct: int) -> Path:
         return resolve(self.config_pattern.format(version=self.version, pct=pct))
@@ -386,7 +403,7 @@ def collect(args):
             "elapsed_s": result.get("elapsed_s", ""),
             "start": result.get("start", ""),
             "end": result.get("end", ""),
-            "run_dir": str(run_dir),
+            "run_dir": str(run_dir.relative_to(exp_dir)),
         })
 
     out = exp_dir / "runs.csv"
@@ -431,6 +448,128 @@ def rss_to_mb(value: str) -> int:
 
 
 # ----------------------------------------------------------------------
+# fetch (runs locally)
+# ----------------------------------------------------------------------
+
+def fetch(args):
+    settings = Settings(args.settings)
+    if not {"host", "remote_repo", "target"} <= set(settings.fetch):
+        sys.exit(f"{args.settings} needs host, remote_repo and target in [fetch].")
+    host = settings.fetch["host"]
+    remote_repo = settings.fetch["remote_repo"].removeprefix("~/")
+    experiment = args.experiment.rstrip("/")
+    name = experiment_name(experiment, settings.out_root_setting)
+    remote_dir = remote_path(experiment if "/" in experiment else f"{settings.out_root_setting}/{experiment}",
+                             remote_repo)
+    target = resolve(settings.fetch["target"])
+    local_dir = target / name
+
+    if not args.dry_run and not args.no_collect:
+        settings_file = Path(args.settings).resolve().relative_to(REPO)
+        ssh(host, f"cd {shlex.quote(remote_repo)} && uv run scripts/cluster/cluster.py "
+                  f"--settings {shlex.quote(str(settings_file))} collect {shlex.quote(experiment)}")
+
+    files = remote_files(host, remote_dir)
+    patterns = FETCH_FILES + settings.fetch.get("extra_files", [])
+    selected = {}
+    per_pattern = {p: [0, 0] for p in patterns}
+    for path, size in files.items():
+        pattern = next((p for p in patterns if PurePosixPath(path).full_match(p)), None)
+        if pattern:
+            selected[path] = size
+            per_pattern[pattern][0] += 1
+            per_pattern[pattern][1] += size
+
+    print(f"{host}:{remote_dir} -> {local_dir}")
+    for pattern, (count, size) in per_pattern.items():
+        if count:
+            print(f"  {count:6d} files {size / 1e6:10.1f} MB  {pattern}")
+    print(f"{len(selected)} of {len(files)} files, {sum(selected.values()) / 1e6:.1f} MB "
+          f"(not copied: {(sum(files.values()) - sum(selected.values())) / 1e9:.1f} GB)")
+    if args.dry_run:
+        print("Dry run, nothing copied.")
+        return
+    if not selected:
+        sys.exit("Nothing to copy.")
+
+    local_dir.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile("w", suffix=".txt") as file_list:
+        file_list.write("".join(f"{path}\n" for path in sorted(selected)))
+        file_list.flush()
+        subprocess.run(["rsync", "-a", "--partial", f"--files-from={file_list.name}",
+                        f"{host}:{remote_dir}/", f"{local_dir}/"], check=True)
+    relative_run_dirs(local_dir / "runs.csv")
+    svn_add(target, local_dir, sorted(selected))
+
+
+def experiment_name(experiment: str, out_root: str) -> str:
+    """Local directory name: the path below out_root (e.g. archive/scaling), otherwise the last component."""
+    path = PurePosixPath(experiment)
+    if path.is_relative_to(out_root):
+        return str(path.relative_to(out_root))
+    return path.name
+
+
+def remote_path(path: str, remote_repo: str) -> str:
+    """A path on the cluster for ssh and rsync: absolute or relative to the home directory."""
+    if path.startswith("~/"):
+        return path[2:]
+    return path if path.startswith("/") else f"{remote_repo}/{path}"
+
+
+def ssh(host: str, command: str):
+    if subprocess.run(["ssh", host, command]).returncode != 0:
+        sys.exit(f"Failed on {host}: {command}")
+
+
+def remote_files(host: str, remote_dir: str) -> dict[str, int]:
+    """All files below remote_dir with their size."""
+    result = subprocess.run(["ssh", host, f"cd {shlex.quote(remote_dir)} && find . -type f -printf '%P\\t%s\\n'"],
+                            capture_output=True, text=True)
+    if result.returncode != 0:
+        sys.exit(f"Could not list {host}:{remote_dir}: {result.stderr.strip()}")
+    files = {}
+    for line in result.stdout.splitlines():
+        path, size = line.rsplit("\t", 1)
+        files[path] = int(size)
+    return files
+
+
+def relative_run_dirs(runs_csv: Path):
+    """runs.csv written by older versions of collect has absolute run directories on the cluster."""
+    if not runs_csv.exists():
+        return
+    with open(runs_csv, newline="") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    if not rows or "run_dir" not in reader.fieldnames:
+        return
+    for row in rows:
+        row["run_dir"] = f"runs/{row['run_id']}"
+    with open(runs_csv, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=reader.fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def svn_add(target: Path, local_dir: Path, files: list[str]):
+    """Schedules the copied files for addition if target is in an svn working copy. Nothing is committed."""
+    if shutil.which("svn") is None or subprocess.run(["svn", "info", str(target.parent)],
+                                                     capture_output=True).returncode != 0:
+        print(f"{target} is not in an svn working copy, nothing added.")
+        return
+    with tempfile.NamedTemporaryFile("w", suffix=".txt") as targets:
+        targets.write("".join(f"{local_dir / path}\n" for path in files))
+        targets.flush()
+        subprocess.run(["svn", "add", "--force", "--parents", "--targets", targets.name],
+                       stdout=subprocess.DEVNULL, check=True)
+    status = subprocess.run(["svn", "status", "-q", str(local_dir)], capture_output=True, text=True, check=True)
+    changes = Counter(line[0] for line in status.stdout.splitlines())
+    print(f"svn: {changes['A']} added, {changes['M']} modified. Not committed, check and commit with\n"
+          f"  svn status -q {local_dir}\n  svn commit -m '...' {target}")
+
+
+# ----------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -449,6 +588,12 @@ def main():
     p = sub.add_parser("collect", help="write runs.csv with parameters, Slurm accounting and results")
     p.add_argument("experiment", help="experiment name or directory")
     p.set_defaults(func=collect)
+
+    p = sub.add_parser("fetch", help="run locally: collect on the cluster, then copy the results into runs-svn")
+    p.add_argument("experiment", help="experiment name, or a directory relative to the repository on the cluster")
+    p.add_argument("--dry-run", "--dry", action="store_true", help="only list the files that would be copied")
+    p.add_argument("--no-collect", action="store_true", help="do not run collect on the cluster first")
+    p.set_defaults(func=fetch)
 
     args = parser.parse_args()
     args.func(args)

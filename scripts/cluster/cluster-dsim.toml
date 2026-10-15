@@ -30,3 +30,9 @@ partition = "cpu-genoa"
 mail_user = "heinrich@vsp.tu-berlin.de"
 mail_type = "FAIL"
 default_time = "01:00:00"
+
+# See cluster.toml.
+[fetch]
+host = "hlrn-genoa"
+remote_repo = "scratch/iterations-rust/parallel-qsim-berlin"
+target = "../../runs-svn/matsim-rust/iterations-vs-dsim-2026"

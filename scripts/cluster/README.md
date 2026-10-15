@@ -65,7 +65,29 @@ uv run scripts/cluster/cluster.py collect example
 ```
 
 writes `<out_root>/example/runs.csv` with the parameters, Slurm state, elapsed time and peak memory (`sacct`) and
-`result.json` of every run.
+`result.json` of every run. `run_dir` is relative to the experiment directory.
+
+## 4. Fetch results into runs-svn (locally)
+
+```bash
+uv run scripts/cluster/cluster.py fetch example --dry-run
+uv run scripts/cluster/cluster.py fetch example
+uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-dsim.toml fetch dsim-scaling
+```
+
+runs `collect` on the cluster, copies the evaluation files (`FETCH_FILES` in `cluster.py`: metadata, `result.json`,
+Slurm logs, rust `instrument/`, DSim stats and logs) with rsync into `<target>/<experiment>/` and schedules them for
+addition in svn. It does not commit. Binary snapshots, plans, events, `ITERS/` and per-process logs stay on the
+cluster. Fetching again only copies new or changed files.
+
+- `[fetch]` in the settings: `host` (ssh alias), `remote_repo` (this repository on the cluster, relative to `~`),
+  `target` (local runs-svn directory) and optionally `extra_files` (more patterns, e.g.
+  `"runs/*/output/runtimes-*/tasks.csv"`).
+- An experiment outside `out_root` is given as a directory relative to the repository on the cluster, e.g.
+  `fetch output/experiments/archive/scaling` (stored as `<target>/archive/scaling`).
+- `--no-collect` skips `collect`. `run_dir` in `runs.csv` of older versions of `collect` is rewritten to
+  `runs/<run_id>`.
+- Commit the target directory, e.g. `svn commit -m '...' ~/runs-svn/matsim-rust/iterations-vs-dsim-2026`.
 
 ## Layout
 
@@ -85,6 +107,8 @@ writes `<out_root>/example/runs.csv` with the parameters, Slurm state, elapsed t
 
 `result.json` is written by `run-sim.sh` when the job ends, also on failure, `scancel` and time limit. If it is
 missing, the job is pending, running or was killed hard; `collect` also reports the state from `sacct`.
+
+On Lise, `sacct` reports no useful memory usage (MaxRSS of the batch step is 0), so `max_rss_mb` is not meaningful there.
 
 ## Running a single run by hand
 
