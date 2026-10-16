@@ -11,6 +11,8 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
 - Always call `ssh -o BatchMode=yes hlrn-genoa '...'` so a missing connection fails instead of hanging. If it fails,
   ask the user to run `ssh hlrn-genoa` once in their terminal. `ssh -O check hlrn-genoa` shows the shared connection.
 - Never read, copy or upload private keys. Never store svn or git credentials on the cluster.
+- `git push` of this repo over the HTTPS remote fails from my shell (no access to the keychain credentials). Pushing to
+  `git@github.com:paulheinr/parallel-qsim-berlin.git` over SSH works (outside the sandbox), then `git fetch origin`.
 
 ## Layout
 
@@ -24,9 +26,10 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
 - Relative paths like `../../shared-svn` in `cluster.toml` / `cluster-dsim.toml` resolve to `~/scratch/...` on the
   cluster and to `~/...` locally, so the same settings work on both.
 - The cluster repo has local changes in `src/main/rust/Cargo.toml` and `Cargo.lock`. There, matsim-rust is a git
-  dependency (GitHub) and `Cargo.lock` pins its commit. Locally it is a path dependency. Do not overwrite these changes.
-  To build a newer matsim-rust from main on the cluster: `cargo update -p matsim-rust && cargo build --release` in
-  `src/main/rust` (ask first, see Rules).
+  dependency (GitHub) and `Cargo.lock` pins its commit (d41dba8 since 2026-10-16). Locally it is a path dependency. Do
+  not overwrite these changes. To build a newer matsim-rust from main on the cluster:
+  `cargo update -p matsim-rust && cargo build --release` in `src/main/rust` (ask first, see Rules). Cargo is in
+  `~/.cargo/env`; the build takes about half a minute.
 - To rerun an experiment with a newer library and keep the old runs, give it a new name (a copy of the experiment file,
   e.g. `scaling-v2.toml`). Reusing the name submits nothing, because all runs are already in `manifest.csv`.
 - Experiments on the cluster on 2026-10-15: `example`, `scaling` (595 GB), `dsim-scaling` (11 GB) and
@@ -34,8 +37,9 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
 - `scaling` and `dsim-scaling` both contain pct 0 (empty population: synchronization only), 1, 3 and 10, with
   13 partition counts from 1 to 192. Every run has 10 iterations and there is one repetition per setting. Only rust
   also has `scoring = false`. No runs have `events = true` yet. `scaling` used matsim-rust 6960b40.
-- `scaling-v2` (prepared 2026-10-16, not yet submitted) is the same grid as `scaling` with the mobsim optimizations of
-  matsim-rust (main at d41dba8, PRs #315 and #316).
+- `scaling-v2` is the same grid as `scaling` with the mobsim optimizations of matsim-rust (main at d41dba8, PRs #315
+  and #316). Its time limits are twice the times measured in `scaling`. All 91 runs were submitted on 2026-10-16 (jobs
+  9577809-9577900). `load.py` still reads `scaling`; switch it to `scaling-v2` after `fetch`.
 - `~/scratch/rust-pt-routing` holds the older async-routing project. Its results are in
   `runs-svn/matsim-rust/async-routing-2026`.
 - Tools on the cluster: `uv` and `python3` (`~/scratch/miniforge3/bin`), `svn`, `rsync` 3.2.7, Slurm. Locally, `rsync`
