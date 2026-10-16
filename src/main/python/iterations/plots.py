@@ -8,7 +8,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib import patheffects
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from matplotlib.transforms import Bbox
@@ -70,17 +69,23 @@ def compact(value: float) -> str:
     return f"{value:.3g}"
 
 
-# Candidate positions of a label relative to its point: offset in points, horizontal and vertical alignment
-_LABEL_POSITIONS = [(dx * r, dy * r, ha, va) for r in (1, 1.6)
+# Labels are boxed: padding between text and frame, in points
+_LABEL_FONTSIZE = 6.5
+_LABEL_PAD = 0.3 * _LABEL_FONTSIZE
+
+# Candidate positions of a label relative to its point: offset in points (outside the box padding), horizontal and
+# vertical alignment
+_LABEL_POSITIONS = [(dx * r + np.sign(dx) * _LABEL_PAD, dy * r + np.sign(dy) * _LABEL_PAD, ha, va) for r in (1, 1.6)
                     for dx, dy, ha, va in [(0, 7, "center", "bottom"), (0, -7, "center", "top"),
                                            (8, 0, "left", "center"), (-8, 0, "right", "center"),
                                            (6, 6, "left", "bottom"), (-6, 6, "right", "bottom"),
                                            (6, -6, "left", "top"), (-6, -6, "right", "top")]]
 
 
-def label_points(ax, points: list[tuple[float, float, str]]):
-    """Writes each text next to its point, at the candidate position that covers the fewest line segments, markers
-    and other labels, preferring positions close to the point. The axis scales and limits must be final."""
+def label_points(ax, points: list[tuple[float, float, str, str]]):
+    """Writes each text in a box framed in its color next to its point, at the candidate position that covers the
+    fewest line segments, markers and other labels, preferring positions close to the point. The axis scales and limits
+    must be final."""
     renderer = ax.figure.canvas.get_renderer()
     px = renderer.points_to_pixels(1)
     segments, markers = [], []
@@ -95,15 +100,16 @@ def label_points(ax, points: list[tuple[float, float, str]]):
     line_points = np.vstack(segments) if segments else np.empty((0, 2))
     labels = [t.get_window_extent(renderer) for t in ax.texts]
     frame = ax.get_window_extent(renderer)
-    halo = [patheffects.withStroke(linewidth=2.5, foreground="white")]
 
-    for x, y, text in points:
+    for x, y, text, color in points:
         anchor = ax.transData.transform((x, y))
         best = None
         for dx, dy, ha, va in _LABEL_POSITIONS:
             label = ax.annotate(text, (x, y), xytext=(dx, dy), textcoords="offset points", ha=ha, va=va,
-                                fontsize=6.5, color=TEXT, path_effects=halo)
-            box = label.get_window_extent(renderer)
+                                fontsize=_LABEL_FONTSIZE, color=TEXT,
+                                bbox=dict(boxstyle="round,pad=0.3", facecolor="white",
+                                          edgecolor=color, linewidth=0.8))
+            box = label.get_window_extent(renderer).padded((_LABEL_PAD + 0.4) * px)  # text + padding + frame
             inside = ((line_points[:, 0] >= box.x0) & (line_points[:, 0] <= box.x1)
                       & (line_points[:, 1] >= box.y0) & (line_points[:, 1] <= box.y1))
             cost = (inside.sum() + 30 * sum(box.overlaps(m) for m in markers)
@@ -131,10 +137,10 @@ def log_y(ax, minor_grid=True):
         ax.grid(which="minor", axis="y", color=GRID, linewidth=0.3)
 
 
-def rtr_lines(ax, df: pd.DataFrame, label_last: bool = False) -> list[tuple[float, float, str]]:
+def rtr_lines(ax, df: pd.DataFrame, label_last: bool = False) -> list[tuple[float, float, str, str]]:
     """Draws the real-time ratio of rust and DSim over the partitions (median, band: min-max) and marks the maximum of
-    each line. Returns the labels to write with label_points: the maxima and, with label_last, the values at the
-    largest number of partitions."""
+    each line with a ring, with label_last also the value at the largest number of partitions. Returns the labels of
+    the marked points to write with label_points."""
     labels = []
     for engine, style in ENGINES.items():
         g = df[df["engine"] == engine].sort_values("parts")
@@ -144,20 +150,20 @@ def rtr_lines(ax, df: pd.DataFrame, label_last: bool = False) -> list[tuple[floa
         ax.fill_between(g["parts"], g["rtr_min"], g["rtr_max"], color=color, alpha=0.15, linewidth=0)
         ax.plot(g["parts"], g["rtr"], color=color, linestyle=style["linestyle"], marker=style["marker"],
                 markeredgecolor="white", markeredgewidth=0.6)
-        best = maximum(g)
-        ax.plot(best["parts"], best["rtr"], marker="o", markersize=7, markerfacecolor="none", markeredgecolor=color,
-                markeredgewidth=0.8)
-        labels.append((best["parts"], best["rtr"], compact(best["rtr"])))
-        last = g.iloc[-1]
-        if label_last and last["parts"] != best["parts"]:
-            labels.append((last["parts"], last["rtr"], compact(last["rtr"])))
+        marked = [maximum(g)]
+        if label_last and g.iloc[-1]["parts"] != marked[0]["parts"]:
+            marked.append(g.iloc[-1])
+        for point in marked:
+            ax.plot(point["parts"], point["rtr"], marker="o", markersize=7, markerfacecolor="none",
+                    markeredgecolor=color, markeredgewidth=0.8)
+            labels.append((point["parts"], point["rtr"], compact(point["rtr"]), color))
     return labels
 
 
 def rtr_axes(ax, pct: int, ylabel: bool = True):
     parts_axis(ax, ticks=NARROW_TICKS)
     log_y(ax, minor_grid=False)
-    ax.margins(y=0.15)  # room for the labels
+    ax.margins(y=0.22)  # room for the labels
     ax.set_title(pct_label(pct), loc="left", **TITLE)
     if ylabel:
         ax.set_ylabel("RTR")
@@ -171,13 +177,13 @@ def engine_legend(fig):
 
 def rtr_no_agents(rtr: pd.DataFrame) -> plt.Figure:
     """Plot 1a: real-time ratio over the number of partitions without agents (0 %), rust and DSim. The maxima and the
-    values at the largest number of partitions are labeled."""
+    values at the largest number of partitions are marked and labeled."""
     df = rtr[rtr["scoring"] & ~rtr["events"] & (rtr["pct"] == 0)]
     with plt.rc_context(STYLE):
         fig, ax = plt.subplots(figsize=(FULL_WIDTH / 2, 2.6))
         labels = rtr_lines(ax, df, label_last=True)
         rtr_axes(ax, 0)
-        ax.set_xlim(right=420)  # room for the labels right of the last values
+        ax.set_xlim(right=560)  # room for the labels right of the last values
         engine_legend(fig)
         fig.tight_layout()
         label_points(ax, labels)
@@ -195,6 +201,7 @@ def rtr_vs_parts(rtr: pd.DataFrame) -> plt.Figure:
         for i, (ax, pct) in enumerate(zip(axes.flat, pcts)):
             labels[ax] = rtr_lines(ax, df[df["pct"] == pct])
             rtr_axes(ax, pct, ylabel=i == 0)
+        axes[0, 0].set_xlim(right=380)  # room to center the labels of maxima at 192 partitions (x is shared)
         engine_legend(fig)
         fig.tight_layout(w_pad=1.5)
         for ax, points in labels.items():

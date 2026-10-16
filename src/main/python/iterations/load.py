@@ -26,7 +26,7 @@ from pathlib import Path
 import pandas as pd
 
 DATA_ROOT = Path.home() / "runs-svn/matsim-rust/iterations-vs-dsim-2026"
-EXPERIMENTS = ["scaling", "dsim-scaling"]
+EXPERIMENTS = ["scaling-v2", "dsim-scaling"]  # scaling: rust before the mobsim optimizations (matsim-rust 6960b40)
 PHASES = ["mobsim", "scoring", "replanning", "other"]
 STEADY = range(1, 9)
 

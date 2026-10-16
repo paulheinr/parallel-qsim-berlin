@@ -39,7 +39,9 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   also has `scoring = false`. No runs have `events = true` yet. `scaling` used matsim-rust 6960b40.
 - `scaling-v2` is the same grid as `scaling` with the mobsim optimizations of matsim-rust (main at d41dba8, PRs #315
   and #316). Its time limits are twice the times measured in `scaling`. All 91 runs were submitted on 2026-10-16 (jobs
-  9577809-9577900). `load.py` still reads `scaling`; switch it to `scaling-v2` after `fetch`.
+  9577809-9577900). 87 of them are in runs-svn (r6964); the four 10pct runs with 1 and 2 parts were still pending.
+  The analysis reads `scaling-v2` by default; `python -m iterations --experiments scaling dsim-scaling` gives the old
+  figures.
 - `~/scratch/rust-pt-routing` holds the older async-routing project. Its results are in
   `runs-svn/matsim-rust/async-routing-2026`.
 - Tools on the cluster: `uv` and `python3` (`~/scratch/miniforge3/bin`), `svn`, `rsync` 3.2.7, Slurm. Locally, `rsync`
@@ -126,11 +128,13 @@ Always:
 - Colors: pct 1/3/10 use categorical blue, orange and aqua (validated for all pairs), and 0 % is gray. The axis
   label is "RTR"; the paper explains the details.
 - Plot 1 is split into two figures:
-  - 1a `rtr_no_agents`: only 0 %, with its own y axis. The maxima and the last values (192 partitions) are labeled.
+  - 1a `rtr_no_agents`: only 0 %, with its own y axis. The maxima and the last values (192 partitions) are marked
+    with rings and labeled.
   - 1b `rtr_vs_parts`: three panels side by side for 1/3/10 %, on the same y scale (the user explicitly wants that).
-- Rust is red and DSim violet. The maximum of each line is marked with a ring and labeled (`compact`, e.g. 32.5k);
-  `label_points` picks the label position automatically. The user found a single panel with all pct values too
-  cluttered.
+- Rust is red and DSim violet. The maximum of each line is marked with a ring and labeled (`compact`, e.g. 32.5k).
+  Labels are in a white box framed in the line color. `label_points` picks the label position automatically; the
+  x axes extend beyond 192 partitions so that labels of points there can sit centered next to them (the user found
+  labels shifted to the left odd). The user found a single panel with all pct values too cluttered.
 - Panel titles are bold, lines are 1 pt thin, and the y-grids of the RTR axes have major lines only. The user does not
   want pct labels written next to the lines; the legend identifies the pct.
 - Plot 2 shows only the phase shares (rows: rust and DSim; columns: pct). The user removed the row with the wall time
