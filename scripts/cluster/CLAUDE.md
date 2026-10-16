@@ -17,7 +17,7 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
 | | cluster | local (Mac) |
 |---|---|---|
 | this repo | `~/scratch/iterations-rust/parallel-qsim-berlin` | `~/git/parallel-qsim-berlin` |
-| simulation library, DSim | `~/scratch/iterations-rust/{matsim-rust,matsim-berlin}` | `~/git/{matsim-rust,matsim-berlin}` |
+| simulation library, DSim | `~/scratch/iterations-rust/{matsim-rust,matsim-berlin}` | `~/git/parallel_qsim_rust/matsim_rust`, `~/git/matsim-berlin` |
 | svn checkouts | `~/scratch/{shared-svn,public-svn,runs-svn}` | `~/{shared-svn,public-svn,runs-svn}` |
 | experiments | `<repo>/output/experiments/<name>/` (`out_root`) | `~/runs-svn/matsim-rust/iterations-vs-dsim-2026/<name>/` |
 
@@ -25,11 +25,17 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   cluster and to `~/...` locally, so the same settings work on both.
 - The cluster repo has local changes in `src/main/rust/Cargo.toml` and `Cargo.lock`. There, matsim-rust is a git
   dependency (GitHub) and `Cargo.lock` pins its commit. Locally it is a path dependency. Do not overwrite these changes.
+  To build a newer matsim-rust from main on the cluster: `cargo update -p matsim-rust && cargo build --release` in
+  `src/main/rust` (ask first, see Rules).
+- To rerun an experiment with a newer library and keep the old runs, give it a new name (a copy of the experiment file,
+  e.g. `scaling-v2.toml`). Reusing the name submits nothing, because all runs are already in `manifest.csv`.
 - Experiments on the cluster on 2026-10-15: `example`, `scaling` (595 GB), `dsim-scaling` (11 GB) and
   `archive/scaling`. Almost all of the size is plans, events and `ITERS/`, which stay on the cluster.
 - `scaling` and `dsim-scaling` both contain pct 0 (empty population: synchronization only), 1, 3 and 10, with
   13 partition counts from 1 to 192. Every run has 10 iterations and there is one repetition per setting. Only rust
-  also has `scoring = false`. No runs have `events = true` yet.
+  also has `scoring = false`. No runs have `events = true` yet. `scaling` used matsim-rust 6960b40.
+- `scaling-v2` (prepared 2026-10-16, not yet submitted) is the same grid as `scaling` with the mobsim optimizations of
+  matsim-rust (main at d41dba8, PRs #315 and #316).
 - `~/scratch/rust-pt-routing` holds the older async-routing project. Its results are in
   `runs-svn/matsim-rust/async-routing-2026`.
 - Tools on the cluster: `uv` and `python3` (`~/scratch/miniforge3/bin`), `svn`, `rsync` 3.2.7, Slurm. Locally, `rsync`
