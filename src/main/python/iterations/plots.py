@@ -9,11 +9,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
 from matplotlib.transforms import Bbox
 from matplotlib.ticker import FixedLocator, LogLocator, NullFormatter, PercentFormatter
 
-from .load import PHASES
 
 OUT_DIR = Path(__file__).resolve().parents[1] / "jupyter-notebooks/plots/iterations-vs-dsim"
 
@@ -26,6 +24,9 @@ GRID = "#e6e5e1"
 # Shades of one hue were too close to tell 1, 3 and 10 % apart. Plots label the pct directly at the lines as well.
 PCT_COLORS = {0: "#8a8984", 1: "#2a78d6", 3: "#eb6834", 10: "#1baf7a"}
 PHASE_COLORS = {"mobsim": "#2a78d6", "scoring": "#eb6834", "replanning": "#1baf7a", "other": "#eda100"}
+# Plot 2 leaves out other: in DSim it is the setup and teardown of the mobsim and the analyses at the end of an
+# iteration, in rust (with run_mobsim_phase) it is about 0.
+TIMED_PHASES = ["mobsim", "scoring", "replanning"]
 # Engine colors (validated as pair), only where no pct or phase colors are in the same figure: the rust red is too
 # close to the orange of 3 % and of scoring. Line style and marker distinguish the engines everywhere.
 ENGINES = {"rust": {"label": "Rust", "color": "#e34948", "linestyle": "-", "marker": "o"},
@@ -209,42 +210,36 @@ def rtr_vs_parts(rtr: pd.DataFrame) -> plt.Figure:
     return fig
 
 
-def phase_shares(phases: pd.DataFrame) -> plt.Figure:
-    """Plot 2: share of the phases per iteration over the partitions (rows: engine, columns: pct)."""
+def phase_lines(phases: pd.DataFrame) -> plt.Figure:
+    """Plot 2: wall time of mobsim, scoring and replanning per iteration over the partitions,
+    logarithmic, one panel per pct on one y axis. Color: phase; line style and marker: engine as in plot 1 (the engine
+    colors are not used next to the phase colors). Values below 1 ms, the resolution of the DSim logfile, are left
+    out."""
     df = phases[phases["scoring"] & ~phases["events"]]
+    floor = 1e-3
     pcts = sorted(df["pct"].unique())
-    engines = [e for e in ENGINES if e in set(df["engine"])]
-    parts = sorted(df["parts"].unique())
     with plt.rc_context(STYLE):
-        fig, axes = plt.subplots(len(engines), len(pcts), figsize=(FULL_WIDTH, 1.9 * len(engines) + 0.5),
-                                 sharex=True, sharey=True, squeeze=False)
-        for col, pct in enumerate(pcts):
-            for row, engine in enumerate(engines):
-                ax = axes[row, col]
-                shares = (df[(df["pct"] == pct) & (df["engine"] == engine)]
-                          .pivot_table(index="parts", columns="phase", values="share").reindex(parts))
-                x = range(len(parts))
-                bottom = pd.Series(0.0, index=shares.index)
-                for phase in PHASES:
-                    values = shares.get(phase, pd.Series(0.0, index=shares.index)).fillna(0)
-                    ax.bar(x, values, bottom=bottom, width=0.8, color=PHASE_COLORS[phase],
-                           edgecolor="white", linewidth=0.5)
-                    bottom += values
-                ax.set_ylim(0, 1)
-                ax.yaxis.set_major_formatter(PercentFormatter(1, decimals=0))
-                ax.grid(axis="x", visible=False)
-                if row == 0:
-                    ax.set_title(pct_label(pct), **TITLE)
-                if col == 0:
-                    ax.set_ylabel(f"{ENGINES[engine]['label']}\nshare of iteration")
-            ax = axes[-1, col]
-            ax.set_xticks(range(len(parts)), [str(p) for p in parts], rotation=90)
-            ax.set_xlabel("Partitions")
+        fig, axes = plt.subplots(1, len(pcts), figsize=(FULL_WIDTH, 2.6), sharex=True, sharey=True, squeeze=False)
+        for ax, pct in zip(axes.flat, pcts):
+            for engine, style in ENGINES.items():
+                values = (df[(df["pct"] == pct) & (df["engine"] == engine)]
+                          .pivot_table(index="parts", columns="phase", values="seconds").sort_index())
+                for phase in TIMED_PHASES:
+                    line = values.get(phase, pd.Series(dtype=float))
+                    line = line[line >= floor]
+                    ax.plot(line.index, line, color=PHASE_COLORS[phase], linestyle=style["linestyle"],
+                            marker=style["marker"], markeredgecolor="white", markeredgewidth=0.6)
+            parts_axis(ax, ticks=[1, 4, 16, 64, 192])
+            log_y(ax, minor_grid=False)
+            ax.set_title(pct_label(pct), loc="left", **TITLE)
+        axes[0, 0].set_ylabel("Seconds per iteration")
 
-        handles = [Patch(color=PHASE_COLORS[p], label=p.capitalize()) for p in PHASES]
+        handles = ([Line2D([], [], color=PHASE_COLORS[p], label=p.capitalize()) for p in TIMED_PHASES]
+                   + [Line2D([], [], color=MUTED, linestyle=s["linestyle"], marker=s["marker"], label=s["label"])
+                      for s in ENGINES.values()])
         fig.legend(handles=handles, ncols=len(handles), loc="lower center", bbox_to_anchor=(0.5, 1.0),
-                   handlelength=2.2)
-        fig.tight_layout(h_pad=0.6, w_pad=0.4)
+                   handlelength=2.6)
+        fig.tight_layout(w_pad=1.0)
     return fig
 
 

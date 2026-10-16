@@ -5,8 +5,10 @@
 
 Phases (wall time per iteration, all with millisecond resolution or better):
 
-    mobsim      the simulation loop. rust: span `simulation::run` of rank 0 (all ranks are synchronized every time
-                step). DSim: from "Starting Simulation" to the "Real-time-ratio" line in the logfile.
+    mobsim      rust: span `run_mobsim_phase` of the controller, the whole mobsim phase including starting and stopping
+                the simulation processes (about 1 s more than the loop at 10 %). Runs before matsim-rust d41dba8 (e.g.
+                scaling) do not have it and use the loop `simulation::run` of rank 0 instead. DSim: the simulation
+                loop, from "Starting Simulation" to the "Real-time-ratio" line in the logfile.
     scoring     rust: `run_scoring_phase`. DSim: scoring event -> all scoring listeners called.
     replanning  the replanning that prepares the plans of this iteration. rust logs it at the end of the previous
                 iteration (`run_replanning_phase` of iteration - 1), DSim at the beginning of this one.
@@ -16,8 +18,11 @@ Phases (wall time per iteration, all with millisecond resolution or better):
 Iteration 0 has no replanning and includes the setup, so `steady` (iterations 1..8) excludes it. Iteration 9 has no
 complete wall time in rust, because nothing follows it.
 
-The real-time ratio is simulated seconds / mobsim seconds. rust: (end_time - start_time) of output_config.yml.
-DSim: the ratio it logs itself, measured over the same simulation loop.
+With `run_mobsim_phase`, the phases of rust follow each other without gaps, so `other` is close to 0 there.
+
+The real-time ratio is simulated seconds / seconds of the simulation loop. rust: (end_time - start_time) of
+output_config.yml / span `simulation::run` of rank 0 (all ranks are synchronized every time step). DSim: the ratio it
+logs itself, measured over its simulation loop.
 """
 import re
 from datetime import datetime
@@ -86,22 +91,24 @@ def rust_phases(output: Path) -> pd.DataFrame:
     controller = pd.read_csv(instrument / "instrument_process_controller.csv")
     simulated = simulated_seconds(output / "output_config.yml")
 
-    mobsim = mobsim[mobsim["func_name"] == "run"].set_index("iteration")
+    loop = mobsim[mobsim["func_name"] == "run"].set_index("iteration")["duration_ns"] / 1e9
+    phase = controller[controller["func_name"] == "run_mobsim_phase"].set_index("iteration")["duration_ns"] / 1e9
+    mobsim = phase if len(phase) else loop
     scoring = controller[controller["func_name"] == "run_scoring_phase"].set_index("iteration")
     replanning = controller[controller["func_name"] == "run_replanning_phase"].set_index("iteration")
     replanning_start = (replanning["timestamp"] - replanning["duration_ns"]) / 1e9
 
     rows = []
-    for iteration in mobsim.index:
+    for iteration in loop.index:
         row = {"iteration": iteration,
-               "mobsim": mobsim.at[iteration, "duration_ns"] / 1e9,
+               "mobsim": mobsim[iteration],
                "scoring": scoring["duration_ns"].get(iteration, 0) / 1e9}
         if iteration - 1 in replanning.index:
             row["replanning"] = replanning.at[iteration - 1, "duration_ns"] / 1e9
             if iteration in replanning.index:
                 wall = replanning_start[iteration] - replanning_start[iteration - 1]
                 row["other"] = wall - row["mobsim"] - row["scoring"] - row["replanning"]
-        row["rtr"] = simulated / row["mobsim"]
+        row["rtr"] = simulated / loop[iteration]
         rows.append(row)
     return to_long(rows)
 

@@ -12,7 +12,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 from .load import DATA_ROOT, EXPERIMENTS, load_phases, load_runs, phase_summary, rtr_summary  # noqa: E402
-from .plots import OUT_DIR, phase_shares, rtr_no_agents, rtr_vs_parts, save, scoring_overhead  # noqa: E402
+from .plots import OUT_DIR, phase_lines, rtr_no_agents, rtr_vs_parts, save, scoring_overhead  # noqa: E402
 
 
 def main():
@@ -25,11 +25,11 @@ def main():
     runs = load_runs(args.data, args.experiments)
     phases = load_phases(runs)
     rtr = rtr_summary(phases)
-    shares = phase_summary(phases)
+    medians = phase_summary(phases)
     figures = {
         "rtr_no_agents": rtr_no_agents(rtr),
         "rtr_vs_parts": rtr_vs_parts(rtr),
-        "phase_shares": phase_shares(shares),
+        "phase_lines": phase_lines(medians),
         "scoring_overhead": scoring_overhead(rtr),
     }
     for name, fig in figures.items():
