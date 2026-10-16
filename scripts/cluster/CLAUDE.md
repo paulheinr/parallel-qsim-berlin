@@ -140,6 +140,7 @@ Always:
   - 1a `rtr_no_agents`: only 0 %, with its own y axis. The maxima and the last values (192 partitions) are marked
     with rings and labeled.
   - 1b `rtr_vs_parts`: three panels side by side for 1/3/10 %, on the same y scale (the user explicitly wants that).
+    The maxima and the values at 1 partition are marked with rings and labeled.
 - Rust is red and DSim violet. The maximum of each line is marked with a ring and labeled (`compact`, e.g. 32.5k).
   Labels are in a white box framed in the line color. `label_points` picks the label position automatically; the
   x axes extend beyond 192 partitions so that labels of points there can sit centered next to them (the user found

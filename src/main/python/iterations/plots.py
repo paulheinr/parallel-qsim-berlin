@@ -138,10 +138,10 @@ def log_y(ax, minor_grid=True):
         ax.grid(which="minor", axis="y", color=GRID, linewidth=0.3)
 
 
-def rtr_lines(ax, df: pd.DataFrame, label_last: bool = False) -> list[tuple[float, float, str, str]]:
+def rtr_lines(ax, df: pd.DataFrame, label_parts: tuple = ()) -> list[tuple[float, float, str, str]]:
     """Draws the real-time ratio of rust and DSim over the partitions (median, band: min-max) and marks the maximum of
-    each line with a ring, with label_last also the value at the largest number of partitions. Returns the labels of
-    the marked points to write with label_points."""
+    each line with a ring, and also the values at the numbers of partitions in label_parts. Returns the labels of the
+    marked points to write with label_points."""
     labels = []
     for engine, style in ENGINES.items():
         g = df[df["engine"] == engine].sort_values("parts")
@@ -151,9 +151,8 @@ def rtr_lines(ax, df: pd.DataFrame, label_last: bool = False) -> list[tuple[floa
         ax.fill_between(g["parts"], g["rtr_min"], g["rtr_max"], color=color, alpha=0.15, linewidth=0)
         ax.plot(g["parts"], g["rtr"], color=color, linestyle=style["linestyle"], marker=style["marker"],
                 markeredgecolor="white", markeredgewidth=0.6)
-        marked = [maximum(g)]
-        if label_last and g.iloc[-1]["parts"] != marked[0]["parts"]:
-            marked.append(g.iloc[-1])
+        best = maximum(g)
+        marked = [best] + [p for _, p in g[g["parts"].isin(label_parts)].iterrows() if p["parts"] != best["parts"]]
         for point in marked:
             ax.plot(point["parts"], point["rtr"], marker="o", markersize=7, markerfacecolor="none",
                     markeredgecolor=color, markeredgewidth=0.8)
@@ -182,7 +181,7 @@ def rtr_no_agents(rtr: pd.DataFrame) -> plt.Figure:
     df = rtr[rtr["scoring"] & ~rtr["events"] & (rtr["pct"] == 0)]
     with plt.rc_context(STYLE):
         fig, ax = plt.subplots(figsize=(FULL_WIDTH / 2, 2.6))
-        labels = rtr_lines(ax, df, label_last=True)
+        labels = rtr_lines(ax, df, label_parts=(df["parts"].max(),))
         rtr_axes(ax, 0)
         ax.set_xlim(right=560)  # room for the labels right of the last values
         engine_legend(fig)
@@ -193,14 +192,14 @@ def rtr_no_agents(rtr: pd.DataFrame) -> plt.Figure:
 
 def rtr_vs_parts(rtr: pd.DataFrame) -> plt.Figure:
     """Plot 1b: real-time ratio over the number of partitions, one panel per pct with agents (rust with scoring, DSim),
-    all on the same y scale. The maximum of each line is marked and labeled."""
+    all on the same y scale. The maximum of each line and the values at 1 partition are marked and labeled."""
     df = rtr[rtr["scoring"] & ~rtr["events"] & (rtr["pct"] > 0)]
     pcts = sorted(df["pct"].unique())
     with plt.rc_context(STYLE):
         fig, axes = plt.subplots(1, len(pcts), figsize=(FULL_WIDTH, 2.6), sharex=True, sharey=True, squeeze=False)
         labels = {}
         for i, (ax, pct) in enumerate(zip(axes.flat, pcts)):
-            labels[ax] = rtr_lines(ax, df[df["pct"] == pct])
+            labels[ax] = rtr_lines(ax, df[df["pct"] == pct], label_parts=(1,))
             rtr_axes(ax, pct, ylabel=i == 0)
         axes[0, 0].set_xlim(right=380)  # room to center the labels of maxima at 192 partitions (x is shared)
         engine_legend(fig)
