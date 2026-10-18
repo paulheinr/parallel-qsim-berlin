@@ -26,7 +26,7 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
 - Relative paths like `../../shared-svn` in `cluster.toml` / `cluster-dsim.toml` resolve to `~/scratch/...` on the
   cluster and to `~/...` locally, so the same settings work on both.
 - The cluster repo has local changes in `src/main/rust/Cargo.toml` and `Cargo.lock`. There, matsim-rust is a git
-  dependency (GitHub) and `Cargo.lock` pins its commit (d41dba8 since 2026-10-16). Locally it is a path dependency. Do
+  dependency (GitHub) and `Cargo.lock` pins its commit (f91a7b2 since 2026-10-18). Locally it is a path dependency. Do
   not overwrite these changes. To build a newer matsim-rust from main on the cluster:
   `cargo update -p matsim-rust && cargo build --release` in `src/main/rust` (ask first, see Rules). Cargo is in
   `~/.cargo/env`; the build takes about half a minute.
@@ -36,7 +36,8 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   earlier ones. `submit` writes it with the binaries and commits to `description.md`, `fetch` copies that. Older
   experiments have no `description.md`; their purpose is in the header comments of their toml.
 - Experiments on the cluster on 2026-10-16: `example`, `scaling` (29 GB), `scaling-v2` (26 GB) and `dsim-scaling`
-  (12 GB). Almost all of the size is plans, events and `ITERS/`, which stay on the cluster and are not fetched.
+  (12 GB), plus `scaling-v3` since 2026-10-18. Almost all of the size is plans, events and `ITERS/`, which stay on
+  the cluster and are not fetched.
 - Quota: `show-quota` (cached, updated every few minutes). Work (`/scratch/usr/bemheinr`) has a soft limit of 3 TiB
   and 250k inodes (hard 30 TiB, 1.5 M), with a grace period of 7 days. A finished 10pct run takes about 20 GB, mostly
   `ITERS/it.{0,9}` (13G) and `output_plans.binpb` (5G).
@@ -51,9 +52,13 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   also has `scoring = false`. No runs have `events = true` yet. `scaling` used matsim-rust 6960b40.
 - `scaling-v2` is the same grid as `scaling` with the mobsim optimizations of matsim-rust (main at d41dba8, PRs #315
   and #316). Its time limits are twice the times measured in `scaling`. All 91 runs were submitted on 2026-10-16 (jobs
-  9577809-9577900). 87 of them are in runs-svn (r6964); the four 10pct runs with 1 and 2 parts were still pending.
+  9577809-9577900). 87 of them are in runs-svn (r6964); the four 10pct runs with 1 and 2 parts finished later
+  (queue empty on 2026-10-18) and are not fetched yet.
   The analysis reads `scaling-v2` by default; `python -m iterations --experiments scaling dsim-scaling` gives the old
   figures.
+- `scaling-v3` is the same grid and time limits as `scaling-v2` with matsim-rust main at f91a7b2 (PRs #317-#321, see
+  its `description.md`). All 91 runs were submitted on 2026-10-18 (jobs 9582645-9582735); the output of `submit` is in
+  `output/experiments/submit-scaling-v3.log` on the cluster. In `scaling-v2`, the 87 runs took 7.7 node hours.
 - `~/scratch/rust-pt-routing` holds the older async-routing project. Its results are in
   `runs-svn/matsim-rust/async-routing-2026`.
 - Tools on the cluster: `uv` and `python3` (`~/scratch/miniforge3/bin`), `svn`, `rsync` 3.2.7, Slurm. Locally, `rsync`
