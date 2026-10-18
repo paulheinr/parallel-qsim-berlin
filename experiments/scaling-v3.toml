@@ -2,7 +2,7 @@
 #
 #   uv run scripts/cluster/cluster.py submit experiments/scaling-v3.toml --dry-run
 #
-# Same grid and time limits as scaling-v2.toml, rerun with matsim-rust main after #317-#320. The runs of scaling
+# Same grid and time limits as scaling-v2.toml, rerun with matsim-rust main after #317-#321. The runs of scaling
 # (6960b40) and scaling-v2 (d41dba8) are kept. build_info.json and description.md record the commit that Cargo.lock
 # pins on the cluster.
 #
@@ -23,7 +23,7 @@ Changes since d41dba8:
 - #319 fractional travel-time bin sizes.
 - #320 receiving partition messages polls (spin 5 us, then yield until 50 us) before blocking. This should mostly
   speed up steps with few or no agents, i.e. 0pct and many partitions.
-- #312 Add routing benchmark and optimize ALT heuristic with dead-end detection
+- #321 Add routing benchmark and optimize ALT heuristic with dead-end detection
 """
 
 iterations = 10
