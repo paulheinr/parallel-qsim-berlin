@@ -32,6 +32,9 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   `~/.cargo/env`; the build takes about half a minute.
 - To rerun an experiment with a newer library and keep the old runs, give it a new name (a copy of the experiment file,
   e.g. `scaling-v2.toml`). Reusing the name submits nothing, because all runs are already in `manifest.csv`.
+- New experiments get a `comment = """..."""` (since 2026-10-18): what they are for and what changed compared to the
+  earlier ones. `submit` writes it with the binaries and commits to `description.md`, `fetch` copies that. Older
+  experiments have no `description.md`; their purpose is in the header comments of their toml.
 - Experiments on the cluster on 2026-10-16: `example`, `scaling` (29 GB), `scaling-v2` (26 GB) and `dsim-scaling`
   (12 GB). Almost all of the size is plans, events and `ITERS/`, which stay on the cluster and are not fetched.
 - Quota: `show-quota` (cached, updated every few minutes). Work (`/scratch/usr/bemheinr`) has a soft limit of 3 TiB

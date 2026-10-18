@@ -25,6 +25,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+import textwrap
 import tomllib
 from collections import Counter
 from dataclasses import dataclass
@@ -35,11 +36,12 @@ REPO = SCRIPT_DIR.parents[1]
 RUN_SCRIPT = SCRIPT_DIR / "run-sim.sh"
 GRID_KEYS = ("pct", "parts", "method", "scoring", "events")
 MANIFEST_FIELDS = ["run_id", "job_id", "submitted_at"]
+DESCRIPTION_FILE = "description.md"
 
 # Files that fetch copies into runs-svn, relative to the experiment directory. Everything else (binary snapshots,
 # plans, events, networks, ITERS/, per-process logs) stays on the cluster. [fetch] extra_files adds patterns.
 FETCH_FILES = [
-    "experiment.*.toml", "build_info.json", "manifest.csv", "runs.csv",
+    DESCRIPTION_FILE, "experiment.*.toml", "build_info.json", "manifest.csv", "runs.csv",
     "runs/*/params.json", "runs/*/run.env", "runs/*/result.json", "runs/*/slurm-*.log", "runs/*/phases.csv",
     # rust
     "runs/*/output/instrument/*", "runs/*/output/output_config.yml", "runs/*/output/logs/log_process_controller.txt",
@@ -183,6 +185,14 @@ def iterations(exp: dict) -> int | None:
     return value
 
 
+def comment(exp: dict) -> str | None:
+    """Free-text description of the experiment, written to description.md."""
+    value = exp.get("comment")
+    if value is not None and not isinstance(value, str):
+        sys.exit(f"comment must be a string, got {value!r}")
+    return value.strip() if value and value.strip() else None
+
+
 def apply_filters(runs: list[Run], filters: list[str]) -> list[Run]:
     for f in filters:
         key, _, values = f.partition("=")
@@ -290,6 +300,31 @@ def git_info(path: Path) -> dict:
             "dirty": bool(status) if status is not None else None}
 
 
+def write_description(exp_dir: Path, name: str, text: str, settings_file: Path, definition: str, num_runs: int,
+                      iters: int | None):
+    """description.md: the comment of the experiment and the binaries of build_info.json. Rewritten at every
+    submission, earlier comments remain in the copies experiment.<timestamp>.toml."""
+    lines = [f"# {name}", "", text, "", "---", "",
+             f"Written by `cluster.py submit` on {now()} with settings `{repo_relative(settings_file)}` and definition "
+             f"`{definition}` ({num_runs} runs, {iters or 'default'} iterations).",
+             "", "Binaries (`build_info.json`):", ""]
+    for digest, info in (read_json(exp_dir / "build_info.json") or {}).items():
+        repos = ", ".join(f"{repo_name(repo)} {(git.get('commit') or '?')[:7]}{' (dirty)' if git.get('dirty') else ''}"
+                          for repo, git in info.get("repos", {}).items())
+        lines.append(f"- `{digest[:12]}` {Path(info['binary']).name}, snapshot {info['snapshot_at']}: {repos}")
+    (exp_dir / DESCRIPTION_FILE).write_text("\n".join(lines) + "\n")
+
+
+def repo_name(repo: str) -> str:
+    """Last component of a checkout path or git URL, e.g. matsim-rust."""
+    return PurePosixPath(repo.split("?")[0].rstrip("/")).name.removesuffix(".git")
+
+
+def repo_relative(path: Path) -> str:
+    path = Path(path).resolve()
+    return str(path.relative_to(REPO)) if path.is_relative_to(REPO) else str(path)
+
+
 # ----------------------------------------------------------------------
 # submit
 # ----------------------------------------------------------------------
@@ -301,8 +336,10 @@ def submit(args):
         exp = tomllib.load(f)
     name = exp.get("name", exp_file.stem)
     exp_dir = settings.out_root / name
-    runs = apply_filters(expand_runs(exp), args.only)
+    all_runs = expand_runs(exp)
+    runs = apply_filters(all_runs, args.only)
     iters = iterations(exp)
+    text = comment(exp)
 
     # check inputs
     problems = [f"binary {settings.binary} does not exist"] if not settings.binary.exists() else []
@@ -326,6 +363,10 @@ def submit(args):
 
     print(f"Experiment {name}: {len(runs)} runs, {len(runs) - len(todo)} already submitted, "
           f"{len(todo)} to submit, {iters or 'default'} iterations -> {exp_dir}")
+    if text:
+        print(f"Comment (-> {DESCRIPTION_FILE}):\n" + textwrap.indent(text, "  | ", lambda line: True))
+    else:
+        print(f"No comment in the definition, {DESCRIPTION_FILE} is not written.")
     for run in todo:
         print(f"  {run.run_id:<48} {time_limit(exp, settings, run)}")
     if args.dry_run:
@@ -339,7 +380,10 @@ def submit(args):
 
     exp_dir.mkdir(parents=True, exist_ok=True)
     binary, digest = snapshot_binary(settings, exp_dir, args.update_binary)
-    shutil.copy2(exp_file, exp_dir / f"experiment.{datetime.datetime.now():%Y%m%d-%H%M%S}.toml")
+    definition = f"experiment.{datetime.datetime.now():%Y%m%d-%H%M%S}.toml"
+    shutil.copy2(exp_file, exp_dir / definition)
+    if text:
+        write_description(exp_dir, name, text, args.settings, definition, len(all_runs), iters)
 
     for run in todo:
         run_dir = exp_dir / "runs" / run.run_id

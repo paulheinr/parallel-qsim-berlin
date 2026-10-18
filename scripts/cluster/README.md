@@ -29,6 +29,9 @@ creates `.venv` on first use (`uv sync` does that explicitly).
 - `iterations = 10` at the top level of an experiment sets the number of iterations of all runs (passed as
   `controller.last_iteration=9`). Without it, the binary runs its default of two iterations.
 - A grid value can be an inclusive range: `parts = { from = 1, to = 64 }` (optional `step`).
+- `comment = """..."""` at the top level is a free-text description (Markdown). Every submission writes it to
+  `description.md` in the experiment directory, together with the binaries and commits of `build_info.json`. `fetch`
+  copies it into runs-svn. The comments of earlier submissions remain in the copies `experiment.<timestamp>.toml`.
 
 - Runs that are already in `manifest.csv` are skipped, so submitting again only adds new runs (e.g. after
   increasing `repetitions` or adding values to the grid). To resubmit a run, delete its line from `manifest.csv`.
@@ -99,6 +102,7 @@ cluster. Fetching again only copies new or changed files.
 
 ```
 <out_root>/<experiment>/
+    description.md                # comment of the definition, binaries and commits (only with comment)
     experiment.<timestamp>.toml   # copy of the definition at every submission
     build_info.json               # git commit and dirty flag of both repositories per binary
     bin/<sha12>/berlin_iterations_v7

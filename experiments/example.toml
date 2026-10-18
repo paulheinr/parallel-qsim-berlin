@@ -4,7 +4,13 @@
 #
 #   python scripts/cluster/cluster.py submit experiments/example.toml --dry-run
 
-repetitions = 1                       # per combination, can be overridden in a [[grid]] block
+# Free text (Markdown), written to description.md in the experiment directory at every submission and fetched into
+# runs-svn: what the experiment is for, what changed compared to earlier experiments.
+comment = """
+Small example with strong scaling of 1, 3 and 10pct, scoring on and off, and one run that writes events.
+"""
+
+repetitions = 1                      # per combination, can be overridden in a [[grid]] block
 
 # Slurm time limit per pct: either one value or steps [max_parts, time], the first step with parts <= max_parts wins.
 [time_limit]

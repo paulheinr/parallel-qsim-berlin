@@ -1,0 +1,74 @@
+# Scaling of berlin_iterations_v7 with 10 iterations, all runs without writing events.
+#
+#   uv run scripts/cluster/cluster.py submit experiments/scaling-v3.toml --dry-run
+#
+# Same grid and time limits as scaling-v2.toml, rerun with matsim-rust main after #317-#320. The runs of scaling
+# (6960b40) and scaling-v2 (d41dba8) are kept. build_info.json and description.md record the commit that Cargo.lock
+# pins on the cluster.
+#
+# The three questions are in one experiment, so runs that belong to several of them (e.g. 10pct, 64 parts, scoring on)
+# run only once. Select them in runs.csv by pct/parts/scoring.
+#
+# Hardware (Lise, cpu-genoa): 2x AMD EPYC 9654 = 192 cores per node. Per socket 96 cores in 12 CCDs with 8 cores and
+# 32 MB L3 each, 12 DDR5 channels. A socket is 1, 2 or 4 NUMA domains of 96, 48 or 24 cores depending on the BIOS
+# setting NPS1/2/4 (check with `numactl -H` on a node). The simulation does not pin its threads.
+
+comment = """
+Rerun of scaling-v2 (same grid, same time limits) with matsim-rust main after PRs #317-#320 (3b885a8 on
+2026-10-18; the built commit is listed below). scaling-v2 used d41dba8 and scaling 6960b40.
+
+Changes since d41dba8:
+
+- #317 `prepare_for_mobsim` uses the default vehicles for trips with network routes.
+- #318 plan scores are averaged with MSA, like MATSim's NewScoreAssignerImpl (changes the scores and thus replanning).
+- #319 fractional travel-time bin sizes.
+- #320 receiving partition messages polls (spin 5 us, then yield until 50 us) before blocking. This should mostly
+  speed up steps with few or no agents, i.e. 0pct and many partitions.
+"""
+
+iterations = 10
+repetitions = 1
+
+# Twice the longest elapsed time (scoring on) of the same pct and parts in scaling (matsim-rust 6960b40), rounded up to
+# 15 minutes, at least 15 minutes. Longest there: 0pct 82 s, 1pct 544 s, 3pct 1934 s, 10pct 7592 s (all at 1 part
+# except 0pct).
+[time_limit]
+"0" = "00:15:00"
+"1" = [[2, "00:30:00"], [192, "00:15:00"]]
+"3" = [[1, "01:15:00"], [2, "01:00:00"], [8, "00:30:00"], [192, "00:15:00"]]
+"10" = [[1, "04:15:00"], [2, "03:30:00"], [4, "01:30:00"], [8, "01:00:00"], [24, "00:45:00"], [96, "00:30:00"],
+    [192, "00:15:00"]]
+
+# A) Influence of scoring. Powers of two plus partition counts at the boundaries of the hardware:
+#    24 = NUMA domain with NPS4 (3 CCDs), 48 = half socket (NPS2), 96 = one socket, 144 = one and a half sockets.
+[[grid]]
+pct = [1, 3, 10]
+parts = [1, 2, 4, 8, 16, 24, 32, 48, 64, 96, 128, 144, 192]
+method = ["metis"]
+scoring = [true, false]
+events = [false]
+
+# B) Influence of the partitioning, 1pct: every number of parts up to 64.
+#[[grid]]
+#pct = [1]
+#parts = { from = 1, to = 64 }
+#method = ["metis"]
+#scoring = [true]
+#events = [false]
+
+# C) Influence of the partitioning, 10pct: every number of parts up to 192.
+#[[grid]]
+#pct = [10]
+#parts = { from = 1, to = 192 }
+#method = ["metis"]
+#scoring = [true]
+#events = [false]
+
+# D) Synchronization without agents: empty population (0pct) on the same network and partitions as A. Only with
+#    scoring, as in dsim-scaling, since without agents scoring does nothing.
+[[grid]]
+pct = [0]
+parts = [1, 2, 4, 8, 16, 24, 32, 48, 64, 96, 128, 144, 192]
+method = ["metis"]
+scoring = [true]
+events = [false]
