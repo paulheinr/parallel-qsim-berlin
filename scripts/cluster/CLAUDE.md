@@ -59,6 +59,10 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
 - `scaling-v3` is the same grid and time limits as `scaling-v2` with matsim-rust main at f91a7b2 (PRs #317-#321, see
   its `description.md`). All 91 runs were submitted on 2026-10-18 (jobs 9582645-9582735); the output of `submit` is in
   `output/experiments/submit-scaling-v3.log` on the cluster. In `scaling-v2`, the 87 runs took 7.7 node hours.
+- `scaling-v3-gsync` (created 2026-10-18, not submitted yet) is the scaling-v3 grid with scoring on only and
+  `global_sync = true` (optional grid key, rust only; run ids end in `_gsync-on_r1`). It is compared with the runs with
+  scoring on of `scaling-v3`, so it must use the same binary (f91a7b2). Time limits: those of scaling-v3, but at least
+  1 h.
 - `~/scratch/rust-pt-routing` holds the older async-routing project. Its results are in
   `runs-svn/matsim-rust/async-routing-2026`.
 - Tools on the cluster: `uv` and `python3` (`~/scratch/miniforge3/bin`), `svn`, `rsync` 3.2.7, Slurm. Locally, `rsync`

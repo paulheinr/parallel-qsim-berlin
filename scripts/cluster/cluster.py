@@ -34,7 +34,10 @@ from pathlib import Path, PurePosixPath
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO = SCRIPT_DIR.parents[1]
 RUN_SCRIPT = SCRIPT_DIR / "run-sim.sh"
-GRID_KEYS = ("pct", "parts", "method", "scoring", "events")
+GRID_KEYS = ("pct", "parts", "method", "scoring", "events", "global_sync")
+# Grid keys that a [[grid]] block may leave out, with their value then. Runs with the default have the same run id as
+# before the key was added.
+GRID_DEFAULTS = {"global_sync": [False]}
 MANIFEST_FIELDS = ["run_id", "job_id", "submitted_at"]
 DESCRIPTION_FILE = "description.md"
 
@@ -58,16 +61,18 @@ class Run:
     method: str
     scoring: bool
     events: bool
+    global_sync: bool
     rep: int
 
     @property
     def run_id(self) -> str:
         return (f"{self.pct}pct_{self.method}_p{self.parts:03d}"
-                f"_score-{on_off(self.scoring)}_events-{on_off(self.events)}_r{self.rep}")
+                f"_score-{on_off(self.scoring)}_events-{on_off(self.events)}"
+                f"{'_gsync-on' if self.global_sync else ''}_r{self.rep}")
 
     def params(self) -> dict:
-        return {"pct": self.pct, "parts": self.parts, "method": self.method,
-                "scoring": self.scoring, "events": self.events, "rep": self.rep}
+        return {"pct": self.pct, "parts": self.parts, "method": self.method, "scoring": self.scoring,
+                "events": self.events, "global_sync": self.global_sync, "rep": self.rep}
 
 
 def on_off(value: bool) -> str:
@@ -152,17 +157,19 @@ def expand_runs(exp: dict) -> list[Run]:
     runs = {}
     for i, grid in enumerate(grids):
         unknown = set(grid) - set(GRID_KEYS) - {"repetitions"}
-        missing = set(GRID_KEYS) - set(grid)
+        missing = set(GRID_KEYS) - set(grid) - set(GRID_DEFAULTS)
         if unknown or missing:
             sys.exit(f"[[grid]] block {i + 1}: unknown keys {sorted(unknown)}, missing keys {sorted(missing)}")
         repetitions = int(grid.get("repetitions", exp.get("repetitions", 1)))
-        for pct, parts, method, scoring, events in itertools.product(*(grid_values(grid[k]) for k in GRID_KEYS)):
+        values = (grid_values(grid[k]) if k in grid else GRID_DEFAULTS[k] for k in GRID_KEYS)
+        for pct, parts, method, scoring, events, global_sync in itertools.product(*values):
             if int(parts) < 1:
                 sys.exit(f"[[grid]] block {i + 1}: parts must be at least 1, got {parts}")
             for rep in range(1, repetitions + 1):
-                run = Run(int(pct), int(parts), str(method), bool(scoring), bool(events), rep)
+                run = Run(int(pct), int(parts), str(method), bool(scoring), bool(events), bool(global_sync), rep)
                 runs[run.run_id] = run
-    return sorted(runs.values(), key=lambda r: (r.pct, r.method, r.parts, not r.scoring, r.events, r.rep))
+    return sorted(runs.values(),
+                  key=lambda r: (r.pct, r.method, r.parts, not r.scoring, r.events, r.global_sync, r.rep))
 
 
 def time_limit(exp: dict, settings: Settings, run: Run) -> str:
@@ -350,6 +357,8 @@ def submit(args):
     problems += [f"{key} {path} does not exist" for key, path in sorted(
         {(k, v) for pct in {r.pct for r in runs} for k, v in settings.extra_env(pct).items()
          if isinstance(v, Path) and not v.exists()})]
+    if settings.run_env.get("ENGINE") == "dsim" and any(r.global_sync for r in runs):
+        problems.append("global_sync = true is only supported by rust")
     if problems:
         print(f"{len(problems)} problem(s):", *problems, sep="\n  ", file=sys.stderr)
         if missing_networks:
@@ -413,7 +422,11 @@ def write_run_files(settings: Settings, name: str, run: Run, run_dir: Path, bina
     }
     if iters is not None:
         env["LAST_ITERATION"] = iters - 1
-    (run_dir / "run.env").write_text("".join(f"{k}={shlex.quote(str(v))}\n" for k, v in env.items()))
+    lines = [f"{k}={shlex.quote(str(v))}\n" for k, v in env.items()]
+    if run.global_sync:
+        # barrier of all partitions in every time step, the configs have global_sync: false
+        lines.append("EXTRA_ARGS=(--set computational_setup.global_sync=true)\n")
+    (run_dir / "run.env").write_text("".join(lines))
     params = {"experiment": name, "run_id": run.run_id, **run.params(), "iterations": iters,
               "scenario_version": settings.version, "time_limit": limit, "config": str(env["CONFIG"]),
               "network": str(env["NETWORK"]), "binary": str(binary), "binary_sha256": digest, "submitted_at": now()}
@@ -452,7 +465,8 @@ def collect(args):
         job_id = manifest.get(run_dir.name, "")
         acc = accounting.get(job_id, {})
         rows.append({
-            **{k: params.get(k) for k in ("run_id", *GRID_KEYS, "rep", "iterations", "time_limit", "binary_sha256")},
+            **{k: params.get(k, GRID_DEFAULTS.get(k, [None])[0])
+               for k in ("run_id", *GRID_KEYS, "rep", "iterations", "time_limit", "binary_sha256")},
             "job_id": job_id,
             "slurm_state": acc.get("state", ""),
             "slurm_elapsed": acc.get("elapsed", ""),
