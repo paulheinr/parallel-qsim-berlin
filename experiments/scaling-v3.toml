@@ -14,8 +14,7 @@
 # setting NPS1/2/4 (check with `numactl -H` on a node). The simulation does not pin its threads.
 
 comment = """
-Rerun of scaling-v2 (same grid, same time limits) with matsim-rust main after PRs #317-#320 (3b885a8 on
-2026-10-18; the built commit is listed below). scaling-v2 used d41dba8 and scaling 6960b40.
+Rerun of scaling-v2 (same grid, same time limits) with matsim-rust main after PRs #317-#321. scaling-v2 used d41dba8 and scaling 6960b40.
 
 Changes since d41dba8:
 
@@ -24,6 +23,7 @@ Changes since d41dba8:
 - #319 fractional travel-time bin sizes.
 - #320 receiving partition messages polls (spin 5 us, then yield until 50 us) before blocking. This should mostly
   speed up steps with few or no agents, i.e. 0pct and many partitions.
+- #312 Add routing benchmark and optimize ALT heuristic with dead-end detection
 """
 
 iterations = 10
