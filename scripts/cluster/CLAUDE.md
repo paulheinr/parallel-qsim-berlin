@@ -43,11 +43,10 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   `ITERS/it.{0,9}` (13G) and `output_plans.binpb` (5G).
 - Cleanup on 2026-10-16 (3.02 TiB used, after `scaling-v2`), with the user's approval: deleted
   `experiments/archive/scaling` (470G, the first submission of scaling on 2026-10-14; its results were fetched to
-  runs-svn `archive/scaling` first, but on 2026-10-19 they were still only scheduled for addition there, not
-  committed, so the local working copy is the only copy), `output/v7.1` (342G, manual runs from 2026-10-04) and
-  `ITERS/` and `output_plans.binpb` of all finished runs of `scaling` and `scaling-v2` (about 1.2 TB). Afterwards about 1.1 TB
-  was used, of which `~/scratch/rust-pt-routing` is 892G (outputs from March 2026). The four pending `scaling-v2`
-  runs will write `ITERS/` and plans again.
+  runs-svn `archive/scaling` first, committed in r6968 on 2026-10-19), `output/v7.1` (342G, manual runs from 2026-10-04)
+  and `ITERS/` and `output_plans.binpb` of all finished runs of `scaling` and `scaling-v2` (about 1.2 TB). Afterwards
+  about 1.1 TB was used, of which `~/scratch/rust-pt-routing` is 892G (outputs from March 2026). The four pending
+  `scaling-v2` runs will write `ITERS/` and plans again.
 - `scaling` and `dsim-scaling` both contain pct 0 (empty population: synchronization only), 1, 3 and 10, with
   13 partition counts from 1 to 192. Every run has 10 iterations and there is one repetition per setting. Only rust
   also has `scoring = false`. No runs have `events = true` yet. `scaling` used matsim-rust 6960b40.
