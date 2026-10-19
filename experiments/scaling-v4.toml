@@ -1,0 +1,50 @@
+# Scaling of berlin_iterations_v7 with 10 iterations, all runs without writing events.
+#
+#   uv run scripts/cluster/cluster.py submit experiments/scaling-v4.toml --dry-run
+#
+# Same grid and time limits as scaling-v3.toml, rerun with matsim-rust main after #323 and #324. The runs of scaling
+# (6960b40), scaling-v2 (d41dba8) and scaling-v3 (f91a7b2) are kept. build_info.json and description.md record the
+# commit that Cargo.lock pins on the cluster. The counterpart with global sync is scaling-v4-gsync.toml.
+#
+# See scaling-v3.toml for the choice of the partition counts and the hardware.
+
+comment = """
+Rerun of scaling-v3 (same grid, same time limits) with matsim-rust main after PRs #323 and #324. scaling-v3 used
+f91a7b2, scaling-v2 d41dba8 and scaling 6960b40. The counterpart with global sync is scaling-v4-gsync.
+
+Changes since f91a7b2:
+
+- #323 the per-step barrier of global sync is a spin-then-park barrier (spin 5 us, then yield until 50 us, then
+  futex) instead of std::sync::Barrier. Only used with `global_sync = true`, so these runs should not change.
+- #324 backpacking (scoring in the mobsim) subscribes only to the twelve event types it needs instead of all events,
+  keeps the ids of finished activities and legs, and has smaller backpacks. This should reduce the overhead of
+  scoring in the mobsim (on the laptop -25 to -42 %), i.e. the difference between scoring on and off. The results do
+  not change.
+"""
+
+iterations = 10
+repetitions = 1
+
+# Same as scaling-v3 (twice the longest elapsed time in scaling, rounded up to 15 minutes, at least 15 minutes).
+[time_limit]
+"0" = "00:15:00"
+"1" = [[2, "00:30:00"], [192, "00:15:00"]]
+"3" = [[1, "01:15:00"], [2, "01:00:00"], [8, "00:30:00"], [192, "00:15:00"]]
+"10" = [[1, "04:15:00"], [2, "03:30:00"], [4, "01:30:00"], [8, "01:00:00"], [24, "00:45:00"], [96, "00:30:00"],
+    [192, "00:15:00"]]
+
+# A) Influence of scoring.
+[[grid]]
+pct = [1, 3, 10]
+parts = [1, 2, 4, 8, 16, 24, 32, 48, 64, 96, 128, 144, 192]
+method = ["metis"]
+scoring = [true, false]
+events = [false]
+
+# D) Synchronization without agents: empty population (0pct), only with scoring.
+[[grid]]
+pct = [0]
+parts = [1, 2, 4, 8, 16, 24, 32, 48, 64, 96, 128, 144, 192]
+method = ["metis"]
+scoring = [true]
+events = [false]

@@ -1,0 +1,40 @@
+# Scaling of berlin_iterations_v7 with 10 iterations and global sync: all partitions wait at a barrier in every time
+# step (computational_setup.global_sync = true), instead of only exchanging messages with their neighbors.
+#
+#   uv run scripts/cluster/cluster.py submit experiments/scaling-v4-gsync.toml --dry-run
+#
+# Same grid and time limits as scaling-v3-gsync.toml, rerun with matsim-rust main after #323 and #324. Compare with
+# the runs with scoring on of scaling-v4, which have global_sync = false, and with scaling-v3-gsync, which used
+# std::sync::Barrier. Both v4 experiments should use the same binary, see build_info.json and description.md.
+
+comment = """
+Global sync on (`computational_setup.global_sync = true`), rerun of scaling-v3-gsync (same grid, same time limits)
+with matsim-rust main after PRs #323 and #324. Scoring on, events off, pct 0/1/3/10 and the 13 partition counts of
+scaling-v4, 10 iterations, one repetition.
+
+- #323 replaces std::sync::Barrier (mutex + condvar, threads sleep at once, futex_wake_all in every step) for the
+  per-step barrier with a spin-then-park barrier (spin 5 us, then yield until 50 us, then futex). In scaling-v3-gsync
+  the barrier cost about 0.6 us per step at 1 partition (RTR 1.19M instead of 4.77M at 0pct) and about 0.4 ms at 192
+  (2.53k instead of 42.6k). Compare with scaling-v3-gsync for the effect of the new barrier.
+- #324 reduces the overhead of scoring in the mobsim (backpacking subscribes only to the event types it needs).
+
+The counterpart without global sync is the runs with scoring on in scaling-v4 (same binary).
+"""
+
+iterations = 10
+repetitions = 1
+
+# Same as scaling-v3-gsync: the time limits of scaling-v3, but at least one hour.
+[time_limit]
+"0" = "01:00:00"
+"1" = "01:00:00"
+"3" = [[1, "01:15:00"], [192, "01:00:00"]]
+"10" = [[1, "04:15:00"], [2, "03:30:00"], [4, "01:30:00"], [192, "01:00:00"]]
+
+[[grid]]
+pct = [0, 1, 3, 10]
+parts = [1, 2, 4, 8, 16, 24, 32, 48, 64, 96, 128, 144, 192]
+method = ["metis"]
+scoring = [true]
+events = [false]
+global_sync = [true]
