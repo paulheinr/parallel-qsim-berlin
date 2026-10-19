@@ -43,8 +43,9 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   `ITERS/it.{0,9}` (13G) and `output_plans.binpb` (5G).
 - Cleanup on 2026-10-16 (3.02 TiB used, after `scaling-v2`), with the user's approval: deleted
   `experiments/archive/scaling` (470G, the first submission of scaling on 2026-10-14; its results were fetched to
-  runs-svn `archive/scaling` first), `output/v7.1` (342G, manual runs from 2026-10-04) and `ITERS/` and
-  `output_plans.binpb` of all finished runs of `scaling` and `scaling-v2` (about 1.2 TB). Afterwards about 1.1 TB
+  runs-svn `archive/scaling` first, but on 2026-10-19 they were still only scheduled for addition there, not
+  committed, so the local working copy is the only copy), `output/v7.1` (342G, manual runs from 2026-10-04) and
+  `ITERS/` and `output_plans.binpb` of all finished runs of `scaling` and `scaling-v2` (about 1.2 TB). Afterwards about 1.1 TB
   was used, of which `~/scratch/rust-pt-routing` is 892G (outputs from March 2026). The four pending `scaling-v2`
   runs will write `ITERS/` and plans again.
 - `scaling` and `dsim-scaling` both contain pct 0 (empty population: synchronization only), 1, 3 and 10, with
@@ -59,11 +60,16 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
 - `scaling-v3` is the same grid and time limits as `scaling-v2` with matsim-rust main at f91a7b2 (PRs #317-#321, see
   its `description.md`). All 91 runs were submitted on 2026-10-18 (jobs 9582645-9582735); the output of `submit` is in
   `output/experiments/submit-scaling-v3.log` on the cluster. In `scaling-v2`, the 87 runs took 7.7 node hours.
+  All runs completed (exit 0) and are in runs-svn (r6967).
 - `scaling-v3-gsync` is the scaling-v3 grid with scoring on only and `global_sync = true` (optional grid key, rust
   only; run ids end in `_gsync-on_r1`). It is compared with the runs with scoring on of `scaling-v3` and uses the same
   binary (`9374a1fbd8b4`, f91a7b2). Time limits: those of scaling-v3, but at least 1 h. All 52 runs were submitted on
-  2026-10-18 (jobs 9584171-9584222, output in `output/experiments/submit-scaling-v3-gsync.log`). At that time 88 runs
-  of scaling-v3 were completed (exit 0); three 10pct runs with 1 and 2 parts were still pending.
+  2026-10-18 (jobs 9584171-9584222, output in `output/experiments/submit-scaling-v3-gsync.log`). All runs completed
+  (exit 0) and are in runs-svn (r6967). Results: without agents, the barrier costs about 0.6 us per step at 1 partition
+  (RTR 1.19M instead of 4.77M) and about 0.4 ms at 192 (2.53k instead of 42.6k). With agents, 1 partition matches
+  scaling-v3, the maximum moves to 16-48 partitions, and from about 64 partitions rust is slower than DSim.
+- After scaling-v3 and scaling-v3-gsync (2026-10-19), work used 2.13 TiB of 3 TiB and 217k of 250k inodes. The two
+  experiments take about 1.06 TB, mostly `ITERS/` and plans.
 - `~/scratch/rust-pt-routing` holds the older async-routing project. Its results are in
   `runs-svn/matsim-rust/async-routing-2026`.
 - Tools on the cluster: `uv` and `python3` (`~/scratch/miniforge3/bin`), `svn`, `rsync` 3.2.7, Slurm. Locally, `rsync`
@@ -166,7 +172,7 @@ Always:
   plot 1, values below 1 ms left out. The user rejected the phase shares (no absolute reference), stacked bars in
   seconds, and separate rows for rust and DSim; those functions are removed.
 - Phases of rust come from `instrument_process_controller.csv`: `run_mobsim_phase` (since matsim-rust d41dba8, so
-  `scaling-v2` only; it includes `prepare_for_mobsim`, `split_for_mobsim` and collecting the agents, 0.3-1.6 s more
+  `scaling-v2` and later; it includes `prepare_for_mobsim`, `split_for_mobsim` and collecting the agents, 0.3-1.6 s more
   than `simulation::run`, growing with the agents), `run_scoring_phase` and `run_replanning_phase`. They follow each
   other without gaps, so `other` is about 0 in rust.
 - `other` of DSim (from the logfile timestamps): setup of the mobsim before the loop (PersonPrepareForSim, one LP per
@@ -178,8 +184,11 @@ Always:
 - Plot 3 has one panel with all pct values (the user wants it that way, unlike plot 1). On the left are the RTR lines
   with scoring on and off. On the right is only the overhead in the mobsim (RTR off / RTR on - 1, iterations 1-9),
   not the whole iteration.
-- Status (2026-10-16): the analysis uses `scaling-v2`. Plot 2 was redone as `phase_lines`. Plot 4 (events on/off)
-  still needs runs.
+- Status (2026-10-19): the analysis uses `scaling-v3` (`EXPERIMENTS` in `load.py`). `python -m iterations` also
+  writes plots 1a and 1b with global sync as `rtr_no_agents_gsync` and `rtr_vs_parts_gsync` (`GSYNC_EXPERIMENTS`:
+  `scaling-v3-gsync` and `dsim-scaling`, legend "Rust, global sync"), if these experiments are fetched. Do not load
+  `scaling-v3` and `scaling-v3-gsync` together into the plots: both have rust runs with the same pct/parts/scoring,
+  and the plot functions do not separate them by `global_sync`. Plot 4 (events on/off) still needs runs.
 
 ## Rules of the computing center on LLM use
 

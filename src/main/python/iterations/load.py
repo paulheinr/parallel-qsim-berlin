@@ -1,6 +1,6 @@
 """Loads the profiling experiments of iterations-vs-dsim-2026 (rust and DSim) from the runs-svn working copy.
 
-    runs = load_runs()          # one row per run: engine, pct, parts, method, scoring, events, rep, Slurm state
+    runs = load_runs()          # one row per run: engine, the grid keys (pct, ..., global_sync), rep, Slurm state
     phases = load_phases(runs)  # one row per run, iteration and phase: wall time in seconds
 
 Phases (wall time per iteration, all with millisecond resolution or better):
@@ -31,7 +31,13 @@ from pathlib import Path
 import pandas as pd
 
 DATA_ROOT = Path.home() / "runs-svn/matsim-rust/iterations-vs-dsim-2026"
-EXPERIMENTS = ["scaling-v2", "dsim-scaling"]  # scaling: rust before the mobsim optimizations (matsim-rust 6960b40)
+# rust (matsim-rust f91a7b2) and DSim. Older rust runs: scaling-v2 (d41dba8), scaling (6960b40, before the mobsim
+# optimizations).
+EXPERIMENTS = ["scaling-v3", "dsim-scaling"]
+# The same plots 1a and 1b with global sync: all partitions wait at a barrier in every time step (rust only).
+GSYNC_EXPERIMENTS = ["scaling-v3-gsync", "dsim-scaling"]
+# Columns that identify a run
+RUN_KEYS = ["experiment", "run_id", "engine", "pct", "parts", "method", "scoring", "events", "global_sync", "rep"]
 PHASES = ["mobsim", "scoring", "replanning", "other"]
 STEADY = range(1, 9)
 
@@ -57,7 +63,10 @@ def load_runs(root: Path = DATA_ROOT, experiments: list[str] = EXPERIMENTS) -> p
         df["path"] = [root / experiment / d for d in df["run_dir"]]
         frames.append(df)
     runs = pd.concat(frames, ignore_index=True)
-    for column in ("scoring", "events"):
+    if "global_sync" not in runs:
+        runs["global_sync"] = False  # runs.csv of collect before global_sync was a grid key
+    runs["global_sync"] = runs["global_sync"].fillna(False)
+    for column in ("scoring", "events", "global_sync"):
         runs[column] = runs[column].astype(str).str.lower().map({"true": True, "false": False})
     failed = runs[(runs["exit_code"] != 0) | (runs["slurm_state"] != "COMPLETED")]
     if len(failed):
@@ -81,8 +90,7 @@ def load_phases(runs: pd.DataFrame) -> pd.DataFrame:
         df.insert(0, "experiment", run.experiment)
         frames.append(df)
     phases = pd.concat(frames, ignore_index=True)
-    keys = ["experiment", "run_id", "engine", "pct", "parts", "method", "scoring", "events", "rep"]
-    return runs[keys].merge(phases, on=["experiment", "run_id"])
+    return runs[RUN_KEYS].merge(phases, on=["experiment", "run_id"])
 
 
 def rust_phases(output: Path) -> pd.DataFrame:
@@ -175,15 +183,13 @@ def steady(phases: pd.DataFrame) -> pd.DataFrame:
 
 def rtr_summary(phases: pd.DataFrame, iterations=range(1, 10)) -> pd.DataFrame:
     """Real-time ratio per run: median, min and max over the given iterations (default 1..9, without the setup)."""
-    keys = ["experiment", "run_id", "engine", "pct", "parts", "method", "scoring", "events", "rep"]
     mobsim = phases[(phases["phase"] == "mobsim") & phases["iteration"].isin(iterations)]
-    return (mobsim.groupby(keys)["rtr"].agg(rtr="median", rtr_min="min", rtr_max="max", iterations="count")
+    return (mobsim.groupby(RUN_KEYS)["rtr"].agg(rtr="median", rtr_min="min", rtr_max="max", iterations="count")
             .reset_index())
 
 
 def phase_summary(phases: pd.DataFrame) -> pd.DataFrame:
     """Median seconds per phase over the steady iterations, one row per run and phase, with the share per run."""
-    keys = ["experiment", "run_id", "engine", "pct", "parts", "method", "scoring", "events", "rep"]
-    df = steady(phases).groupby(keys + ["phase"])["seconds"].median().reset_index()
-    df["share"] = df["seconds"] / df.groupby(keys)["seconds"].transform("sum")
+    df = steady(phases).groupby(RUN_KEYS + ["phase"])["seconds"].median().reset_index()
+    df["share"] = df["seconds"] / df.groupby(RUN_KEYS)["seconds"].transform("sum")
     return df

@@ -169,30 +169,33 @@ def rtr_axes(ax, pct: int, ylabel: bool = True):
         ax.set_ylabel("RTR")
 
 
-def engine_legend(fig):
-    handles = [Line2D([], [], color=s["color"], linestyle=s["linestyle"], marker=s["marker"], label=s["label"])
-               for s in ENGINES.values()]
+def engine_legend(fig, engine_labels: dict | None = None):
+    """Legend of the engines above the figure. engine_labels replaces the labels of single engines, e.g. of rust."""
+    engine_labels = engine_labels or {}
+    handles = [Line2D([], [], color=s["color"], linestyle=s["linestyle"], marker=s["marker"],
+                      label=engine_labels.get(engine, s["label"])) for engine, s in ENGINES.items()]
     fig.legend(handles=handles, ncols=len(handles), loc="lower center", bbox_to_anchor=(0.5, 1.0), handlelength=2.6)
 
 
-def rtr_no_agents(rtr: pd.DataFrame) -> plt.Figure:
+def rtr_no_agents(rtr: pd.DataFrame, engine_labels: dict | None = None) -> plt.Figure:
     """Plot 1a: real-time ratio over the number of partitions without agents (0 %), rust and DSim. The maxima and the
-    values at the largest number of partitions are marked and labeled."""
+    values at the largest number of partitions are marked and labeled. engine_labels: see engine_legend."""
     df = rtr[rtr["scoring"] & ~rtr["events"] & (rtr["pct"] == 0)]
     with plt.rc_context(STYLE):
         fig, ax = plt.subplots(figsize=(FULL_WIDTH / 2, 2.6))
         labels = rtr_lines(ax, df, label_parts=(df["parts"].max(),))
         rtr_axes(ax, 0)
         ax.set_xlim(right=560)  # room for the labels right of the last values
-        engine_legend(fig)
+        engine_legend(fig, engine_labels)
         fig.tight_layout()
         label_points(ax, labels)
     return fig
 
 
-def rtr_vs_parts(rtr: pd.DataFrame) -> plt.Figure:
+def rtr_vs_parts(rtr: pd.DataFrame, engine_labels: dict | None = None) -> plt.Figure:
     """Plot 1b: real-time ratio over the number of partitions, one panel per pct with agents (rust with scoring, DSim),
-    all on the same y scale. The maximum of each line and the values at 1 partition are marked and labeled."""
+    all on the same y scale. The maximum of each line and the values at 1 partition are marked and labeled.
+    engine_labels: see engine_legend."""
     df = rtr[rtr["scoring"] & ~rtr["events"] & (rtr["pct"] > 0)]
     pcts = sorted(df["pct"].unique())
     with plt.rc_context(STYLE):
@@ -202,7 +205,7 @@ def rtr_vs_parts(rtr: pd.DataFrame) -> plt.Figure:
             labels[ax] = rtr_lines(ax, df[df["pct"] == pct], label_parts=(1,))
             rtr_axes(ax, pct, ylabel=i == 0)
         axes[0, 0].set_xlim(right=380)  # room to center the labels of maxima at 192 partitions (x is shared)
-        engine_legend(fig)
+        engine_legend(fig, engine_labels)
         fig.tight_layout(w_pad=1.5)
         for ax, points in labels.items():
             label_points(ax, points)
