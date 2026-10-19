@@ -26,7 +26,7 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
 - Relative paths like `../../shared-svn` in `cluster.toml` / `cluster-dsim.toml` resolve to `~/scratch/...` on the
   cluster and to `~/...` locally, so the same settings work on both.
 - The cluster repo has local changes in `src/main/rust/Cargo.toml` and `Cargo.lock`. There, matsim-rust is a git
-  dependency (GitHub) and `Cargo.lock` pins its commit (f91a7b2 since 2026-10-18). Locally it is a path dependency. Do
+  dependency (GitHub) and `Cargo.lock` pins its commit (eec3c5f since 2026-10-20). Locally it is a path dependency. Do
   not overwrite these changes. To build a newer matsim-rust from main on the cluster:
   `cargo update -p matsim-rust && cargo build --release` in `src/main/rust` (ask first, see Rules). Cargo is in
   `~/.cargo/env`; the build takes about half a minute.
@@ -68,7 +68,15 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   (RTR 1.19M instead of 4.77M) and about 0.4 ms at 192 (2.53k instead of 42.6k). With agents, 1 partition matches
   scaling-v3, the maximum moves to 16-48 partitions, and from about 64 partitions rust is slower than DSim.
 - After scaling-v3 and scaling-v3-gsync (2026-10-19), work used 2.13 TiB of 3 TiB and 217k of 250k inodes. The two
-  experiments take about 1.06 TB, mostly `ITERS/` and plans.
+  experiments took about 1.06 TB, mostly `ITERS/` and plans. Cleanup on 2026-10-20, with the user's approval: deleted
+  `ITERS/` and `output_plans.binpb` of all runs of both (about 940 GB; `output_experienced_plans.binpb` kept). Now
+  scaling-v3 takes 29G and scaling-v3-gsync 25G.
+- `scaling-v4` and `scaling-v4-gsync` repeat scaling-v3 and scaling-v3-gsync (same grids and time limits) with
+  matsim-rust main at eec3c5f: #323 (spin-then-park barrier for global sync) and #324 (less scoring overhead in the
+  mobsim, backpacking subscribes only to the event types it needs). Both use the binary `2e6d98a7a46b`. Submitted on
+  2026-10-20: 91 runs of scaling-v4 (jobs 9588840-9588930) and 52 runs of scaling-v4-gsync (jobs 9588931-9588982),
+  output in `output/experiments/submit-scaling-v4{,-gsync}.log`. Sums of the time limits are 50.8 and 58.5 node hours;
+  scaling-v3 and scaling-v3-gsync used 10.1 and 7.6 node hours. Not yet fetched.
 - `~/scratch/rust-pt-routing` holds the older async-routing project. Its results are in
   `runs-svn/matsim-rust/async-routing-2026`.
 - Tools on the cluster: `uv` and `python3` (`~/scratch/miniforge3/bin`), `svn`, `rsync` 3.2.7, Slurm. Locally, `rsync`
