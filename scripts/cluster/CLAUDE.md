@@ -88,7 +88,8 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   scoring on, 1 % and 3 % at 32-192 partitions are often 10-40 % slower than in scaling-v3 (1 % at 96: 40.9k
   instead of 66.2k). At 64-192 partitions, the scoring costs 5-17 us per step there in v4, about as much as at 10 %
   (11-19 us), but 1-6 us in v3. All those 1 % runs ran on genoa1230, the 3 % ones on several nodes. Repetitions
-  would show whether #324 added a fixed cost per step.
+  would show whether #324 added a fixed cost per step. Cause found: commit 3e477073 of #324, see `pr324`, `poll`
+  and `revert` below.
 - `scripts/cluster/hotpath.sh [name]` (2026-10-20, written because the user finds rust at many partitions
   unsatisfying): builds with `--features hotpath` into `src/main/rust/target/hotpath` (not `target/release`) and runs
   10 cases in one job on one node: 1 % and 3 % at 32/96/192 partitions with hotpath (scoring on, at 96 also off), and
@@ -157,10 +158,19 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
     polling costs is not checked (maybe lower clock rates of the busy cores, or contention on the channels).
   - With 10 ms, 3e477073 is still 17 % slower than 99a27380. So its slowdown is not amplified by blocking, and the
     gap of 99a27380 to 3e477073 is reproduced on a second node (71.7k vs. 56.1k with 50 us).
-  - Next step (needs the user's OK, builds and compute time): build 3e477073 with only (a) and with only (b)
-    reverted (`git diff 3e477073 99a27380 -- <file>` applied to 3e477073; `commits.sh` takes only sed expressions
-    so far), and run them with 99a27380 and 3e477073 with at least 4 repetitions, because runs of 3e477073 spread by
-    up to 20 %.
+- `revert` (job 9591134, 2026-10-20, 36 min on genoa1054, all 28 runs exit 0; outputs on the cluster, fetched
+  without plans to the gitignored local `output/commits/revert`, not in svn): eec3c5f (= scaling-v4) with all of
+  3e477073 taken back (`patches/revert-3e477073.patch` = `git diff 3e477073 99a27380 -- matsim_rust/src`; the scoring
+  unit tests and `test_scoring`, incl. the reference experienced plans of equil, pass), `eec3c5f_copy` built the same
+  way without the patch, and binaries of pr324. RTR as median of iterations 1-9 of all repetitions, scoring on:
+  - 1 %, 96 partitions, 4 repetitions: revert 70.6k (66.1-74.1k per run), eec3c5f_copy 47.3k (43.3-56.5k),
+    f2f49a27 54.2k, 99a27380 73.2k, f91a7b2 68.5k.
+  - 3 %, 96 partitions: revert 40.5k, f2f49a27 34.2k (+18 %). 1 %, 192 partitions: revert 34.4k, f2f49a27 26.2k
+    (+31 %). For comparison (other nodes, one run): scaling-v3 66.2k / 38.1k / 33.0k, scaling-v4 40.9k / 33.4k /
+    27.1k, DSim 13.4k / 8.4k / 11.0k.
+  - So 3e477073 causes the slowdown of scaling-v4 with scoring on, and taking it back restores the RTR of
+    scaling-v3 (and the small spread between runs). Which of its two changes, (a) or (b), is responsible is not
+    known. The revert is not in matsim-rust yet (2026-10-20).
 - `~/scratch/rust-pt-routing` holds the older async-routing project. Its results are in
   `runs-svn/matsim-rust/async-routing-2026`.
 - Tools on the cluster: `uv` and `python3` (`~/scratch/miniforge3/bin`), `svn`, `rsync` 3.2.7, Slurm. Locally, `rsync`
