@@ -95,7 +95,29 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   the plain binaries of scaling-v4 and scaling-v3 at 1 %, 96 partitions, scoring on. Output in
   `output/hotpath/<name>/` (outside `out_root`, no `manifest.csv`, not fetched by `fetch`; rsync command in the
   script header). `hotpath.json` sums each function over all threads, so it shows no imbalance between partitions;
-  waiting for the neighbors is in `message_broker::send_recv`. The user runs the script themselves.
+  waiting for the neighbors is in `message_broker::send_recv`.
+- `hotpath-v4b` (job 9590091, 2026-10-20, 28 min on genoa1143, all 10 cases exit 0; 34G on the cluster, fetched
+  without plans to the gitignored local `output/hotpath/hotpath-v4b`, not in svn). `hotpath-v4` is the first
+  submission (job 9590088, 2G), which ran only its first case: `srun` swallowed the list of cases on stdin (fixed
+  in 183d301). Results:
+  - Same node, 1 %, 96 partitions, scoring on, plain binaries: v4 RTR 48.9k (45.3k in hotpath-v4), v3 70.9k. So
+    the slowdown of scaling-v4 is the code, not genoa1230. Without global sync, #323 only adds the barrier at the
+    end of the mobsim, so it comes from #324 (without scoring, scaling-v4 was not slower).
+  - hotpath wraps the partition channels, which costs a lot: RTR 2.3x lower at 96 partitions, 3x at 192, 1.25x at
+    32; `send_recv` is 90-96 % of `do_sim_step` there and mostly measures that. Do not use these runs for RTR.
+  - The work of a partition outside `send_recv` is tiny: 3 µs per step at 1 % and 96 partitions, 5 µs at 3 %
+    (move_nodes + move_links about 1.4 and 3.3 µs). Without agents, a step takes 9.9 µs at 96 partitions (scaling-v4,
+    0 %). At many partitions the mobsim is bound by the synchronization and the waiting for the slowest neighbor.
+  - Scoring as computation is small: at 1 %, 96 partitions, the backpacking functions take 4 s and the scoring
+    handlers about 18 s more in `process_event` (190 ns per event, 95M events), summed over all threads and 10
+    iterations, i.e. about 25 ms per partition and iteration. Without hotpath, scoring costs 1.2-1.7 s per
+    iteration of the mobsim there (scaling-v4: 3.17 s with, 1.48 s without scoring; plain v4 on genoa1143: 2.65 s
+    with scoring). So scoring slows the mobsim through waiting, not through its own work. A guess, not checked: partitions poll for 50 µs (`POLL_BEFORE_BLOCKING`) and then block,
+    so slightly longer steps of busy partitions cause blocking and slow wake-ups that spread to the neighbors.
+  - `process_event` per event gets slower with more partitions at the same number of events (1 %: 289 ns at 32,
+    413 at 96, 719 at 192 partitions).
+  - Next step (needs the user's OK, compute time): run the commits of #324 (2c4135c, 3e47707, 99a2738, f2f49a2)
+    and f91a7b2 at 1 %, 96 partitions, scoring on, plain binaries, in one job on one node.
 - `~/scratch/rust-pt-routing` holds the older async-routing project. Its results are in
   `runs-svn/matsim-rust/async-routing-2026`.
 - Tools on the cluster: `uv` and `python3` (`~/scratch/miniforge3/bin`), `svn`, `rsync` 3.2.7, Slurm. Locally, `rsync`

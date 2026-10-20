@@ -22,6 +22,12 @@
 #    network, 10 iterations), with the binary of the case,
 # 3. submits itself as one Slurm job (1 node, at most 1 h), which runs all cases with run-sim.sh.
 #
+# Caution: with --features hotpath, matsim-rust also wraps the channels between the partitions (hotpath::channel! in
+# local_communicator.rs). Every message then goes through hotpath, and its collector thread is busy 90 % of the time.
+# This makes runs with many partitions much slower (hotpath-v4b: RTR 2.3x lower at 96 and 3x lower at 192
+# partitions), and message_broker::send_recv mostly measures the instrumentation. The times of the other functions
+# are still useful.
+#
 # Every hotpath run writes hotpath.json (the report as JSON) into its run directory. Each run also writes its usual
 # output (instrument/*.csv for the RTR, plans, ITERS/; about 6 GB at 3 %). Logs: output/hotpath/<name>/slurm-<jobid>.log
 # and runs/<case>/run.log. Fetch the results locally without plans and binaries:
