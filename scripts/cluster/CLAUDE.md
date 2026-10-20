@@ -26,7 +26,7 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
 - Relative paths like `../../shared-svn` in `cluster.toml` / `cluster-dsim.toml` resolve to `~/scratch/...` on the
   cluster and to `~/...` locally, so the same settings work on both.
 - The cluster repo has local changes in `src/main/rust/Cargo.toml` and `Cargo.lock`. There, matsim-rust is a git
-  dependency (GitHub) and `Cargo.lock` pins its commit (eec3c5f since 2026-10-20). Locally it is a path dependency. Do
+  dependency (GitHub) and `Cargo.lock` pins its commit (e20838e since 2026-10-20). Locally it is a path dependency. Do
   not overwrite these changes. To build a newer matsim-rust from main on the cluster:
   `cargo update -p matsim-rust && cargo build --release` in `src/main/rust` (ask first, see Rules). Cargo is in
   `~/.cargo/env`; the build takes about half a minute.
@@ -77,8 +77,9 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   2026-10-20: 91 runs of scaling-v4 (jobs 9588840-9588930) and 52 runs of scaling-v4-gsync (jobs 9588931-9588982),
   output in `output/experiments/submit-scaling-v4{,-gsync}.log`. Sums of the time limits are 50.8 and 58.5 node hours;
   scaling-v3 and scaling-v3-gsync used 10.1 and 7.6 node hours. All runs completed (exit 0) in 9.8 and 5.4 node hours
-  and are in runs-svn (r6970). On the cluster they take 642G and 350G, still with `ITERS/` and
-  plans; afterwards work used 2.18 TiB of 3 TiB and 228k of 250k inodes (2026-10-20).
+  and are in runs-svn (r6970). On the cluster they took 642G and 350G with `ITERS/` and plans; afterwards work used
+  2.18 TiB of 3 TiB and 228k of 250k inodes (2026-10-20). Their `ITERS/` and plans were deleted before scaling-v5,
+  see there.
   Results (one repetition per setting): #323 removes most of the cost of the barrier. At 0 %, RTR with global sync is
   4.79M at 1 partition (without 4.83M, scaling-v3-gsync 1.19M) and 36.1k at 192 (42.3k, 2.53k). With agents, global
   sync keeps 50-100 % of the RTR without it (lowest at 10 %, 96-192 partitions), and from 4 partitions on rust with
@@ -90,6 +91,16 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   (11-19 us), but 1-6 us in v3. All those 1 % runs ran on genoa1230, the 3 % ones on several nodes. Repetitions
   would show whether #324 added a fixed cost per step. Cause found: commit 3e477073 of #324, see `pr324`, `poll`
   and `revert` below.
+- `scaling-v5` and `scaling-v5-gsync` repeat scaling-v4 and scaling-v4-gsync (same grids and time limits) with
+  matsim-rust main at e20838e: #326 (revert of 3e477073) and #325 (xml crate 1.4.0, only the XML events writer and a
+  test). Both use the binary `a841419d22ae`. Submitted on 2026-10-20: 91 runs of scaling-v5 (jobs 9591312-9591402)
+  and 52 runs of scaling-v5-gsync (jobs 9591403-9591454), output in `output/experiments/submit-scaling-v5{,-gsync}.log`.
+  Not yet fetched. Expected: the RTR of scaling-v3 with scoring on at 32-192 partitions, the rest of #324 at 1-8.
+- Cleanup before scaling-v5 (2026-10-20, with the user's approval; before it 2.37 TiB and 239.8k inodes): deleted
+  `ITERS/` and `output_plans.binpb` of all runs of scaling-v4 and scaling-v4-gsync (941 GB, now 29G and 25G) and of
+  `output/commits/{pr324,poll,revert}` (134 GB, now 3.7G, 3.7G and 6.8G), and `output/commits/revert/build` (836
+  files). That freed only about 2.4k inodes; each pair of scaling experiments adds about 11.8k (only about 900 of
+  them in `ITERS/`), so the inode limit of 250k is close. Most inodes are outside this project.
 - `scripts/cluster/hotpath.sh [name]` (2026-10-20, written because the user finds rust at many partitions
   unsatisfying): builds with `--features hotpath` into `src/main/rust/target/hotpath` (not `target/release`) and runs
   10 cases in one job on one node: 1 % and 3 % at 32/96/192 partitions with hotpath (scoring on, at 96 also off), and
@@ -170,7 +181,9 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
     27.1k, DSim 13.4k / 8.4k / 11.0k.
   - So 3e477073 causes the slowdown of scaling-v4 with scoring on, and taking it back restores the RTR of
     scaling-v3 (and the small spread between runs). Which of its two changes, (a) or (b), is responsible is not
-    known. The revert is not in matsim-rust yet (2026-10-20).
+    known. The revert is matsim-vsp/matsim-rust#326, merged on 2026-10-20 (main e20838e) and measured in
+    `scaling-v5`. Not measured here: few partitions (P=1-8), where #324 had measured a gain of the smaller backpacks
+    on a laptop.
 - `~/scratch/rust-pt-routing` holds the older async-routing project. Its results are in
   `runs-svn/matsim-rust/async-routing-2026`.
 - Tools on the cluster: `uv` and `python3` (`~/scratch/miniforge3/bin`), `svn`, `rsync` 3.2.7, Slurm. Locally, `rsync`
