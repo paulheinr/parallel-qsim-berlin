@@ -138,3 +138,13 @@ SCORING_MODE=disabled
 WRITE_EVENTS=none
 EXTRA_ARGS=(--set population.path=/path/to/plans.binpb)      # optional
 ```
+
+## Profiling with hotpath
+
+`scripts/cluster/hotpath.sh [name]` (on the login node, in the repository root) builds `berlin_iterations_v7` with
+`--features hotpath` into `src/main/rust/target/hotpath` (`target/release` stays as it is) and submits one job that runs
+a few cases one after the other on the same node: 1 % and 3 % at 32, 96 and 192 partitions with hotpath, and the plain
+binaries of scaling-v4 and scaling-v3 for comparison. The cases are at the top of the script; their `run.env` is
+copied from the runs of scaling-v4. Output: `output/hotpath/<name>/runs/<case>/`, with `hotpath.json` (wall time and
+calls of the functions marked with `#[hotpath::measure]` in matsim-rust, summed over all threads, plus the channels
+and the CPU usage per thread). The header of the script has the rsync command to fetch the results.
