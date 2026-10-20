@@ -34,6 +34,9 @@ ENGINES = {"rust": {"label": "Rust", "color": "#e34948", "linestyle": "-", "mark
 TITLE = {"fontsize": 9, "fontweight": "bold"}
 PARTS_TICKS = [1, 2, 4, 8, 16, 32, 64, 128, 192]
 NARROW_TICKS = [1, 2, 4, 8, 16, 32, 64, 192]  # 128 and 192 overlap in narrow panels
+# Every figure names its experiments and library versions in small print below its lower right corner. Turn off for the
+# paper.
+SETTING_NOTE = True
 
 STYLE = {
     "font.size": 8, "axes.titlesize": 8, "axes.labelsize": 8, "xtick.labelsize": 7, "ytick.labelsize": 7,
@@ -169,6 +172,13 @@ def rtr_axes(ax, pct: int, ylabel: bool = True):
         ax.set_ylabel("RTR")
 
 
+def setting_note(fig, df: pd.DataFrame):
+    """Writes the settings (experiment and library version, see load.setting) of the plotted data below the lower right
+    corner of the figure. Call after tight_layout."""
+    if SETTING_NOTE and "setting" in df:
+        fig.text(1.0, 0.0, ", ".join(sorted(df["setting"].unique())), ha="right", va="top", fontsize=5.5, color=MUTED)
+
+
 def engine_legend(fig, engine_labels: dict | None = None):
     """Legend of the engines above the figure. engine_labels replaces the labels of single engines, e.g. of rust."""
     engine_labels = engine_labels or {}
@@ -189,6 +199,7 @@ def rtr_no_agents(rtr: pd.DataFrame, engine_labels: dict | None = None) -> plt.F
         engine_legend(fig, engine_labels)
         fig.tight_layout()
         label_points(ax, labels)
+        setting_note(fig, df)
     return fig
 
 
@@ -209,6 +220,7 @@ def rtr_vs_parts(rtr: pd.DataFrame, engine_labels: dict | None = None) -> plt.Fi
         fig.tight_layout(w_pad=1.5)
         for ax, points in labels.items():
             label_points(ax, points)
+        setting_note(fig, df)
     return fig
 
 
@@ -242,6 +254,7 @@ def phase_lines(phases: pd.DataFrame) -> plt.Figure:
         fig.legend(handles=handles, ncols=len(handles), loc="lower center", bbox_to_anchor=(0.5, 1.0),
                    handlelength=2.6)
         fig.tight_layout(w_pad=1.0)
+        setting_note(fig, df)
     return fig
 
 
@@ -281,6 +294,7 @@ def scoring_overhead(rtr: pd.DataFrame) -> plt.Figure:
         handles = [Line2D([], [], color=PCT_COLORS[p], linewidth=2, label=pct_label(p)) for p in pcts]
         fig.legend(handles=handles, ncols=len(handles), loc="lower center", bbox_to_anchor=(0.5, 1.0))
         fig.tight_layout(w_pad=2)
+        setting_note(fig, rust)
     return fig
 
 

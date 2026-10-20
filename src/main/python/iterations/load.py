@@ -24,6 +24,7 @@ The real-time ratio is simulated seconds / seconds of the simulation loop. rust:
 output_config.yml / span `simulation::run` of rank 0 (all ranks are synchronized every time step). DSim: the ratio it
 logs itself, measured over its simulation loop.
 """
+import json
 import re
 from datetime import datetime
 from pathlib import Path
@@ -31,13 +32,15 @@ from pathlib import Path
 import pandas as pd
 
 DATA_ROOT = Path.home() / "runs-svn/matsim-rust/iterations-vs-dsim-2026"
-# rust (matsim-rust f91a7b2) and DSim. Older rust runs: scaling-v2 (d41dba8), scaling (6960b40, before the mobsim
-# optimizations).
-EXPERIMENTS = ["scaling-v3", "dsim-scaling"]
-# The same plots 1a and 1b with global sync: all partitions wait at a barrier in every time step (rust only).
-GSYNC_EXPERIMENTS = ["scaling-v3-gsync", "dsim-scaling"]
-# Columns that identify a run
-RUN_KEYS = ["experiment", "run_id", "engine", "pct", "parts", "method", "scoring", "events", "global_sync", "rep"]
+# rust (matsim-rust eec3c5f) and DSim. Older rust runs: scaling-v3 (f91a7b2), scaling-v2 (d41dba8), scaling (6960b40,
+# before the mobsim optimizations).
+EXPERIMENTS = ["scaling-v4", "dsim-scaling"]
+# The same plots 1a and 1b with global sync: all partitions wait at a barrier in every time step (rust only). Older:
+# scaling-v3-gsync (f91a7b2, std::sync::Barrier instead of the spin-then-park barrier).
+GSYNC_EXPERIMENTS = ["scaling-v4-gsync", "dsim-scaling"]
+# Columns that identify a run. setting only describes the experiment (name and library version, for the figures).
+RUN_KEYS = ["experiment", "setting", "run_id", "engine", "pct", "parts", "method", "scoring", "events", "global_sync",
+            "rep"]
 PHASES = ["mobsim", "scoring", "replanning", "other"]
 STEADY = range(1, 9)
 
@@ -59,6 +62,7 @@ def load_runs(root: Path = DATA_ROOT, experiments: list[str] = EXPERIMENTS) -> p
     for experiment in experiments:
         df = pd.read_csv(root / experiment / "runs.csv")
         df.insert(0, "experiment", experiment)
+        df.insert(1, "setting", setting(root / experiment))
         df["engine"] = [engine(root / experiment / d) for d in df["run_dir"]]
         df["path"] = [root / experiment / d for d in df["run_dir"]]
         frames.append(df)
@@ -72,6 +76,21 @@ def load_runs(root: Path = DATA_ROOT, experiments: list[str] = EXPERIMENTS) -> p
     if len(failed):
         print(f"Ignoring {len(failed)} runs that did not complete: {', '.join(failed['run_id'])}")
     return runs.drop(failed.index).reset_index(drop=True)
+
+
+def setting(experiment_dir: Path) -> str:
+    """Name of the experiment with the library versions of its binaries from build_info.json, e.g.
+    "scaling-v4 (matsim-rust eec3c5f)". Before 2026-10-15, build_info.json did not record matsim-rust, so older rust
+    experiments have the name only. The DSim jar has the matsim-berlin commit in its file name."""
+    info = experiment_dir / "build_info.json"
+    versions = []
+    for binary in (json.loads(info.read_text()).values() if info.exists() else []):
+        repos = {url.rstrip("/").rsplit("/", 1)[-1]: repo["commit"][:7] for url, repo in binary["repos"].items()}
+        libraries = [f"{name} {commit}" for name, commit in repos.items() if name != "parallel-qsim-berlin"]
+        if not libraries and (m := re.search(r"-g([0-9a-f]{7,})\.jar$", binary["binary"])):
+            libraries = [f"matsim-berlin {m.group(1)[:7]}"]
+        versions += [v for v in libraries if v not in versions]
+    return f"{experiment_dir.name} ({', '.join(versions)})" if versions else experiment_dir.name
 
 
 def engine(run_dir: Path) -> str:
