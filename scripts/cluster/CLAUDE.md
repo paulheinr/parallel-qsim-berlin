@@ -77,7 +77,7 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   2026-10-20: 91 runs of scaling-v4 (jobs 9588840-9588930) and 52 runs of scaling-v4-gsync (jobs 9588931-9588982),
   output in `output/experiments/submit-scaling-v4{,-gsync}.log`. Sums of the time limits are 50.8 and 58.5 node hours;
   scaling-v3 and scaling-v3-gsync used 10.1 and 7.6 node hours. All runs completed (exit 0) in 9.8 and 5.4 node hours
-  and are fetched into runs-svn (not committed yet). On the cluster they take 642G and 350G, still with `ITERS/` and
+  and are in runs-svn (r6970). On the cluster they take 642G and 350G, still with `ITERS/` and
   plans; afterwards work used 2.18 TiB of 3 TiB and 228k of 250k inodes (2026-10-20).
   Results (one repetition per setting): #323 removes most of the cost of the barrier. At 0 %, RTR with global sync is
   4.79M at 1 partition (without 4.83M, scaling-v3-gsync 1.19M) and 36.1k at 192 (42.3k, 2.53k). With agents, global
