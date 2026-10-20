@@ -1,0 +1,39 @@
+# Scaling of berlin_iterations_v7 with 10 iterations and global sync: all partitions wait at a barrier in every time
+# step (computational_setup.global_sync = true), instead of only exchanging messages with their neighbors.
+#
+#   uv run scripts/cluster/cluster.py submit experiments/scaling-v5-gsync.toml --dry-run
+#
+# Same grid and time limits as scaling-v4-gsync.toml, rerun with matsim-rust main after #325 and #326. Compare with
+# the runs with scoring on of scaling-v5, which have global_sync = false. Both v5 experiments should use the same
+# binary, see build_info.json and description.md.
+
+comment = """
+Global sync on (`computational_setup.global_sync = true`), rerun of scaling-v4-gsync (same grid, same time limits)
+with matsim-rust main after PRs #325 and #326. Scoring on, events off, pct 0/1/3/10 and the 13 partition counts of
+scaling-v5, 10 iterations, one repetition.
+
+- #326 reverts 3e477073 of #324 (smaller backpacks and vehicle occupants), which made the mobsim with scoring on
+  slower at many partitions in scaling-v4. The spin-then-park barrier of #323 is still included, so compared with
+  scaling-v4-gsync only the runs with agents should change.
+- #325 updates the xml crate to 1.4.0 (XML events writer, events are off here).
+
+The counterpart without global sync is the runs with scoring on in scaling-v5 (same binary).
+"""
+
+iterations = 10
+repetitions = 1
+
+# Same as scaling-v3-gsync and scaling-v4-gsync: the time limits of scaling-v3, but at least one hour.
+[time_limit]
+"0" = "01:00:00"
+"1" = "01:00:00"
+"3" = [[1, "01:15:00"], [192, "01:00:00"]]
+"10" = [[1, "04:15:00"], [2, "03:30:00"], [4, "01:30:00"], [192, "01:00:00"]]
+
+[[grid]]
+pct = [0, 1, 3, 10]
+parts = [1, 2, 4, 8, 16, 24, 32, 48, 64, 96, 128, 144, 192]
+method = ["metis"]
+scoring = [true]
+events = [false]
+global_sync = [true]
