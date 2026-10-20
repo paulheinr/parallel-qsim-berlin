@@ -111,12 +111,14 @@ fi
 
 # Slurm job: run all cases one after the other
 echo "Node $(hostname), job $SLURM_JOB_ID, $(date '+%Y-%m-%dT%H:%M:%S%z')"
-while read -r name; do
+# Read the cases first and give run-sim.sh no stdin: srun forwards stdin to the run, which would swallow the list.
+mapfile -t names < "$OUT/cases.txt"
+for name in "${names[@]}"; do
     echo "== $name ($(date '+%H:%M:%S'))"
-    if scripts/cluster/run-sim.sh "$OUT/runs/$name" > "$OUT/runs/$name/run.log" 2>&1; then
+    if scripts/cluster/run-sim.sh "$OUT/runs/$name" > "$OUT/runs/$name/run.log" 2>&1 < /dev/null; then
         echo "   done"
     else
         echo "   failed with exit code $?, see runs/$name/run.log"
     fi
-done < "$OUT/cases.txt"
+done
 echo "Finished $(date '+%Y-%m-%dT%H:%M:%S%z')"
