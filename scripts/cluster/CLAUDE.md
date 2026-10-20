@@ -116,8 +116,39 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
     so slightly longer steps of busy partitions cause blocking and slow wake-ups that spread to the neighbors.
   - `process_event` per event gets slower with more partitions at the same number of events (1 %: 289 ns at 32,
     413 at 96, 719 at 192 partitions).
-  - Next step (needs the user's OK, compute time): run the commits of #324 (2c4135c, 3e47707, 99a2738, f2f49a2)
-    and f91a7b2 at 1 %, 96 partitions, scoring on, plain binaries, in one job on one node.
+  - The commits of #324 were compared in `pr324`, see below.
+- `scripts/cluster/commits.sh [name]` (2026-10-20): builds berlin_iterations_v7 without hotpath for several
+  matsim-rust commits (`COMMITS`), from a copy of `src/main/rust` in `output/commits/<name>/build` with matsim-rust
+  `{ git, rev }` and its own target dir (`src/main/rust`, its Cargo.toml/Cargo.lock and `target/release` are not
+  touched), and runs `CASES` x `REPETITIONS` in one job on one node, the repetitions interleaved. Output in
+  `output/commits/<name>/` (outside `out_root`; rsync command in the script header). The build dir (7.3k files,
+  3.4G) is not needed once the binaries are in `bin/`; delete it after asking.
+- `pr324` (job 9590368, 2026-10-20, 21 min on genoa1244, all 20 runs exit 0; build dir deleted with the user's
+  approval, 39G and 2.4k files left on the cluster; fetched without plans to the gitignored local
+  `output/commits/pr324`, not in svn): 1 %, 96 partitions, run.env of scaling-v4, two repetitions. RTR (median of
+  iterations 1-9) of the two repetitions, scoring on: f91a7b2 63.5k/73.5k (scaling-v3 binary 71.7k/70.6k),
+  47cb835c (#323 merged) 67.2k/70.3k, 2c4135cf 69.2k/71.3k, 99a27380 69.1k/70.9k, 3e477073 55.8k/61.0k, f2f49a27
+  46.5k/51.9k (= eec3c5f; scaling-v4 binary 54.7k/51.2k). Scoring off: v3 77.1k/82.4k, v4 81.7k/81.0k.
+  - The slowdown comes from 3e477073 (smaller backpacks and vehicle occupants). All 5 binaries before it (each with
+    its own code layout) reach 66.9-70.9k (medians of 18 iterations), all 3 from it on 47.7-58.3k (3e477073 58.3k,
+    f2f49a27 47.7k, v4 binary 52.1k): about -24 % on average. If the layout alone spread the binaries at random, the
+    3 slowest would be exactly these 3 with a chance of 1 in 56. #323, 2c4135cf and 99a27380 do not change the RTR.
+  - Iteration 0, where all builds start from the same plans, shows the same split (before 3e477073 mostly
+    51-58k, from it on 38-48k). So it is the mobsim itself, not other plans through scoring and replanning.
+  - On top of that, the code layout matters: f2f49a27 only removes `Backpack::handle_event` and
+    `PartialPlan::handle_event`, which only tests call, so the code that runs is that of 3e477073, but it is 18 %
+    slower. In the two binaries, only 24 of 5.9k functions differ (TypeId constants, which depend on the rev, and
+    unrelated code: tracing, lz4, parquet), but 47 of the 242 functions of the mobsim, events and scoring sit at
+    another alignment (mod 64). Binaries of the same code spread by 6 % before 3e477073 (66.9-70.9k) and by 20 %
+    from it on (47.7-58.3k).
+  - Not understood: from the code, 3e477073 should make backpacking cheaper, and hotpath shows that the backpacking
+    work is small. It (a) boxes `pt_description` in `PartialRoute` (one allocation per pt leg) and (b) replaces the
+    `IntSet` of the persons per vehicle by `VehicleOccupants` (first person inline, others in a `Vec`; no allocation
+    per vehicle). The effect must be indirect, e.g. the guess above that small changes of the step time get
+    amplified by blocking, or the allocation pattern.
+  - Next step (needs the user's OK, builds and compute time): build 3e477073 with only (a) and with only (b)
+    reverted, each with fixed function alignment (`-C llvm-args=-align-all-functions=6`) or several layouts, and
+    compare them with 99a27380 and 3e477073 built the same way.
 - `~/scratch/rust-pt-routing` holds the older async-routing project. Its results are in
   `runs-svn/matsim-rust/async-routing-2026`.
 - Tools on the cluster: `uv` and `python3` (`~/scratch/miniforge3/bin`), `svn`, `rsync` 3.2.7, Slurm. Locally, `rsync`

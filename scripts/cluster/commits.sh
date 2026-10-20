@@ -6,71 +6,78 @@
 #SBATCH --exclusive
 #SBATCH --time=01:00:00
 
-# Compares berlin_iterations_v7 built with several commits of matsim-rust. All runs run one after the other in a
-# single job, i.e. on the same node, so that they can be compared without differences between nodes. The repetitions
-# are interleaved (all cases once, then all again), so that a slow phase of the node does not hit only one commit.
+# Compares berlin_iterations_v7 built with several commits of matsim-rust, optionally with a change of their sources.
+# All runs run one after the other in a single job, i.e. on the same node, so that they can be compared without
+# differences between nodes. The repetitions are interleaved (all cases once, then all again), so that a slow phase
+# of the node does not hit only one build.
 #
 # On the cluster, in the repository root, on the login node:
 #
-#   scripts/cluster/commits.sh [name]        # name defaults to pr324
+#   scripts/cluster/commits.sh [name]        # name defaults to poll
 #
-# 1. builds berlin_iterations_v7 without hotpath for every commit in COMMITS: a copy of src/main/rust in
-#    output/commits/<name>/build whose Cargo.toml takes matsim-rust from GitHub at that commit, with its own target
-#    dir there (src/main/rust, its Cargo.toml and Cargo.lock and target/release are not touched). The copy starts
-#    from the Cargo.lock of src/main/rust, so cargo changes only the entry of matsim-rust. The binaries are copied to
-#    output/commits/<name>/bin/<commit>/,
+# 1. builds berlin_iterations_v7 without hotpath for every entry of BUILDS: a copy of src/main/rust in
+#    output/commits/<name>/build whose Cargo.toml takes matsim-rust from GitHub at that commit, or, for a build with a
+#    change, from a changed copy of cargo's checkout of that commit (path dependency, in build/src/<build>). It has
+#    its own target dir there (src/main/rust, its Cargo.toml and Cargo.lock and target/release are not touched). The
+#    copy starts from the Cargo.lock of src/main/rust, so cargo changes only the entries of matsim-rust and macros.
+#    The binaries are copied to output/commits/<name>/bin/<build>/, the target dir is deleted afterwards,
 # 2. writes output/commits/<name>/runs/<case>_r<rep>/run.env, copied from the run of scaling-v4 with the same settings
 #    (config, network, 10 iterations), with the binary of the case,
 # 3. submits itself as one Slurm job (1 node, at most 1 h), which runs all cases with run-sim.sh.
 #
-# The target dir holds about 7k files and 3 GB (work has a limit of 250k inodes). It is not needed after the builds.
-# Each 1 % run takes about 1 min and writes its usual output (about 2 GB, 120 files, mostly plans and ITERS/). Logs:
-# output/commits/<name>/slurm-<jobid>.log and runs/<case>_r<rep>/run.log. Fetch the results locally without plans,
-# binaries and the build:
+# The target dir holds about 7k files and 3 GB (work has a limit of 250k inodes), a copy of matsim-rust about 400
+# files. Each 1 % run takes about 1 min and writes its usual output (about 2 GB, 120 files, mostly plans and ITERS/).
+# Logs: output/commits/<name>/slurm-<jobid>.log and runs/<case>_r<rep>/run.log. Fetch the results locally without
+# plans, binaries and the build:
 #
 #   rsync -av --exclude='ITERS/' --exclude='*.binpb' --exclude='bin/' --exclude='build/' \
 #     hlrn-genoa:scratch/iterations-rust/parallel-qsim-berlin/output/commits/<name> <local dir>
+#
+# Experiments: pr324 (the commits of PR #324, in the version of this script in commit 5210c0c) and poll (this one).
 
 set -euo pipefail
 
-# Commits of matsim-rust to build (bin/<first 8 characters>). PR #324 (merged as eec3c5f, same tree as f2f49a27)
-# made the mobsim slower with scoring on at many partitions. Its parent is 47cb835c (#323 merged), whose parent is
-# f91a7b2 (scaling-v3). The commits of #324 in between that are not listed change only tests, docs or add
-# #[hotpath::measure], which is a no-op without the feature.
-COMMITS=(
-    f91a7b2974ab7b980598b576d60e2188bf088ed0  # scaling-v3
-    47cb835c66a79f91abfdea4ee5f7b28fe29ee56a  # #323 merged: spin-then-park barrier
-    2c4135cf8aa9d33f3b954d06e0149dc7bde48880  # subscribe backpacking only to the event types it needs
-    99a27380e5b32f2bd94b31289e9addc2e63b0880  # keep the ids when finishing experienced plans
-    3e477073a2e3abcde25249f69dc1b711308b541f  # smaller backpacks and vehicle occupants
-    f2f49a271f3bef29ed8cc96e9bf5a233fe64d0dd  # typed event methods in backpack and partial plans (= eec3c5f)
+# Builds: name (bin/<name>), commit of matsim-rust and optionally a change: a file of matsim-rust and a sed
+# expression applied to it. A build with a change needs cargo's checkout of its commit in ~/.cargo/git/checkouts,
+# i.e. the commit must have been built once without a change (all commits of pr324 were).
+#
+# poll: partitions poll for the messages of their neighbors for POLL_BEFORE_BLOCKING (50 us) and then block, so that
+# the sender has to wake them up. The guess is that slightly longer steps then cause blocking and slow wake-ups that
+# spread to the neighbors, which would explain why 3e477073 is slower than 99a27380 with scoring on (pr324) although
+# its backpacking is cheaper, and why the RTR depends so much on the code layout. With 10 ms, partitions practically
+# never block during the mobsim.
+POLL_FILE=matsim_rust/src/simulation/messaging/sim_communication/local_communicator.rs
+POLL_10MS='s/^const POLL_BEFORE_BLOCKING: Duration = .*;$/const POLL_BEFORE_BLOCKING: Duration = Duration::from_millis(10);/'
+BUILDS=(
+    "99a27380_poll10ms  99a27380e5b32f2bd94b31289e9addc2e63b0880  $POLL_FILE  $POLL_10MS"
+    "3e477073_poll10ms  3e477073a2e3abcde25249f69dc1b711308b541f  $POLL_FILE  $POLL_10MS"
+    "f2f49a27_poll10ms  f2f49a271f3bef29ed8cc96e9bf5a233fe64d0dd  $POLL_FILE  $POLL_10MS"
 )
-# Binaries that already exist: those of scaling-v3 (f91a7b2) and scaling-v4 (eec3c5f). Rebuilt here as f91a7b29 and
-# f2f49a27, they show whether a build in this way runs as fast as the original one.
+# Binaries that already exist: those of pr324 (unchanged, POLL_BEFORE_BLOCKING = 50 us).
 declare -A BINARIES=(
-    [v3]=output/experiments/scaling-v3/bin/9374a1fbd8b4/berlin_iterations_v7
-    [v4]=output/experiments/scaling-v4/bin/2e6d98a7a46b/berlin_iterations_v7
+    [99a27380]=output/commits/pr324/bin/99a27380/berlin_iterations_v7
+    [3e477073]=output/commits/pr324/bin/3e477073/berlin_iterations_v7
+    [f2f49a27]=output/commits/pr324/bin/f2f49a27/berlin_iterations_v7
 )
-# Cases: name, run of scaling-v4 whose run.env is used, binary (key in BINARIES or the first 8 characters of a
-# commit). With scoring on and 1 % at 96 partitions, scaling-v4 was much slower than scaling-v3 (40.9k instead of
-# 66.2k; 48.9k and 70.9k on the same node in hotpath-v4b), without scoring it was not.
+# Cases: name, run of scaling-v4 whose run.env is used, binary (key in BINARIES or name of a build). In pr324, at 1 %,
+# 96 partitions, scoring on: 99a27380 69.7k, 3e477073 58.3k, f2f49a27 (same code as 3e477073) 47.7k.
 CASES=(
-    "1pct_p096_on_f91a7b29   1pct_metis_p096_score-on_events-off_r1   f91a7b29"
-    "1pct_p096_on_47cb835c   1pct_metis_p096_score-on_events-off_r1   47cb835c"
-    "1pct_p096_on_2c4135cf   1pct_metis_p096_score-on_events-off_r1   2c4135cf"
-    "1pct_p096_on_99a27380   1pct_metis_p096_score-on_events-off_r1   99a27380"
-    "1pct_p096_on_3e477073   1pct_metis_p096_score-on_events-off_r1   3e477073"
-    "1pct_p096_on_f2f49a27   1pct_metis_p096_score-on_events-off_r1   f2f49a27"
-    "1pct_p096_on_v3         1pct_metis_p096_score-on_events-off_r1   v3"
-    "1pct_p096_on_v4         1pct_metis_p096_score-on_events-off_r1   v4"
-    "1pct_p096_off_v3        1pct_metis_p096_score-off_events-off_r1  v3"
-    "1pct_p096_off_v4        1pct_metis_p096_score-off_events-off_r1  v4"
+    "1pct_p096_on_99a27380            1pct_metis_p096_score-on_events-off_r1   99a27380"
+    "1pct_p096_on_99a27380_poll10ms   1pct_metis_p096_score-on_events-off_r1   99a27380_poll10ms"
+    "1pct_p096_on_3e477073            1pct_metis_p096_score-on_events-off_r1   3e477073"
+    "1pct_p096_on_3e477073_poll10ms   1pct_metis_p096_score-on_events-off_r1   3e477073_poll10ms"
+    "1pct_p096_on_f2f49a27            1pct_metis_p096_score-on_events-off_r1   f2f49a27"
+    "1pct_p096_on_f2f49a27_poll10ms   1pct_metis_p096_score-on_events-off_r1   f2f49a27_poll10ms"
+    "1pct_p096_off_99a27380           1pct_metis_p096_score-off_events-off_r1  99a27380"
+    "1pct_p096_off_99a27380_poll10ms  1pct_metis_p096_score-off_events-off_r1  99a27380_poll10ms"
+    "1pct_p192_on_f2f49a27            1pct_metis_p192_score-on_events-off_r1   f2f49a27"
+    "1pct_p192_on_f2f49a27_poll10ms   1pct_metis_p192_score-on_events-off_r1   f2f49a27_poll10ms"
 )
 REPETITIONS=2
 SOURCE=output/experiments/scaling-v4
 MATSIM_RUST=https://github.com/matsim-vsp/matsim-rust
 
-NAME=${1:-pr324}
+NAME=${1:-poll}
 if [[ -n ${SLURM_JOB_ID:-} ]]; then
     cd -- "$SLURM_SUBMIT_DIR"
 else
@@ -91,19 +98,42 @@ if [[ -z ${SLURM_JOB_ID:-} ]]; then
     # shellcheck source=/dev/null
     source "$HOME/.cargo/env"
     mkdir -p "$OUT/build" "$OUT/bin" "$OUT/runs"
+    cp scripts/cluster/commits.sh "$OUT/"
     cp -r src/main/rust/Cargo.toml src/main/rust/Cargo.lock src/main/rust/src "$OUT/build/"
-    for commit in "${COMMITS[@]}"; do
-        short=${commit:0:8}
-        echo "== building $short"
-        sed -i "s|^matsim-rust = .*|matsim-rust = { git = \"$MATSIM_RUST\", rev = \"$commit\" }|" "$OUT/build/Cargo.toml"
+    for build in "${BUILDS[@]}"; do
+        read -r name commit file expr <<< "$build"
+        echo "== building $name"
+        mkdir -p "$OUT/bin/$name"
+        if [[ -z ${file:-} ]]; then
+            sed -i "s|^matsim-rust = .*|matsim-rust = { git = \"$MATSIM_RUST\", rev = \"$commit\" }|" \
+                "$OUT/build/Cargo.toml"
+        else
+            checkout=$(find "$HOME/.cargo/git/checkouts" -mindepth 2 -maxdepth 2 -path '*/matsim-rust-*' \
+                -name "${commit:0:7}" | head -n 1)
+            [[ -n $checkout ]] || { echo "No cargo checkout of $commit, build it once without a change." >&2; exit 1; }
+            src=$OUT/build/src/$name
+            mkdir -p "$OUT/build/src"
+            cp -r "$checkout" "$src"
+            sed -i "$expr" "$src/$file"
+            if diff "$checkout/$file" "$src/$file" > "$OUT/bin/$name/change.diff"; then
+                echo "The change of $name does not change $file." >&2
+                exit 1
+            fi
+            sed -i "s|^matsim-rust = .*|matsim-rust = { path = \"$src/matsim_rust\" }|" "$OUT/build/Cargo.toml"
+        fi
         (cd "$OUT/build" && cargo build --release --target-dir target --bin berlin_iterations_v7)
-        grep -q "^source = \"git+$MATSIM_RUST?rev=$commit#$commit\"" "$OUT/build/Cargo.lock" \
-            || { echo "Cargo.lock does not pin matsim-rust at $commit" >&2; exit 1; }
-        mkdir -p "$OUT/bin/$short"
-        cp "$OUT/build/target/release/berlin_iterations_v7" "$OUT/bin/$short/"
-        cp "$OUT/build/Cargo.lock" "$OUT/bin/$short/"
-        BINARIES[$short]=$OUT/bin/$short/berlin_iterations_v7
+        if [[ -z ${file:-} ]]; then
+            grep -q "^source = \"git+$MATSIM_RUST?rev=$commit#$commit\"" "$OUT/build/Cargo.lock" \
+                || { echo "Cargo.lock does not pin matsim-rust at $commit" >&2; exit 1; }
+        elif grep -q "^source = \"git+$MATSIM_RUST" "$OUT/build/Cargo.lock"; then
+            echo "Cargo.lock still takes matsim-rust from git for $name" >&2
+            exit 1
+        fi
+        cp "$OUT/build/target/release/berlin_iterations_v7" "$OUT/build/Cargo.lock" "$OUT/bin/$name/"
+        echo "$commit" > "$OUT/bin/$name/commit.txt"
+        BINARIES[$name]=$OUT/bin/$name/berlin_iterations_v7
     done
+    rm -rf "$OUT/build/target"
     {
         echo "built: $(date '+%Y-%m-%dT%H:%M:%S%z') without hotpath, from a copy of src/main/rust"
         echo "parallel-qsim-berlin: $(git rev-parse HEAD)$(git diff --quiet || echo ' (dirty)')"
