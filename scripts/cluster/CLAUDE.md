@@ -76,7 +76,26 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   mobsim, backpacking subscribes only to the event types it needs). Both use the binary `2e6d98a7a46b`. Submitted on
   2026-10-20: 91 runs of scaling-v4 (jobs 9588840-9588930) and 52 runs of scaling-v4-gsync (jobs 9588931-9588982),
   output in `output/experiments/submit-scaling-v4{,-gsync}.log`. Sums of the time limits are 50.8 and 58.5 node hours;
-  scaling-v3 and scaling-v3-gsync used 10.1 and 7.6 node hours. Not yet fetched.
+  scaling-v3 and scaling-v3-gsync used 10.1 and 7.6 node hours. All runs completed (exit 0) in 9.8 and 5.4 node hours
+  and are fetched into runs-svn (not committed yet). On the cluster they take 642G and 350G, still with `ITERS/` and
+  plans; afterwards work used 2.18 TiB of 3 TiB and 228k of 250k inodes (2026-10-20).
+  Results (one repetition per setting): #323 removes most of the cost of the barrier. At 0 %, RTR with global sync is
+  4.79M at 1 partition (without 4.83M, scaling-v3-gsync 1.19M) and 36.1k at 192 (42.3k, 2.53k). With agents, global
+  sync keeps 50-100 % of the RTR without it (lowest at 10 %, 96-192 partitions), and from 4 partitions on rust with
+  global sync is 1.1-3.4 times as fast as DSim. #324 cuts the scoring cost per step at 1-8 partitions by about a third
+  (overhead at 10 %: 37-43 % before, 23-29 % now). Without scoring, RTR is within 7 % of scaling-v3 up to 64
+  partitions and within -10 %/+18 % at 96-192 (0 % differs as much there, so that is run-to-run noise). Open: with
+  scoring on, 1 % and 3 % at 32-192 partitions are often 10-40 % slower than in scaling-v3 (1 % at 96: 40.9k
+  instead of 66.2k). At 64-192 partitions, the scoring costs 5-17 us per step there in v4, about as much as at 10 %
+  (11-19 us), but 1-6 us in v3. All those 1 % runs ran on genoa1230, the 3 % ones on several nodes. Repetitions
+  would show whether #324 added a fixed cost per step.
+- `scripts/cluster/hotpath.sh [name]` (2026-10-20, written because the user finds rust at many partitions
+  unsatisfying): builds with `--features hotpath` into `src/main/rust/target/hotpath` (not `target/release`) and runs
+  10 cases in one job on one node: 1 % and 3 % at 32/96/192 partitions with hotpath (scoring on, at 96 also off), and
+  the plain binaries of scaling-v4 and scaling-v3 at 1 %, 96 partitions, scoring on. Output in
+  `output/hotpath/<name>/` (outside `out_root`, no `manifest.csv`, not fetched by `fetch`; rsync command in the
+  script header). `hotpath.json` sums each function over all threads, so it shows no imbalance between partitions;
+  waiting for the neighbors is in `message_broker::send_recv`. The user runs the script themselves.
 - `~/scratch/rust-pt-routing` holds the older async-routing project. Its results are in
   `runs-svn/matsim-rust/async-routing-2026`.
 - Tools on the cluster: `uv` and `python3` (`~/scratch/miniforge3/bin`), `svn`, `rsync` 3.2.7, Slurm. Locally, `rsync`
@@ -167,6 +186,9 @@ Always:
     with rings and labeled.
   - 1b `rtr_vs_parts`: three panels side by side for 1/3/10 %, on the same y scale (the user explicitly wants that).
     The maxima and the values at 1 partition are marked with rings and labeled.
+- Every figure has the experiments and their library versions in small print below its lower right corner (the user
+  wants that, 2026-10-20): `setting` in `load.py` (from `build_info.json`, for DSim from the jar name), `SETTING_NOTE`
+  in `plots.py`. Turn it off for the paper.
 - Rust is red and DSim violet. The maximum of each line is marked with a ring and labeled (`compact`, e.g. 32.5k).
   Labels are in a white box framed in the line color. `label_points` picks the label position automatically; the
   x axes extend beyond 192 partitions so that labels of points there can sit centered next to them (the user found
@@ -191,11 +213,13 @@ Always:
 - Plot 3 has one panel with all pct values (the user wants it that way, unlike plot 1). On the left are the RTR lines
   with scoring on and off. On the right is only the overhead in the mobsim (RTR off / RTR on - 1, iterations 1-9),
   not the whole iteration.
-- Status (2026-10-19): the analysis uses `scaling-v3` (`EXPERIMENTS` in `load.py`). `python -m iterations` also
+- Status (2026-10-20): the analysis uses `scaling-v4` (`EXPERIMENTS` in `load.py`). `python -m iterations` also
   writes plots 1a and 1b with global sync as `rtr_no_agents_gsync` and `rtr_vs_parts_gsync` (`GSYNC_EXPERIMENTS`:
-  `scaling-v3-gsync` and `dsim-scaling`, legend "Rust, global sync"), if these experiments are fetched. Do not load
-  `scaling-v3` and `scaling-v3-gsync` together into the plots: both have rust runs with the same pct/parts/scoring,
-  and the plot functions do not separate them by `global_sync`. Plot 4 (events on/off) still needs runs.
+  `scaling-v4-gsync` and `dsim-scaling`, legend "Rust, global sync"), if these experiments are fetched. Do not load
+  `scaling-v4` and `scaling-v4-gsync` (or v3 with v3-gsync) together into the plots: both have rust runs with the
+  same pct/parts/scoring, and the plot functions do not separate them by `global_sync`. The v3 figures:
+  `--experiments scaling-v3 dsim-scaling --gsync-experiments scaling-v3-gsync dsim-scaling`. Plot 4 (events on/off)
+  still needs runs.
 
 ## Rules of the computing center on LLM use
 
