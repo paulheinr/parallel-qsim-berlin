@@ -135,20 +135,32 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
     3 slowest would be exactly these 3 with a chance of 1 in 56. #323, 2c4135cf and 99a27380 do not change the RTR.
   - Iteration 0, where all builds start from the same plans, shows the same split (before 3e477073 mostly
     51-58k, from it on 38-48k). So it is the mobsim itself, not other plans through scoring and replanning.
-  - On top of that, the code layout matters: f2f49a27 only removes `Backpack::handle_event` and
-    `PartialPlan::handle_event`, which only tests call, so the code that runs is that of 3e477073, but it is 18 %
-    slower. In the two binaries, only 24 of 5.9k functions differ (TypeId constants, which depend on the rev, and
-    unrelated code: tracing, lz4, parquet), but 47 of the 242 functions of the mobsim, events and scoring sit at
-    another alignment (mod 64). Binaries of the same code spread by 6 % before 3e477073 (66.9-70.9k) and by 20 %
-    from it on (47.7-58.3k).
+  - f2f49a27 only removes `Backpack::handle_event` and `PartialPlan::handle_event`, which only tests call, so the
+    code that runs is that of 3e477073 (in the binaries, only 24 of 5.9k functions differ: TypeId constants, which
+    depend on the rev, and unrelated code; 47 of the 242 functions of the mobsim, events and scoring sit at another
+    alignment). It was 18 % slower than 3e477073 here, but not in `poll` on another node (59.3k vs. 57.3k), so that
+    was run-to-run noise, not the code layout. From 3e477073 on, runs of the same binary spread much more (in
+    `poll`, 3e477073: 63.1k and 51.5k) than before (99a27380: 69.1-72.7k in four runs on two nodes).
   - Not understood: from the code, 3e477073 should make backpacking cheaper, and hotpath shows that the backpacking
     work is small. It (a) boxes `pt_description` in `PartialRoute` (one allocation per pt leg) and (b) replaces the
     `IntSet` of the persons per vehicle by `VehicleOccupants` (first person inline, others in a `Vec`; no allocation
-    per vehicle). The effect must be indirect, e.g. the guess above that small changes of the step time get
-    amplified by blocking, or the allocation pattern.
+    per vehicle). Blocking does not explain it, see `poll`.
+- `poll` (job 9590823, 2026-10-20, 23 min on genoa1168, all 20 runs exit 0; target dir deleted by the script,
+  outputs on the cluster, fetched without plans to the gitignored local `output/commits/poll`, not in svn): 99a27380,
+  3e477073 and f2f49a27 with `POLL_BEFORE_BLOCKING` = 10 ms instead of 50 us (partitions practically never block),
+  built from a changed copy of cargo's checkout (path dependency), against the binaries of pr324. Two repetitions,
+  RTR as median of the 18 iterations 1-9 of both, 50 us -> 10 ms:
+  - 1 %, 96 partitions, scoring on: 99a27380 71.7k -> 60.6k, 3e477073 56.1k -> 50.0k, f2f49a27 58.9k -> 49.5k.
+    Scoring off, 99a27380: 78.8k -> 73.7k. 1 %, 192 partitions, scoring on, f2f49a27: 25.5k -> 26.3k.
+  - Longer polling does not help: at 96 partitions all builds get 6-16 % slower, at 192 nothing changes. So
+    blocking and slow wake-ups are not what limits the mobsim there (the guess from hotpath-v4b is wrong). Why
+    polling costs is not checked (maybe lower clock rates of the busy cores, or contention on the channels).
+  - With 10 ms, 3e477073 is still 17 % slower than 99a27380. So its slowdown is not amplified by blocking, and the
+    gap of 99a27380 to 3e477073 is reproduced on a second node (71.7k vs. 56.1k with 50 us).
   - Next step (needs the user's OK, builds and compute time): build 3e477073 with only (a) and with only (b)
-    reverted, each with fixed function alignment (`-C llvm-args=-align-all-functions=6`) or several layouts, and
-    compare them with 99a27380 and 3e477073 built the same way.
+    reverted (`git diff 3e477073 99a27380 -- <file>` applied to 3e477073; `commits.sh` takes only sed expressions
+    so far), and run them with 99a27380 and 3e477073 with at least 4 repetitions, because runs of 3e477073 spread by
+    up to 20 %.
 - `~/scratch/rust-pt-routing` holds the older async-routing project. Its results are in
   `runs-svn/matsim-rust/async-routing-2026`.
 - Tools on the cluster: `uv` and `python3` (`~/scratch/miniforge3/bin`), `svn`, `rsync` 3.2.7, Slurm. Locally, `rsync`
