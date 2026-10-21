@@ -1,0 +1,45 @@
+# Scaling of berlin_iterations_v7 with 10 iterations, 1pct only, rust only, without global sync and without events.
+#
+#   uv run scripts/cluster/cluster.py submit experiments/scaling-v6.toml --dry-run
+#
+# The 1pct runs with scoring of scaling-v5.toml (13 partition counts, no events, same time limits) with matsim-rust from
+# the branch main-mode-neighbors (on top of e20838e) and networks partitioned with MinConn and constant edge weights
+# (input/partitioning/metis-minconn-const.yml). build_info.json and description.md record the commit that Cargo.lock
+# pins on the cluster.
+
+comment = """
+1pct with scoring of scaling-v5 (13 partition counts, no events, same time limits), rust only, with fewer neighbors
+per partition and better balanced partitions. In scaling-v5, the wall time per step without agents grows about linearly
+with the maximum number of neighbors of a partition (about 0.5 us per neighbor up to 96 partitions), and 1pct is bound
+by it from about 64 partitions on.
+
+matsim-rust: branch main-mode-neighbors on top of e20838e (scaling-v5):
+- 5f87d084: links that allow modes, but none of the main modes (in Berlin the pt links, whose vehicles are
+  teleported), no longer make partitions neighbors. MetisOptions::min_conn sets METIS's MinConn.
+- c646f29c: imbalance_factor is METIS's load imbalance (1.1 = 10 %). Before, 1.1 was passed as ufactor 1100 and allowed
+  partitions 2.1 times as heavy as the mean. This only matters for partitioning, the runs read partitioned networks.
+
+Networks berlin-v7.1.network.metis-minconn-const.<P>.xml.zst: METIS with MinConn (minimize the maximum number of
+neighbors), constant edge weights (minimize the number of cut node pairs instead of their capacity) and at most 1.1
+times the mean number of links per partition, otherwise as metis.yml (vertex weight InLinkCount, pt nodes assigned to
+the nearest partitioned node afterwards).
+
+Maximum number of neighbors over main-mode links at 96 / 192 partitions: 8 / 9, instead of 14 / 13 with the networks of
+scaling-v5 (20 / 26 counting the pt links, as scaling-v5 did). Links of the largest partition relative to the mean:
+1.05 / 1.04 instead of 1.43 / 1.55. Not balanced: the traffic. The vehicles per day on the links of the busiest
+partition (volumes of the MATSim 1pct run) are 2.4 / 3.5 times the mean, in scaling-v5 3.5 / 4.6.
+"""
+
+iterations = 10
+repetitions = 1
+
+# The 1pct limits of scaling-v3 to scaling-v5
+[time_limit]
+"1" = [[2, "00:30:00"], [192, "00:15:00"]]
+
+[[grid]]
+pct = [1]
+parts = [1, 2, 4, 8, 16, 24, 32, 48, 64, 96, 128, 144, 192]
+method = ["metis-minconn-const"]
+scoring = [true]
+events = [false]

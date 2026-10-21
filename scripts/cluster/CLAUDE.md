@@ -26,7 +26,9 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
 - Relative paths like `../../shared-svn` in `cluster.toml` / `cluster-dsim.toml` resolve to `~/scratch/...` on the
   cluster and to `~/...` locally, so the same settings work on both.
 - The cluster repo has local changes in `src/main/rust/Cargo.toml` and `Cargo.lock`. There, matsim-rust is a git
-  dependency (GitHub) and `Cargo.lock` pins its commit (e20838e since 2026-10-20). Locally it is a path dependency. Do
+  dependency (GitHub) and `Cargo.lock` pins its commit. Since 2026-10-21 (for scaling-v6) the dependency has
+  `branch = "main-mode-neighbors"` and the lock pins c646f29c; before, main at e20838e. Remove the branch again
+  for experiments with main. Locally it is a path dependency. Do
   not overwrite these changes. To build a newer matsim-rust from main on the cluster:
   `cargo update -p matsim-rust && cargo build --release` in `src/main/rust` (ask first, see Rules). Cargo is in
   `~/.cargo/env`; the build takes about half a minute.
@@ -131,8 +133,8 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
     `cmp_weight` = vehicles per day on the in-links from the MATSim 1pct `output_links.csv.gz`, without the pt links,
     which carry half of MATSim's volume) balanced the traffic to 1.08 at 9 / 9 neighbors, but the user rejected it:
     the volumes are not known beforehand and it is too complicated.
-  - `scaling-v6` (`experiments/scaling-v6.toml`): only that network, 1pct, scoring on, rust only, 13 runs, time
-    limits of v5 (30 min at 1-2 partitions, else 15). Events: see the toml (the user asked for events, to be confirmed).
+  - `scaling-v6` (`experiments/scaling-v6.toml`): only that network, 1pct, scoring on, events off, rust only, 13
+    runs, time limits of v5 (30 min at 1-2 partitions, else 15).
 - `scripts/cluster/hotpath.sh [name]` (2026-10-20, written because the user finds rust at many partitions
   unsatisfying): builds with `--features hotpath` into `src/main/rust/target/hotpath` (not `target/release`) and runs
   10 cases in one job on one node: 1 % and 3 % at 32/96/192 partitions with hotpath (scoring on, at 96 also off), and
