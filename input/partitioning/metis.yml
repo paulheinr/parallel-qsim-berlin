@@ -8,3 +8,5 @@ edge_weight: Capacity
 # to the mean. Before, the value was the excess, so the 1.1 of the networks metis.<P> in shared-svn allowed 2.1 times the
 # mean; 2.1 reproduces them with the new code.
 imbalance_factor: 2.1
+# Since matsim-rust 7fc31259 (main), MinConn is on by default; the networks metis.<P> were partitioned without it.
+min_conn: false

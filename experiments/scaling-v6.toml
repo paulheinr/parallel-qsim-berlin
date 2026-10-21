@@ -1,19 +1,21 @@
-# Scaling of berlin_iterations_v7 with 10 iterations, 1pct only, rust only, without global sync and without events.
+# Scaling of berlin_iterations_v7 with 10 iterations, all runs without writing events: the grid of scaling-v5.toml
+# without global sync, with matsim-rust from the branch main-mode-neighbors (c646f29c, on top of e20838e; merged into
+# main as 7fc31259 with MinConn on by default, which only matters for partitioning) and the networks
+# metis-minconn-const (input/partitioning/metis-minconn-const.yml).
 #
 #   uv run scripts/cluster/cluster.py submit experiments/scaling-v6.toml --dry-run
 #
-# The 1pct runs with scoring of scaling-v5.toml (13 partition counts, no events, same time limits) with matsim-rust from
-# the branch main-mode-neighbors (on top of e20838e) and networks partitioned with MinConn and constant edge weights
-# (input/partitioning/metis-minconn-const.yml). build_info.json and description.md record the commit that Cargo.lock
-# pins on the cluster.
+# Submitted in two steps: first only 1pct with scoring (2026-10-21, 13 runs), then the rest of the grid with the same
+# binary. build_info.json and description.md record the commit that Cargo.lock pins on the cluster. The DSim runs on the
+# same networks are dsim-scaling-minconn.toml.
 
 comment = """
-1pct with scoring of scaling-v5 (13 partition counts, no events, same time limits), rust only, with fewer neighbors
-per partition and better balanced partitions. In scaling-v5, the wall time per step without agents grows about linearly
-with the maximum number of neighbors of a partition (about 0.5 us per neighbor up to 96 partitions), and 1pct is bound
-by it from about 64 partitions on.
+The grid of scaling-v5 without global sync (pct 1/3/10 with scoring on and off, 0pct with scoring, 13 partition
+counts, same time limits), rust only, with fewer neighbors per partition and better balanced partitions. In
+scaling-v5, the wall time per step without agents grows about linearly with the maximum number of neighbors of a
+partition (about 0.5 us per neighbor up to 96 partitions), and 1pct is bound by it from about 64 partitions on.
 
-matsim-rust: branch main-mode-neighbors on top of e20838e (scaling-v5):
+matsim-rust: branch main-mode-neighbors on top of e20838e (scaling-v5), merged into main as PR #328 (7fc31259):
 - 5f87d084: links that allow modes, but none of the main modes (in Berlin the pt links, whose vehicles are
   teleported), no longer make partitions neighbors. MetisOptions::min_conn sets METIS's MinConn.
 - c646f29c: imbalance_factor is METIS's load imbalance (1.1 = 10 %). Before, 1.1 was passed as ufactor 1100 and allowed
@@ -28,17 +30,36 @@ Maximum number of neighbors over main-mode links at 96 / 192 partitions: 8 / 9, 
 scaling-v5 (20 / 26 counting the pt links, as scaling-v5 did). Links of the largest partition relative to the mean:
 1.05 / 1.04 instead of 1.43 / 1.55. Not balanced: the traffic. The vehicles per day on the links of the busiest
 partition (volumes of the MATSim 1pct run) are 2.4 / 3.5 times the mean, in scaling-v5 3.5 / 4.6.
+
+The first 13 runs (1pct with scoring, 2026-10-21) were 1.24-1.61 times as fast as scaling-v5 from 16 partitions on,
+but slower at 4 and 8 partitions, where the traffic of the busiest partition decides. The rest of the grid adds 0pct
+(the cost of the synchronization with the new neighbors), scoring off, and 3pct and 10pct, where the work and its
+balance matter more.
 """
 
 iterations = 10
 repetitions = 1
 
-# The 1pct limits of scaling-v3 to scaling-v5
+# The time limits of scaling-v3 to scaling-v5 (twice the longest elapsed time in scaling, rounded up to 15 minutes, at
+# least 15 minutes). scaling-v5 needed at most 1/4 of them.
 [time_limit]
+"0" = "00:15:00"
 "1" = [[2, "00:30:00"], [192, "00:15:00"]]
+"3" = [[1, "01:15:00"], [2, "01:00:00"], [8, "00:30:00"], [192, "00:15:00"]]
+"10" = [[1, "04:15:00"], [2, "03:30:00"], [4, "01:30:00"], [8, "01:00:00"], [24, "00:45:00"], [96, "00:30:00"],
+    [192, "00:15:00"]]
 
+# Influence of scoring
 [[grid]]
-pct = [1]
+pct = [1, 3, 10]
+parts = [1, 2, 4, 8, 16, 24, 32, 48, 64, 96, 128, 144, 192]
+method = ["metis-minconn-const"]
+scoring = [true, false]
+events = [false]
+
+# Synchronization without agents (empty population), only with scoring, as in scaling-v5
+[[grid]]
+pct = [0]
 parts = [1, 2, 4, 8, 16, 24, 32, 48, 64, 96, 128, 144, 192]
 method = ["metis-minconn-const"]
 scoring = [true]

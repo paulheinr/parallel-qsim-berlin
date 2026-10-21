@@ -20,6 +20,9 @@ from .plots import (OUT_DIR, neighbors_vs_parts, phase_lines, rtr_no_agents, rtr
                     scoring_overhead)
 
 GSYNC_LABELS = {"rust": "Rust, global sync"}
+# Experiment with the MinConn networks (metis-minconn-const) and matsim-rust main-mode-neighbors, for
+# neighbors_vs_parts_minconn
+MINCONN_EXPERIMENT = "scaling-v6"
 
 
 def main():
@@ -40,8 +43,13 @@ def main():
         "rtr_vs_parts": rtr_vs_parts(rtr),
         "phase_lines": phase_lines(medians),
         "scoring_overhead": scoring_overhead(rtr),
-        "neighbors_vs_parts": neighbors_vs_parts(load_neighbors(runs)),
     }
+    neighbors = load_neighbors(runs)
+    figures["neighbors_vs_parts"] = neighbors_vs_parts(neighbors)
+    if (args.data / MINCONN_EXPERIMENT / "runs.csv").exists():
+        # counted as matsim-rust does since main-mode-neighbors, without lines of other networks
+        minconn = load_neighbors(load_runs(args.data, [MINCONN_EXPERIMENT]))
+        figures["neighbors_vs_parts_minconn"] = neighbors_vs_parts(minconn, "neighbors_main_modes", references={})
 
     missing = [e for e in args.gsync_experiments if not (args.data / e / "runs.csv").exists()]
     if missing:
