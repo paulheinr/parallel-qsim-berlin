@@ -136,8 +136,16 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
     the volumes are not known beforehand and it is too complicated.
   - `scaling-v6` (`experiments/scaling-v6.toml`): only that network, 1pct, scoring on, events off, rust only, 13
     runs, time limits of v5 (30 min at 1-2 partitions, else 15). Binary `64f9c025149c` (matsim-rust c646f29).
-    Submitted on 2026-10-21: jobs 9594167-9594179, output in `output/experiments/submit-scaling-v6.log`. Not yet
-    fetched; compare with the 1pct runs with scoring of scaling-v5.
+    Submitted on 2026-10-21: jobs 9594167-9594179, output in `output/experiments/submit-scaling-v6.log`. All 13
+    completed (exit 0, 1-6 min each) and are fetched (svn add, not committed yet).
+  - Results against the 1pct runs with scoring of scaling-v5 (one run each, median RTR of iterations 1-9): from 16
+    partitions on, v6 is 1.24-1.61 times as fast (96: 96.2k instead of 77.5k, now 7.2 times DSim; 128: 86.2k
+    instead of 63.5k; 144: 77.5k instead of 53.9k; 192: 43.4k instead of 33.7k). Time per step at 96: 10.4 us
+    (v5 12.9, v5 without agents 9.9); at 128-192 v6 with agents is about as fast as v5 without agents. 1 partition
+    unchanged (6.48k). At 2 partitions faster (9.66k instead of 6.91k), at 4 and 8 slower (12.4k instead of 14.8k,
+    18.5k instead of 28.4k): there the neighbors hardly matter and the traffic of the busiest partition does (traffic
+    max/mean v6 vs v5: 1.20 vs 1.87 at 2, 1.60 vs 1.41 at 4, 2.03 vs 1.75 at 8). No 0pct runs with v6 yet, so the
+    sync cost per neighbor with the new networks is not measured directly.
 - `scripts/cluster/hotpath.sh [name]` (2026-10-20, written because the user finds rust at many partitions
   unsatisfying): builds with `--features hotpath` into `src/main/rust/target/hotpath` (not `target/release`) and runs
   10 cases in one job on one node: 1 % and 3 % at 32/96/192 partitions with hotpath (scoring on, at 96 also off), and
