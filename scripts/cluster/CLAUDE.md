@@ -125,8 +125,9 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   - New networks `berlin-v7.1.network.metis-minconn-const.<P>.xml.zst` (`input/partitioning/metis-minconn-const.yml`:
     MinConn, constant edge weights, imbalance 1.1), created locally with `partition_networks` built against the
     branch (a copy of `src/main/rust` with the path dependency pointing to the worktree; that build reproduces
-    `metis.096` exactly). Copied into the local shared-svn on 2026-10-21; the user commits them to svn and updates
-    the cluster.
+    `metis.096` exactly). Committed by the user to shared-svn (r40477) on 2026-10-21. On the cluster, only
+    `~/scratch/shared-svn/projects/rust-qsim/berlin-v7.1` is a working copy (its `.svn` is there, not in
+    `~/scratch/shared-svn`): `svn update ~/scratch/shared-svn/projects/rust-qsim/berlin-v7.1/network`.
   - Compared (main-mode neighbors max at 96 / 192, links of the largest partition / mean, traffic of the busiest
     partition / mean): metis 14 / 13, 1.43 / 1.55, 3.5 / 4.6; MinConn with capacity weights 11 / 13; MinConn with
     constant weights 8 / 9, 1.05 / 1.04, 2.4 / 3.5. Traffic as vertex weight (`PreComputed`, node attribute
@@ -134,7 +135,9 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
     which carry half of MATSim's volume) balanced the traffic to 1.08 at 9 / 9 neighbors, but the user rejected it:
     the volumes are not known beforehand and it is too complicated.
   - `scaling-v6` (`experiments/scaling-v6.toml`): only that network, 1pct, scoring on, events off, rust only, 13
-    runs, time limits of v5 (30 min at 1-2 partitions, else 15).
+    runs, time limits of v5 (30 min at 1-2 partitions, else 15). Binary `64f9c025149c` (matsim-rust c646f29).
+    Submitted on 2026-10-21: jobs 9594167-9594179, output in `output/experiments/submit-scaling-v6.log`. Not yet
+    fetched; compare with the 1pct runs with scoring of scaling-v5.
 - `scripts/cluster/hotpath.sh [name]` (2026-10-20, written because the user finds rust at many partitions
   unsatisfying): builds with `--features hotpath` into `src/main/rust/target/hotpath` (not `target/release`) and runs
   10 cases in one job on one node: 1 % and 3 % at 32/96/192 partitions with hotpath (scoring on, at 96 also off), and
