@@ -27,8 +27,8 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   cluster and to `~/...` locally, so the same settings work on both.
 - The cluster repo has local changes in `src/main/rust/Cargo.toml` and `Cargo.lock`. There, matsim-rust is a git
   dependency (GitHub) and `Cargo.lock` pins its commit. Since 2026-10-21 (for scaling-v6) the dependency has
-  `branch = "main-mode-neighbors"` and the lock pins c646f29c; before, main at e20838e. Remove the branch again
-  for experiments with main. Locally it is a path dependency. Do
+  `branch = "main-mode-neighbors"` and the lock pins c646f29c; before, main at e20838e. The branch is merged into
+  main (7fc31259, no other changes to the simulation). Remove the branch again for the next experiment with main. Locally it is a path dependency. Do
   not overwrite these changes. To build a newer matsim-rust from main on the cluster:
   `cargo update -p matsim-rust && cargo build --release` in `src/main/rust` (ask first, see Rules). Cargo is in
   `~/.cargo/env`; the build takes about half a minute.
@@ -146,6 +146,19 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
     18.5k instead of 28.4k): there the neighbors hardly matter and the traffic of the busiest partition does (traffic
     max/mean v6 vs v5: 1.20 vs 1.87 at 2, 1.60 vs 1.41 at 4, 2.03 vs 1.75 at 8). No 0pct runs with v6 yet, so the
     sync cost per neighbor with the new networks is not measured directly.
+  - PR matsim-vsp/matsim-rust#328 merged on 2026-10-21 as 7fc31259; main also turns MinConn on by default
+    (`min_conn` serde default true), so `metis.yml` says `min_conn: false` to keep reproducing `metis.<P>`.
+  - Extension of scaling-v6 (2026-10-21, the user asked for it): the grid of scaling-v5 without global sync (pct
+    1/3/10 scoring on and off, 0pct scoring on), same binary `64f9c025149c` as the first 13 runs (cluster still on
+    the branch build). 78 runs, jobs 9594942-9595019, output in `output/experiments/submit-scaling-v6-rest.log`.
+  - `dsim-scaling-minconn` (`experiments/dsim-scaling-minconn.toml`, settings `cluster-dsim.toml`): the grid of
+    dsim-scaling on the networks metis-minconn-const, jar of dsim-scaling (`15df90a81a1d`, matsim-berlin ff27314),
+    time limits about 2.5 times the elapsed times of dsim-scaling. 52 runs, jobs 9595020-9595071, output in
+    `output/experiments/submit-dsim-scaling-minconn.log`.
+  - Inodes: on 2026-10-21 work was at 250.55k of 250k inodes (grace period started). With the user's approval, the
+    per-rank logs `runs/*/output/logs/log_process_<rank>.txt` (not fetched; `log_process_controller.txt` is kept) of
+    scaling, scaling-v2, scaling-v3, scaling-v3-gsync, scaling-v4 and scaling-v4-gsync were deleted (27,324 files).
+    A rust run at 192 partitions has 192 such logs, they make most of the inodes of an experiment.
 - `scripts/cluster/hotpath.sh [name]` (2026-10-20, written because the user finds rust at many partitions
   unsatisfying): builds with `--features hotpath` into `src/main/rust/target/hotpath` (not `target/release`) and runs
   10 cases in one job on one node: 1 % and 3 % at 32/96/192 partitions with hotpath (scoring on, at 96 also off), and
