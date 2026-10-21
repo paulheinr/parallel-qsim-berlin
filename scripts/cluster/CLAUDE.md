@@ -95,7 +95,20 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   matsim-rust main at e20838e: #326 (revert of 3e477073) and #325 (xml crate 1.4.0, only the XML events writer and a
   test). Both use the binary `a841419d22ae`. Submitted on 2026-10-20: 91 runs of scaling-v5 (jobs 9591312-9591402)
   and 52 runs of scaling-v5-gsync (jobs 9591403-9591454), output in `output/experiments/submit-scaling-v5{,-gsync}.log`.
-  Not yet fetched. Expected: the RTR of scaling-v3 with scoring on at 32-192 partitions, the rest of #324 at 1-8.
+  All runs completed (exit 0) in 10.0 and 5.6 node hours; fetched on 2026-10-21 and in runs-svn (r6971).
+  Results (one repetition per setting; ratios of the median RTR):
+  - The revert works: with scoring on at 32-192 partitions, v5 is 1.13-1.90x as fast as v4 at 1 % and 1.04-1.39x at
+    3 % (except 3 % at 96, 32.7k, a single run with iterations from 30.9k to 40.6k), and as fast as or faster than
+    v3 (1 % at 96: 77.5k, v4 40.9k, v3 66.2k). Scoring overhead in the mobsim at 32-192 partitions: 1 % 4-15 %
+    (v3 8-32 %, v4 14-114 %), 10 % 20-26 % (v3 26-35 %).
+  - At 1-4 partitions, the smaller backpacks did help: overhead at 10 % 30-36 % in v5, 23-29 % in v4, 37-40 % in v3;
+    v5/v4 at 10 % scoring on is 0.90 (P=1), 0.95 (2), 0.91 (4). So the rest of #324 gains little at P=1 on Genoa;
+    most of its gain at few partitions came from 3e477073.
+  - 0 % and scoring off: unchanged against v3 and v4 (differences within run-to-run noise).
+  - Global sync: v5-gsync is 1.11-1.50x as fast as v4-gsync at 1 % from 16 partitions and 1.06-1.26x at 3 %, about
+    the same at 10 %. From 8 partitions it keeps 73-92 % of the RTR without global sync at 1 % and 79-105 % at
+    3 %; at 10 % only 40-77 % from 64 partitions. Maxima: 1 % 56.7k (without 77.5k), 3 % 33.2k (40.2k), 10 % 11.4k (19.3k); DSim
+    13.7k, 9.02k, 5.05k.
 - Cleanup before scaling-v5 (2026-10-20, with the user's approval; before it 2.37 TiB and 239.8k inodes): deleted
   `ITERS/` and `output_plans.binpb` of all runs of scaling-v4 and scaling-v4-gsync (941 GB, now 29G and 25G) and of
   `output/commits/{pr324,poll,revert}` (134 GB, now 3.7G, 3.7G and 6.8G), and `output/commits/revert/build` (836
@@ -273,7 +286,10 @@ Always:
   - 1a `rtr_no_agents`: only 0 %, with its own y axis. The maxima and the last values (192 partitions) are marked
     with rings and labeled.
   - 1b `rtr_vs_parts`: three panels side by side for 1/3/10 %, on the same y scale (the user explicitly wants that).
-    The maxima and the values at 1 partition are marked with rings and labeled.
+    The maxima and the values at 1 partition are marked with rings and labeled. Each panel also shows the 0 % lines
+    of rust and DSim muted (engine color, alpha 0.4, thinner, no markers or labels, legend "Rust, 0 %"), as the upper
+    limit of the runs with agents (the user wants that, 2026-10-21). They must not change the y scale, which comes
+    from the data with agents; above it they are clipped (rust 0 % enters at about 16 partitions).
 - Every figure has the experiments and their library versions in small print below its lower right corner (the user
   wants that, 2026-10-20): `setting` in `load.py` (from `build_info.json`, for DSim from the jar name), `SETTING_NOTE`
   in `plots.py`. Turn it off for the paper.
@@ -301,12 +317,12 @@ Always:
 - Plot 3 has one panel with all pct values (the user wants it that way, unlike plot 1). On the left are the RTR lines
   with scoring on and off. On the right is only the overhead in the mobsim (RTR off / RTR on - 1, iterations 1-9),
   not the whole iteration.
-- Status (2026-10-20): the analysis uses `scaling-v4` (`EXPERIMENTS` in `load.py`). `python -m iterations` also
+- Status (2026-10-21): the analysis uses `scaling-v5` (`EXPERIMENTS` in `load.py`). `python -m iterations` also
   writes plots 1a and 1b with global sync as `rtr_no_agents_gsync` and `rtr_vs_parts_gsync` (`GSYNC_EXPERIMENTS`:
-  `scaling-v4-gsync` and `dsim-scaling`, legend "Rust, global sync"), if these experiments are fetched. Do not load
-  `scaling-v4` and `scaling-v4-gsync` (or v3 with v3-gsync) together into the plots: both have rust runs with the
-  same pct/parts/scoring, and the plot functions do not separate them by `global_sync`. The v3 figures:
-  `--experiments scaling-v3 dsim-scaling --gsync-experiments scaling-v3-gsync dsim-scaling`. Plot 4 (events on/off)
+  `scaling-v5-gsync` and `dsim-scaling`, legend "Rust, global sync"), if these experiments are fetched. Do not load
+  `scaling-v5` and `scaling-v5-gsync` (or v4 with v4-gsync, v3 with v3-gsync) together into the plots: both have rust
+  runs with the same pct/parts/scoring, and the plot functions do not separate them by `global_sync`. Older figures:
+  `--experiments scaling-v4 dsim-scaling --gsync-experiments scaling-v4-gsync dsim-scaling` (same for v3). Plot 4 (events on/off)
   still needs runs.
 
 ## Rules of the computing center on LLM use

@@ -179,12 +179,29 @@ def setting_note(fig, df: pd.DataFrame):
         fig.text(1.0, 0.0, ", ".join(sorted(df["setting"].unique())), ha="right", va="top", fontsize=5.5, color=MUTED)
 
 
-def engine_legend(fig, engine_labels: dict | None = None):
-    """Legend of the engines above the figure. engine_labels replaces the labels of single engines, e.g. of rust."""
+def engine_legend(fig, engine_labels: dict | None = None, no_agents: bool = False):
+    """Legend of the engines above the figure. engine_labels replaces the labels of single engines, e.g. of rust.
+    no_agents adds the muted lines of 0 % (see no_agents_lines)."""
     engine_labels = engine_labels or {}
     handles = [Line2D([], [], color=s["color"], linestyle=s["linestyle"], marker=s["marker"],
                       label=engine_labels.get(engine, s["label"])) for engine, s in ENGINES.items()]
+    if no_agents:
+        handles += [Line2D([], [], color=s["color"], linestyle=s["linestyle"], **NO_AGENTS_STYLE,
+                           label=f"{engine_labels.get(engine, s['label'])}, 0 %") for engine, s in ENGINES.items()]
     fig.legend(handles=handles, ncols=len(handles), loc="lower center", bbox_to_anchor=(0.5, 1.0), handlelength=2.6)
+
+
+# The lines without agents (0 %) behind the lines with agents: they are about the upper limit of the RTR with agents
+NO_AGENTS_STYLE = {"alpha": 0.4, "linewidth": 0.8}
+
+
+def no_agents_lines(ax, df: pd.DataFrame):
+    """Draws the real-time ratio without agents (0 %) of rust and DSim muted, without markers and labels, behind the
+    other lines. The y limits must be final: the lines are clipped at the axes and do not change the scale."""
+    for engine, style in ENGINES.items():
+        g = df[df["engine"] == engine].sort_values("parts")
+        ax.plot(g["parts"], g["rtr"], color=style["color"], linestyle=style["linestyle"], zorder=1.5,
+                **NO_AGENTS_STYLE)
 
 
 def rtr_no_agents(rtr: pd.DataFrame, engine_labels: dict | None = None) -> plt.Figure:
@@ -203,11 +220,14 @@ def rtr_no_agents(rtr: pd.DataFrame, engine_labels: dict | None = None) -> plt.F
     return fig
 
 
-def rtr_vs_parts(rtr: pd.DataFrame, engine_labels: dict | None = None) -> plt.Figure:
+def rtr_vs_parts(rtr: pd.DataFrame, engine_labels: dict | None = None, no_agents: bool = True) -> plt.Figure:
     """Plot 1b: real-time ratio over the number of partitions, one panel per pct with agents (rust with scoring, DSim),
-    all on the same y scale. The maximum of each line and the values at 1 partition are marked and labeled.
-    engine_labels: see engine_legend."""
-    df = rtr[rtr["scoring"] & ~rtr["events"] & (rtr["pct"] > 0)]
+    all on the same y scale. The maximum of each line and the values at 1 partition are marked and labeled. no_agents
+    draws the lines of 0 % muted in every panel, as the upper limit; they do not change the y scale and leave the
+    panel where they are above it. engine_labels: see engine_legend."""
+    selected = rtr[rtr["scoring"] & ~rtr["events"]]
+    df = selected[selected["pct"] > 0]
+    zero = selected[selected["pct"] == 0] if no_agents else selected.iloc[:0]
     pcts = sorted(df["pct"].unique())
     with plt.rc_context(STYLE):
         fig, axes = plt.subplots(1, len(pcts), figsize=(FULL_WIDTH, 2.6), sharex=True, sharey=True, squeeze=False)
@@ -216,7 +236,11 @@ def rtr_vs_parts(rtr: pd.DataFrame, engine_labels: dict | None = None) -> plt.Fi
             labels[ax] = rtr_lines(ax, df[df["pct"] == pct], label_parts=(1,))
             rtr_axes(ax, pct, ylabel=i == 0)
         axes[0, 0].set_xlim(right=380)  # room to center the labels of maxima at 192 partitions (x is shared)
-        engine_legend(fig, engine_labels)
+        if not zero.empty:
+            axes[0, 0].set_ylim(axes[0, 0].get_ylim())  # fix the scale of the data with agents (y is shared)
+            for ax in axes.flat:
+                no_agents_lines(ax, zero)
+        engine_legend(fig, engine_labels, no_agents=not zero.empty)
         fig.tight_layout(w_pad=1.5)
         for ax, points in labels.items():
             label_points(ax, points)

@@ -2,8 +2,8 @@
 
     cd src/main/python && uv run --group analysis python -m iterations [--out DIR] [--data DIR] [--experiments ...]
 
-Older rust runs: --experiments scaling-v3 dsim-scaling (and --gsync-experiments scaling-v3-gsync dsim-scaling),
-scaling-v2, or scaling (before the mobsim optimizations). Plots 1a and 1b are also written with global sync
+Older rust runs: --experiments scaling-v4 dsim-scaling (and --gsync-experiments scaling-v4-gsync dsim-scaling),
+scaling-v3, scaling-v2, or scaling (before the mobsim optimizations). Plots 1a and 1b are also written with global sync
 (--gsync-experiments, files *_gsync), if these experiments are in --data.
 """
 import argparse

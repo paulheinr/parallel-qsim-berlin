@@ -32,12 +32,12 @@ from pathlib import Path
 import pandas as pd
 
 DATA_ROOT = Path.home() / "runs-svn/matsim-rust/iterations-vs-dsim-2026"
-# rust (matsim-rust eec3c5f) and DSim. Older rust runs: scaling-v3 (f91a7b2), scaling-v2 (d41dba8), scaling (6960b40,
-# before the mobsim optimizations).
-EXPERIMENTS = ["scaling-v4", "dsim-scaling"]
+# rust (matsim-rust e20838e) and DSim. Older rust runs: scaling-v4 (eec3c5f, slower with scoring at many partitions,
+# see 3e477073), scaling-v3 (f91a7b2), scaling-v2 (d41dba8), scaling (6960b40, before the mobsim optimizations).
+EXPERIMENTS = ["scaling-v5", "dsim-scaling"]
 # The same plots 1a and 1b with global sync: all partitions wait at a barrier in every time step (rust only). Older:
-# scaling-v3-gsync (f91a7b2, std::sync::Barrier instead of the spin-then-park barrier).
-GSYNC_EXPERIMENTS = ["scaling-v4-gsync", "dsim-scaling"]
+# scaling-v4-gsync (eec3c5f), scaling-v3-gsync (f91a7b2, std::sync::Barrier instead of the spin-then-park barrier).
+GSYNC_EXPERIMENTS = ["scaling-v5-gsync", "dsim-scaling"]
 # Columns that identify a run. setting only describes the experiment (name and library version, for the figures).
 RUN_KEYS = ["experiment", "setting", "run_id", "engine", "pct", "parts", "method", "scoring", "events", "global_sync",
             "rep"]
