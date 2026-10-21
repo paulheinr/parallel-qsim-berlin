@@ -114,6 +114,25 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   `output/commits/{pr324,poll,revert}` (134 GB, now 3.7G, 3.7G and 6.8G), and `output/commits/revert/build` (836
   files). That freed only about 2.4k inodes; each pair of scaling experiments adds about 11.8k (only about 900 of
   them in `ITERS/`), so the inode limit of 250k is close. Most inodes are outside this project.
+- Fewer neighbors and better balance (2026-10-21, the user asked for it, see `neighbors_vs_parts` below):
+  - matsim-rust branch `main-mode-neighbors` (local worktree `~/git/parallel_qsim_rust_worktrees/main-mode-neighbors`,
+    on top of e20838e): 5f87d084 `SimNetworkPartition::find_neighbors` ignores links that allow modes but no main mode
+    (pt is teleported), and `MetisOptions::min_conn` sets METIS's MinConn; c646f29c `imbalance_factor` is METIS's
+    load imbalance (1.1 = 10 %; before, 1.1 became ufactor 1100, i.e. up to 2.1 times the mean). `metis.yml` now says
+    2.1, which reproduces the networks `metis.<P>` with the new code.
+  - New networks `berlin-v7.1.network.metis-minconn-const.<P>.xml.zst` (`input/partitioning/metis-minconn-const.yml`:
+    MinConn, constant edge weights, imbalance 1.1), created locally with `partition_networks` built against the
+    branch (a copy of `src/main/rust` with the path dependency pointing to the worktree; that build reproduces
+    `metis.096` exactly). Copied into the local shared-svn on 2026-10-21; the user commits them to svn and updates
+    the cluster.
+  - Compared (main-mode neighbors max at 96 / 192, links of the largest partition / mean, traffic of the busiest
+    partition / mean): metis 14 / 13, 1.43 / 1.55, 3.5 / 4.6; MinConn with capacity weights 11 / 13; MinConn with
+    constant weights 8 / 9, 1.05 / 1.04, 2.4 / 3.5. Traffic as vertex weight (`PreComputed`, node attribute
+    `cmp_weight` = vehicles per day on the in-links from the MATSim 1pct `output_links.csv.gz`, without the pt links,
+    which carry half of MATSim's volume) balanced the traffic to 1.08 at 9 / 9 neighbors, but the user rejected it:
+    the volumes are not known beforehand and it is too complicated.
+  - `scaling-v6` (`experiments/scaling-v6.toml`): only that network, 1pct, scoring on, rust only, 13 runs, time
+    limits of v5 (30 min at 1-2 partitions, else 15). Events: see the toml (the user asked for events, to be confirmed).
 - `scripts/cluster/hotpath.sh [name]` (2026-10-20, written because the user finds rust at many partitions
   unsatisfying): builds with `--features hotpath` into `src/main/rust/target/hotpath` (not `target/release`) and runs
   10 cases in one job on one node: 1 % and 3 % at 32/96/192 partitions with hotpath (scoring on, at 96 also off), and
@@ -293,6 +312,22 @@ Always:
 - Every figure has the experiments and their library versions in small print below its lower right corner (the user
   wants that, 2026-10-20): `setting` in `load.py` (from `build_info.json`, for DSim from the jar name), `SETTING_NOTE`
   in `plots.py`. Turn it off for the paper.
+- `neighbors_vs_parts` (2026-10-21, the user asked for it): neighbors per partition of the 13 networks of the runs
+  (`berlin-v7.1.network.metis.<P>.xml.zst` in shared-svn, the same for rust and DSim), computed by
+  `iterations/partitions.py` from the local checkout (all 13 in about 10 s; `neighbors_of` for any set of networks,
+  optionally with `link_volumes` for the traffic per partition). One dot per partition, rows of dots side by side
+  (width = count), lines for mean and maximum, and muted lines for other maxima (`references`); equally spaced
+  partition counts (128/144/192 too close on a log axis). `column`: `neighbors` (any link, matsim-rust up to e20838e)
+  or `neighbors_main_modes` (as on the branch main-mode-neighbors).
+  - Mean about 7 from 16 partitions on, but the maximum grows: 11 (16), 16 (24), 20 (96, 128), 25 (144), 26 (192).
+    pt links (mode pt only, a quarter of the 284k links) make a fifth of the neighbor pairs (136 of 665 at 192);
+    without them the maximum is 13-15. METIS balances the number of links (InLinkCount), not the traffic, and
+    nothing limits the neighbors of a partition (matsim-rust sets UFactor, Seed and Contig, not MinConn).
+  - Without agents, the wall time per step of rust (1/RTR) is about 0.5 us per neighbor of the partition with the
+    most neighbors up to 96 partitions (0.41-0.61; correlation 0.97 with the maximum, 0.89 with the mean), and rises
+    to 0.62 (128), 0.66 (144) and 0.94 us (192) beyond one socket. DSim: 2.0-3.0 us per neighbor. So the slowest
+    partition sets the pace (every partition waits for all of its neighbors in every step), and 1 % is bound by
+    this from about 64 partitions on (step 12.9 us at 96 and 29.7 at 192, of which 9.9 and 24.3 at 0 %).
 - Rust is red and DSim violet. The maximum of each line is marked with a ring and labeled (`compact`, e.g. 32.5k).
   Labels are in a white box framed in the line color. `label_points` picks the label position automatically; the
   x axes extend beyond 192 partitions so that labels of points there can sit centered next to them (the user found

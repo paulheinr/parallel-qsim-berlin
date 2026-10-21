@@ -1,0 +1,13 @@
+# Same as metis.yml, but with partitions at most 10 % heavier than the mean, constant edge weights (each pair of
+# connected nodes counts 1, so METIS minimizes the number of cut node pairs instead of their capacity) and METIS's
+# MinConn option, which tries to minimize the maximum number of neighbors of a partition (matsim-rust
+# MetisOptions::min_conn, branch main-mode-neighbors, 2026-10-21). Constant edge weights give MinConn more room: it only
+# resolves interfaces with a small edge weight, and with capacity as weight, an interface over a main road is strong.
+# The file stem ("metis-minconn-const") is the method label used in network file names and experiment definitions.
+!Metis
+vertex_weight:
+  - InLinkCount
+edge_weight: Constant
+# largest partition weight (InLinkCount) at most 1.1 times the mean (matsim-rust c646f29c; metis.<P> allowed 2.1)
+imbalance_factor: 1.1
+min_conn: true

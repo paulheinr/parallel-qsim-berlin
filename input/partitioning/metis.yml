@@ -4,4 +4,7 @@
 vertex_weight:
   - InLinkCount
 edge_weight: Capacity
-imbalance_factor: 1.1
+# Since matsim-rust c646f29c (branch main-mode-neighbors), imbalance_factor is the largest partition weight relative
+# to the mean. Before, the value was the excess, so the 1.1 of the networks metis.<P> in shared-svn allowed 2.1 times the
+# mean; 2.1 reproduces them with the new code.
+imbalance_factor: 2.1

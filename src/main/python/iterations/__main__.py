@@ -15,7 +15,9 @@ matplotlib.use("Agg")
 
 from .load import (DATA_ROOT, EXPERIMENTS, GSYNC_EXPERIMENTS, load_phases, load_runs, phase_summary,  # noqa: E402
                    rtr_summary)
-from .plots import OUT_DIR, phase_lines, rtr_no_agents, rtr_vs_parts, save, scoring_overhead  # noqa: E402
+from .partitions import load_neighbors  # noqa: E402
+from .plots import (OUT_DIR, neighbors_vs_parts, phase_lines, rtr_no_agents, rtr_vs_parts, save,  # noqa: E402
+                    scoring_overhead)
 
 GSYNC_LABELS = {"rust": "Rust, global sync"}
 
@@ -38,6 +40,7 @@ def main():
         "rtr_vs_parts": rtr_vs_parts(rtr),
         "phase_lines": phase_lines(medians),
         "scoring_overhead": scoring_overhead(rtr),
+        "neighbors_vs_parts": neighbors_vs_parts(load_neighbors(runs)),
     }
 
     missing = [e for e in args.gsync_experiments if not (args.data / e / "runs.csv").exists()]

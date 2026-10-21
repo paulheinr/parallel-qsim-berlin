@@ -322,6 +322,58 @@ def scoring_overhead(rtr: pd.DataFrame) -> plt.Figure:
     return fig
 
 
+# Muted lines for the maxima of other countings or networks in neighbors_vs_parts, in this order
+_REFERENCE_STYLES = [{"color": MUTED, "linestyle": (0, (4, 2))}, {"color": MUTED, "linestyle": (0, (1.5, 1.5))},
+                     {"color": MUTED, "linestyle": (0, (6, 1.5, 1.5, 1.5))}]
+NEIGHBORS_LABELS = {"neighbors": "all links", "neighbors_main_modes": "main-mode links only"}
+
+
+def neighbors_vs_parts(neighbors: pd.DataFrame, column: str = "neighbors", references: dict | None = None,
+                       ymax: float | None = None) -> plt.Figure:
+    """Number of neighbors of each partition (partitions.load_neighbors) over the number of partitions: one dot per
+    partition, side by side where several have the same number, so the width of a row shows how many, with lines for
+    the mean and the maximum. column: neighbors (every link counts, up to matsim-rust e20838e) or
+    neighbors_main_modes (as since the branch main-mode-neighbors). references: further maxima as muted lines,
+    label -> Series indexed by the number of partitions; by default the maximum of the other column. ymax: upper end
+    of the y axis, to compare figures. The partition counts are equally spaced, because 128, 144 and 192 are too
+    close on a log axis for rows of dots."""
+    if references is None:
+        other = next(c for c in NEIGHBORS_LABELS if c != column)
+        references = {f"Maximum, {NEIGHBORS_LABELS[other]}": neighbors.groupby("parts")[other].max()}
+    parts = sorted(neighbors["parts"].unique())
+    position = {p: i for i, p in enumerate(parts)}
+    stats = neighbors.groupby("parts")[column].agg(["mean", "max"])
+    lines = [("Maximum", stats["max"], {"color": TEXT}),
+             ("Mean", stats["mean"], {"color": TEXT, "linestyle": (0, (1, 1.5))})]
+    lines += [(label, series, style) for (label, series), style in zip(references.items(), _REFERENCE_STYLES)]
+    with plt.rc_context(STYLE):
+        fig, ax = plt.subplots(figsize=(FULL_WIDTH, 2.6))
+        for (p, n), g in neighbors.groupby(["parts", column]):
+            offsets = (np.arange(len(g)) - (len(g) - 1) / 2) * min(0.05, 0.8 / len(g))
+            ax.scatter(position[p] + offsets, np.full(len(g), n), s=5, color=MUTED, alpha=0.45, linewidth=0,
+                       zorder=1.5)
+        for label, series, style in lines:
+            series = series[series.index.isin(parts)]
+            ax.plot([position[p] for p in series.index], series, label=label, **style)
+        ax.set_xticks(range(len(parts)), [f"{p:g}" for p in parts])
+        ax.set_xlim(-0.6, len(parts) - 0.4)
+        ax.grid(axis="x", visible=False)
+        ax.set_ylim(0, ymax)
+        ax.set_xlabel("Partitions")
+        ax.set_ylabel(f"Neighbors per partition\n({NEIGHBORS_LABELS[column]})")
+
+        handles = ([Line2D([], [], color=MUTED, alpha=0.6, linestyle="none", marker="o", markersize=3,
+                           label="Partition")] + [Line2D([], [], label=label, **style) for label, _, style in lines])
+        fig.legend(handles=handles, ncols=len(handles), loc="lower center", bbox_to_anchor=(0.5, 1.0),
+                   handlelength=2.6)
+        fig.tight_layout()
+        last = parts[-1]
+        label_points(ax, [(position[last], series[last], f"{series[last]:g}", style["color"])
+                          for label, series, style in lines if label != "Mean" and last in series.index])
+        setting_note(fig, neighbors)
+    return fig
+
+
 def save(fig: plt.Figure, name: str, out_dir: Path = OUT_DIR, formats=("pdf", "png")) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     paths = [out_dir / f"{name}.{fmt}" for fmt in formats]
