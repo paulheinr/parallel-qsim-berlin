@@ -2,9 +2,10 @@
 
     cd src/main/python && uv run --group analysis python -m iterations [--out DIR] [--data DIR] [--experiments ...]
 
-Older rust runs: --experiments scaling-v4 dsim-scaling (and --gsync-experiments scaling-v4-gsync dsim-scaling),
-scaling-v3, scaling-v2, or scaling (before the mobsim optimizations). Plots 1a and 1b are also written with global sync
-(--gsync-experiments, files *_gsync), if these experiments are in --data.
+Older runs on the networks metis: --experiments scaling-v5 dsim-scaling --neighbors all (and --gsync-experiments
+scaling-v5-gsync dsim-scaling), likewise scaling-v4, scaling-v3, scaling-v2, or scaling (before the mobsim
+optimizations). Plots 1a and 1b are also written with global sync (--gsync-experiments, files *_gsync), if these
+experiments are in --data.
 """
 import argparse
 from pathlib import Path
@@ -20,9 +21,9 @@ from .plots import (OUT_DIR, neighbors_vs_parts, phase_lines, rtr_no_agents, rtr
                     scoring_overhead)
 
 GSYNC_LABELS = {"rust": "Rust, global sync"}
-# Experiment with the MinConn networks (metis-minconn-const) and matsim-rust main-mode-neighbors, for
-# neighbors_vs_parts_minconn
-MINCONN_EXPERIMENT = "scaling-v6"
+# How the rust runs count the neighbors of a partition: main-modes since matsim-rust PR #328 (scaling-v6), all links
+# before (scaling-v5 and older)
+NEIGHBOR_COLUMNS = {"main-modes": "neighbors_main_modes", "all": "neighbors"}
 
 
 def main():
@@ -32,6 +33,9 @@ def main():
     parser.add_argument("--experiments", nargs="+", default=EXPERIMENTS, help="experiments below --data")
     parser.add_argument("--gsync-experiments", nargs="+", default=GSYNC_EXPERIMENTS,
                         help="experiments for plots 1a and 1b with global sync")
+    parser.add_argument("--neighbors", choices=NEIGHBOR_COLUMNS, default="main-modes",
+                        help="how the rust runs of --experiments count neighbors: main-modes since matsim-rust PR #328 "
+                             "(scaling-v6), all links before")
     args = parser.parse_args()
 
     runs = load_runs(args.data, args.experiments)
@@ -44,12 +48,10 @@ def main():
         "phase_lines": phase_lines(medians),
         "scoring_overhead": scoring_overhead(rtr),
     }
-    neighbors = load_neighbors(runs)
-    figures["neighbors_vs_parts"] = neighbors_vs_parts(neighbors)
-    if (args.data / MINCONN_EXPERIMENT / "runs.csv").exists():
-        # counted as matsim-rust does since main-mode-neighbors, without lines of other networks
-        minconn = load_neighbors(load_runs(args.data, [MINCONN_EXPERIMENT]))
-        figures["neighbors_vs_parts_minconn"] = neighbors_vs_parts(minconn, "neighbors_main_modes", references={})
+    # main-modes: without lines of the other counting; all: with the maximum over main-mode links
+    column = NEIGHBOR_COLUMNS[args.neighbors]
+    figures["neighbors_vs_parts"] = neighbors_vs_parts(load_neighbors(runs), column,
+                                                       references={} if args.neighbors == "main-modes" else None)
 
     missing = [e for e in args.gsync_experiments if not (args.data / e / "runs.csv").exists()]
     if missing:

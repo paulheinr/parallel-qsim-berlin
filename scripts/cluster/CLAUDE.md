@@ -159,6 +159,22 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
     per-rank logs `runs/*/output/logs/log_process_<rank>.txt` (not fetched; `log_process_controller.txt` is kept) of
     scaling, scaling-v2, scaling-v3, scaling-v3-gsync, scaling-v4 and scaling-v4-gsync were deleted (27,324 files).
     A rust run at 192 partitions has 192 such logs, they make most of the inodes of an experiment.
+  - Fetched on 2026-10-21 and in runs-svn (r6972): scaling-v6 87 of 91 runs and dsim-scaling-minconn 51 of 52 (all
+    exit 0); still pending then: the 10pct runs with 1 and 2 partitions (rust, 4) and with 1 partition (DSim, 1).
+    Fetch them later and commit again.
+  - Results (median RTR of iterations 1-9, one run per setting, scoring on):
+    - 0pct, wall time per step: v6 5.65 us at 96 partitions (v5 9.9), 6.7 at 128, 9.7 at 144, 19.8 at 192 (v5 24.3).
+      Up to 96 partitions 0.54-0.73 us per neighbor; beyond, the time per step rises 3.5-fold from 96 to 192 at an
+      almost constant maximum of 8-9 neighbors. So the drop at many partitions is not the neighbors but something
+      that comes with the second socket and the full node (see the hypotheses in the conversation of 2026-10-21:
+      cross-socket communication, no free core / SMT, NUMA, allocator).
+    - v6 / v5 from 16 partitions on: 1pct 1.24-1.61, 3pct 1.06-1.74, 10pct 1.02-1.58; at 4 and 8 partitions slower
+      (0.72-0.84), where the traffic of the busiest partition decides.
+    - Maxima: 1pct 96.2k (96 partitions), 3pct 52.3k (128), 10pct 22.0k (128). Rust / DSim on the same networks: up
+      to 7.2 (1pct), 6.0 (3pct), 4.5 (10pct).
+    - DSim on metis-minconn-const against metis: mostly within -5 %/+10 % from 4 partitions on; at 2 partitions
+      faster with agents (1.26-1.44), 0pct at 2 slower (36k instead of 88k). The new neighbor rule of matsim-rust does
+      not apply to DSim.
 - `scripts/cluster/hotpath.sh [name]` (2026-10-20, written because the user finds rust at many partitions
   unsatisfying): builds with `--features hotpath` into `src/main/rust/target/hotpath` (not `target/release`) and runs
   10 cases in one job on one node: 1 % and 3 % at 32/96/192 partitions with hotpath (scoring on, at 96 also off), and
@@ -378,7 +394,11 @@ Always:
 - Plot 3 has one panel with all pct values (the user wants it that way, unlike plot 1). On the left are the RTR lines
   with scoring on and off. On the right is only the overhead in the mobsim (RTR off / RTR on - 1, iterations 1-9),
   not the whole iteration.
-- Status (2026-10-21): the analysis uses `scaling-v5` (`EXPERIMENTS` in `load.py`). `python -m iterations` also
+- Status (2026-10-21, later): the analysis uses `scaling-v6` and `dsim-scaling-minconn` (`EXPERIMENTS` in `load.py`),
+  both on the networks metis-minconn-const; `neighbors_vs_parts` counts neighbors as matsim-rust does since PR #328
+  (`--neighbors all` for older experiments). The gsync figures still use scaling-v5-gsync and dsim-scaling (networks
+  metis). `load.setting` names DSim experiments by the matsim-berlin commit of the jar (build_info.json also lists the
+  cluster's matsim-rust for them) and strips `?branch=...` from repo URLs. Before: the analysis used `scaling-v5`. `python -m iterations` also
   writes plots 1a and 1b with global sync as `rtr_no_agents_gsync` and `rtr_vs_parts_gsync` (`GSYNC_EXPERIMENTS`:
   `scaling-v5-gsync` and `dsim-scaling`, legend "Rust, global sync"), if these experiments are fetched. Do not load
   `scaling-v5` and `scaling-v5-gsync` (or v4 with v4-gsync, v3 with v3-gsync) together into the plots: both have rust

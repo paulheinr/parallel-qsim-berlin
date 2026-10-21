@@ -32,10 +32,12 @@ from pathlib import Path
 import pandas as pd
 
 DATA_ROOT = Path.home() / "runs-svn/matsim-rust/iterations-vs-dsim-2026"
-# rust (matsim-rust e20838e) and DSim. Older rust runs: scaling-v4 (eec3c5f, slower with scoring at many partitions,
-# see 3e477073), scaling-v3 (f91a7b2), scaling-v2 (d41dba8), scaling (6960b40, before the mobsim optimizations).
-EXPERIMENTS = ["scaling-v5", "dsim-scaling"]
-# The same plots 1a and 1b with global sync: all partitions wait at a barrier in every time step (rust only). Older:
+# rust (matsim-rust c646f29c, PR #328) and DSim on the same networks metis-minconn-const. On the networks metis:
+# scaling-v5 (e20838e) with dsim-scaling, scaling-v4 (eec3c5f, slower with scoring at many partitions, see 3e477073),
+# scaling-v3 (f91a7b2), scaling-v2 (d41dba8), scaling (6960b40, before the mobsim optimizations).
+EXPERIMENTS = ["scaling-v6", "dsim-scaling-minconn"]
+# The same plots 1a and 1b with global sync: all partitions wait at a barrier in every time step (rust only), still on
+# the networks metis (there is no scaling-v6-gsync). Older:
 # scaling-v4-gsync (eec3c5f), scaling-v3-gsync (f91a7b2, std::sync::Barrier instead of the spin-then-park barrier).
 GSYNC_EXPERIMENTS = ["scaling-v5-gsync", "dsim-scaling"]
 # Columns that identify a run. setting only describes the experiment (name and library version, for the figures).
@@ -81,14 +83,18 @@ def load_runs(root: Path = DATA_ROOT, experiments: list[str] = EXPERIMENTS) -> p
 def setting(experiment_dir: Path) -> str:
     """Name of the experiment with the library versions of its binaries from build_info.json, e.g.
     "scaling-v4 (matsim-rust eec3c5f)". Before 2026-10-15, build_info.json did not record matsim-rust, so older rust
-    experiments have the name only. The DSim jar has the matsim-berlin commit in its file name."""
+    experiments have the name only. The DSim jar has the matsim-berlin commit in its file name; build_info.json also lists
+    the matsim-rust of the cluster repo for it, which DSim does not use."""
     info = experiment_dir / "build_info.json"
     versions = []
     for binary in (json.loads(info.read_text()).values() if info.exists() else []):
-        repos = {url.rstrip("/").rsplit("/", 1)[-1]: repo["commit"][:7] for url, repo in binary["repos"].items()}
-        libraries = [f"{name} {commit}" for name, commit in repos.items() if name != "parallel-qsim-berlin"]
-        if not libraries and (m := re.search(r"-g([0-9a-f]{7,})\.jar$", binary["binary"])):
+        if m := re.search(r"-g([0-9a-f]{7,})\.jar$", binary["binary"]):
             libraries = [f"matsim-berlin {m.group(1)[:7]}"]
+        else:
+            # e.g. https://github.com/matsim-vsp/matsim-rust?branch=main-mode-neighbors -> matsim-rust
+            repos = {url.split("?")[0].rstrip("/").rsplit("/", 1)[-1]: repo["commit"][:7]
+                     for url, repo in binary["repos"].items()}
+            libraries = [f"{name} {commit}" for name, commit in repos.items() if name != "parallel-qsim-berlin"]
         versions += [v for v in libraries if v not in versions]
     return f"{experiment_dir.name} ({', '.join(versions)})" if versions else experiment_dir.name
 
