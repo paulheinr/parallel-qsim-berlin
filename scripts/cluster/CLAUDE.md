@@ -176,6 +176,14 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
     - DSim on metis-minconn-const against metis: mostly within -5 %/+10 % from 4 partitions on; at 2 partitions
       faster with agents (1.26-1.44), 0pct at 2 slower (36k instead of 88k). The new neighbor rule of matsim-rust does
       not apply to DSim.
+  - `scaling-v6-gsync` (`experiments/scaling-v6-gsync.toml`, 2026-10-22, the user asked for it): global sync on the
+    networks metis-minconn-const with the binary of scaling-v6 (`64f9c025149c`), grid and time limits of
+    scaling-v5-gsync (pct 0/1/3/10, scoring on, 52 runs, at most 58.5 node hours). Jobs 9597097-9597148, output in
+    `output/experiments/submit-scaling-v6-gsync.log`. Not yet fetched. Once fetched, set `GSYNC_EXPERIMENTS` to
+    scaling-v6-gsync and dsim-scaling-minconn.
+  - Cleanup before scaling-v6-gsync (2026-10-22, with the user's approval; work at 2.93 TiB and 232k inodes): deleted
+    `ITERS/` and `output_plans.binpb` of all runs of scaling-v5 and scaling-v5-gsync (in runs-svn r6971), about 940 GB;
+    now 29G and 25G. scaling-v6 still has them (614 GB).
 - `scripts/cluster/hotpath.sh [name]` (2026-10-20, written because the user finds rust at many partitions
   unsatisfying): builds with `--features hotpath` into `src/main/rust/target/hotpath` (not `target/release`) and runs
   10 cases in one job on one node: 1 % and 3 % at 32/96/192 partitions with hotpath (scoring on, at 96 also off), and
