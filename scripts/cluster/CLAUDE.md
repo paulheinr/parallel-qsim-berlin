@@ -161,7 +161,8 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
     A rust run at 192 partitions has 192 such logs, they make most of the inodes of an experiment.
   - Fetched on 2026-10-21 and in runs-svn (r6972): scaling-v6 87 of 91 runs and dsim-scaling-minconn 51 of 52 (all
     exit 0); still pending then: the 10pct runs with 1 and 2 partitions (rust, 4) and with 1 partition (DSim, 1).
-    Fetch them later and commit again.
+    These finished (exit 0) and were fetched on 2026-10-22; all 91 + 52 runs are in runs-svn (r6973). 10pct, scoring on: 1 partition rust 583 (v5 551), DSim 584; 2 partitions rust 778 (v5
+    604), DSim 855 (metis 592).
   - Results (median RTR of iterations 1-9, one run per setting, scoring on):
     - 0pct, wall time per step: v6 5.65 us at 96 partitions (v5 9.9), 6.7 at 128, 9.7 at 144, 19.8 at 192 (v5 24.3).
       Up to 96 partitions 0.54-0.73 us per neighbor; beyond, the time per step rises 3.5-fold from 96 to 192 at an
