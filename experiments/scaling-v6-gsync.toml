@@ -1,0 +1,39 @@
+# Scaling of berlin_iterations_v7 with 10 iterations and global sync: all partitions wait at a barrier in every time
+# step (computational_setup.global_sync = true), instead of only exchanging messages with their neighbors.
+#
+#   uv run scripts/cluster/cluster.py submit experiments/scaling-v6-gsync.toml --dry-run
+#
+# Same grid and time limits as scaling-v5-gsync.toml, on the networks metis-minconn-const of scaling-v6.toml and with
+# its binary (matsim-rust c646f29c, branch main-mode-neighbors = PR #328). Compare with the runs with scoring on of
+# scaling-v6, which have global_sync = false, and with scaling-v5-gsync (networks metis, e20838e).
+
+comment = """
+Global sync on (`computational_setup.global_sync = true`), the counterpart of scaling-v6 (same binary, matsim-rust
+c646f29c, and same networks metis-minconn-const). Scoring on, events off, pct 0/1/3/10 and the 13 partition counts,
+10 iterations, one repetition; grid and time limits of scaling-v5-gsync.
+
+Every partition still exchanges a message with each neighbor in every step, and in addition waits at a barrier of all
+partitions. With fewer neighbors per partition (maximum 8-9 instead of 20-26 from 96 partitions on), the share of the
+barrier in the time per step should grow. Compare with scaling-v6 (the cost of the barrier on these networks) and
+with scaling-v5-gsync (the effect of the new neighbor rule and networks with global sync). DSim on the same networks:
+dsim-scaling-minconn.
+"""
+
+iterations = 10
+repetitions = 1
+
+# Same as scaling-v3-gsync to scaling-v5-gsync: the time limits of scaling-v3, but at least one hour. scaling-v5-gsync
+# needed 5.6 of the 58.5 node hours.
+[time_limit]
+"0" = "01:00:00"
+"1" = "01:00:00"
+"3" = [[1, "01:15:00"], [192, "01:00:00"]]
+"10" = [[1, "04:15:00"], [2, "03:30:00"], [4, "01:30:00"], [192, "01:00:00"]]
+
+[[grid]]
+pct = [0, 1, 3, 10]
+parts = [1, 2, 4, 8, 16, 24, 32, 48, 64, 96, 128, 144, 192]
+method = ["metis-minconn-const"]
+scoring = [true]
+events = [false]
+global_sync = [true]
