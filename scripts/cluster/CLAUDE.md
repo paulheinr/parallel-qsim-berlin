@@ -179,8 +179,19 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   - `scaling-v6-gsync` (`experiments/scaling-v6-gsync.toml`, 2026-10-22, the user asked for it): global sync on the
     networks metis-minconn-const with the binary of scaling-v6 (`64f9c025149c`), grid and time limits of
     scaling-v5-gsync (pct 0/1/3/10, scoring on, 52 runs, at most 58.5 node hours). Jobs 9597097-9597148, output in
-    `output/experiments/submit-scaling-v6-gsync.log`. Not yet fetched. Once fetched, set `GSYNC_EXPERIMENTS` to
-    scaling-v6-gsync and dsim-scaling-minconn.
+    `output/experiments/submit-scaling-v6-gsync.log`. All 52 completed (exit 0) in 5.5 node hours; fetched on
+    2026-10-23 and in runs-svn (r6974). `GSYNC_EXPERIMENTS` is now scaling-v6-gsync and
+    dsim-scaling-minconn.
+    Results (scoring on, median RTR of iterations 1-9, one run each):
+    - Global sync against scaling-v6: 0pct costs the barrier 0.4 us per step at 2 partitions, 1.1-1.9 at 16-48, 2.3-3.3
+      at 64-192 (e.g. 96: 8.7 instead of 5.65 us). With agents, global sync keeps 70-98 % of the RTR at 1pct (70-80 %
+      from 48 partitions on), 73-102 % at 3pct, but only 43-73 % at 10pct from 64 partitions on (192: 8.5k instead of
+      19.6k): the barrier makes every step wait for the busiest partition of all, whose traffic is 2.4-3.5 times the
+      mean there.
+    - Against scaling-v5-gsync (networks metis): from 16 partitions on 1.14-1.64 times as fast at 1pct, 0.99-1.54 at
+      3pct, 0.96-1.43 at 10pct; at 4 and 8 partitions 0.69-0.83 (traffic balance, as without global sync).
+    - Maxima: 1pct 69.6k (96 partitions; v5-gsync 56.7k), 3pct 39.7k (96), 10pct 12.8k (96). Against DSim on the same
+      networks: up to 5.2 (1pct), 4.4 (3pct), 2.8 (10pct).
   - Cleanup before scaling-v6-gsync (2026-10-22, with the user's approval; work at 2.93 TiB and 232k inodes): deleted
     `ITERS/` and `output_plans.binpb` of all runs of scaling-v5 and scaling-v5-gsync (in runs-svn r6971), about 940 GB;
     now 29G and 25G. scaling-v6 still has them (614 GB).
@@ -405,8 +416,8 @@ Always:
   not the whole iteration.
 - Status (2026-10-21, later): the analysis uses `scaling-v6` and `dsim-scaling-minconn` (`EXPERIMENTS` in `load.py`),
   both on the networks metis-minconn-const; `neighbors_vs_parts` counts neighbors as matsim-rust does since PR #328
-  (`--neighbors all` for older experiments). The gsync figures still use scaling-v5-gsync and dsim-scaling (networks
-  metis). `load.setting` names DSim experiments by the matsim-berlin commit of the jar (build_info.json also lists the
+  (`--neighbors all` for older experiments). The gsync figures use scaling-v6-gsync and dsim-scaling-minconn (since
+  2026-10-23; before scaling-v5-gsync and dsim-scaling on the networks metis). `load.setting` names DSim experiments by the matsim-berlin commit of the jar (build_info.json also lists the
   cluster's matsim-rust for them) and strips `?branch=...` from repo URLs. Before: the analysis used `scaling-v5`. `python -m iterations` also
   writes plots 1a and 1b with global sync as `rtr_no_agents_gsync` and `rtr_vs_parts_gsync` (`GSYNC_EXPERIMENTS`:
   `scaling-v5-gsync` and `dsim-scaling`, legend "Rust, global sync"), if these experiments are fetched. Do not load

@@ -36,10 +36,10 @@ DATA_ROOT = Path.home() / "runs-svn/matsim-rust/iterations-vs-dsim-2026"
 # scaling-v5 (e20838e) with dsim-scaling, scaling-v4 (eec3c5f, slower with scoring at many partitions, see 3e477073),
 # scaling-v3 (f91a7b2), scaling-v2 (d41dba8), scaling (6960b40, before the mobsim optimizations).
 EXPERIMENTS = ["scaling-v6", "dsim-scaling-minconn"]
-# The same plots 1a and 1b with global sync: all partitions wait at a barrier in every time step (rust only), still on
-# the networks metis (there is no scaling-v6-gsync). Older:
+# The same plots 1a and 1b with global sync: all partitions wait at a barrier in every time step (rust only), on the
+# networks metis-minconn-const as EXPERIMENTS. On the networks metis: scaling-v5-gsync (e20838e) with dsim-scaling,
 # scaling-v4-gsync (eec3c5f), scaling-v3-gsync (f91a7b2, std::sync::Barrier instead of the spin-then-park barrier).
-GSYNC_EXPERIMENTS = ["scaling-v5-gsync", "dsim-scaling"]
+GSYNC_EXPERIMENTS = ["scaling-v6-gsync", "dsim-scaling-minconn"]
 # Columns that identify a run. setting only describes the experiment (name and library version, for the figures).
 RUN_KEYS = ["experiment", "setting", "run_id", "engine", "pct", "parts", "method", "scoring", "events", "global_sync",
             "rep"]
