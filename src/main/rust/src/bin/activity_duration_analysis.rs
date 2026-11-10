@@ -102,7 +102,7 @@ impl MyHandler {
         let entry = records.get_mut(last).unwrap();
 
         entry.mode = event.leg_mode.external().to_string();
-        entry.routing_mode = event.routing_mode.external().to_string();
+        entry.routing_mode = event.routing_mode.as_ref().unwrap().external().to_string();
     }
 
     fn write(&self, path: &Path) {
