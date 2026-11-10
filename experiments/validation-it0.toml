@@ -1,0 +1,41 @@
+# Validation of the traffic of rust against DSim, part it0: only the mobsim (iteration 0) with the calibrated plans of
+# Berlin v7.1 with pt, for both traffic dynamics and both link dynamics, 8 partitions. The same runs with DSim are
+# dsim-validation-it0.toml. Inputs and the commands of a run: input/v7.1/README.md.
+#
+#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation.toml submit experiments/validation-it0.toml --dry-run
+#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation.toml fetch validation-it0
+
+comment = """
+Validation of rust against DSim (dsim-validation-it0), iteration 0 only: the mobsim with the calibrated output plans of
+Berlin v7.1 (pt, 1/3/10pct), so that both engines simulate the same routes. Compared are the trips
+(output_trips.csv.zst, written by MATSim's TripsAndLegsCsvWriter from the experienced plans of rust; DSim writes its
+own), e.g. travel times per mode and the distributions per trip.
+
+Grid: traffic dynamics queue and kinematicWaves x link dynamics FIFO and PassingQ, 8 partitions (network
+metis-minconn-const.008, the same file and partitions for both engines), scoring on, events off, one run each with the
+seed of the configs (4711).
+
+Unlike the scaling experiments, rust reads the XML inputs of the calibrated MATSim runs (configs
+input/v7.1/berlin-v7.1.<pct>pct.pt.config.yml, settings cluster-validation.toml) instead of the binpb files.
+
+Time limits are rough estimates: locally, 1pct takes about one minute per engine on 8 threads (rust 48 s, DSim 52 s);
+at 8 partitions on Genoa, an iteration of scaling-v6 took 12/35/113 s at 1/3/10pct, plus reading the XML inputs and
+writing the trips.
+"""
+
+iterations = 1
+repetitions = 1
+
+[time_limit]
+"1" = "00:30:00"
+"3" = "00:30:00"
+"10" = "01:00:00"
+
+[[grid]]
+pct = [1, 3, 10]
+parts = [8]
+method = ["metis-minconn-const"]
+scoring = [true]
+events = [false]
+traffic = ["queue", "kinematicWaves"]
+link = ["FIFO", "PassingQ"]

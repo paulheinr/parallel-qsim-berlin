@@ -1,0 +1,62 @@
+# Validation of the traffic of rust against DSim, part it100: 101 iterations (0 to 100) from plans without routes and
+# without pt users, kinematicWaves and PassingQ, 8 partitions, 3 seeds at 1pct. The same runs with DSim are
+# dsim-validation-it100.toml. Inputs and the commands of a run: input/v7.1/README.md.
+#
+#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation.toml submit experiments/validation-it100.toml --dry-run
+#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation.toml fetch validation-it100
+
+comment = """
+Validation of rust against DSim (dsim-validation-it100) with replanning: 101 iterations (0 to 100) from the plans
+berlin-v7.1-<pct>pct.plans-nopt-noroutes.xml.gz (persons with a pt leg in any plan removed, routes removed), so that
+both engines route and replan on their own travel times. Compared are the trips of the last iteration
+(output_trips.csv.zst, written by MATSim's TripsAndLegsCsvWriter from the experienced plans of rust) and the
+convergence.
+
+Configs input/v7.1/berlin-v7.1.<pct>pct.nopt.config.yml (no transit), kinematicWaves and PassingQ, 8 partitions
+(network metis-minconn-const.008, the same partitions as DSim), scoring on, events off. ReRoute 0.2 and SelectExpBeta 0.8
+for all subpopulations; innovation off and score MSA from iteration 90
+(replanning.fraction_of_iterations_to_disable_innovation and scoring.fraction_of_iterations_to_start_score_msa = 0.9).
+Seeds 1, 2 and 3 at 1pct (the spread between seeds of one engine is the reference for the difference between the
+engines), seed 1 at 3pct and 10pct.
+
+Time limits are rough estimates: at 8 partitions on Genoa, an iteration of scaling-v6 (calibrated plans with routes)
+took 12/35/113 s at 1/3/10pct, so 101 iterations take about 20 min/1 h/3.2 h, plus the first iterations, which are
+congested because all routes are computed on free-flow travel times. The limits are about 3 times that (at most the
+12 h of cpu-genoa).
+"""
+
+config = "input/{version}/berlin-{version}.{pct}pct.nopt.config.yml"
+extra_args = [
+    "--set", "replanning.fraction_of_iterations_to_disable_innovation=0.9",
+    "--set", "scoring.fraction_of_iterations_to_start_score_msa=0.9",
+]
+iterations = 101
+repetitions = 1
+
+[run_env]
+PLANS = "../../shared-svn/projects/rust-qsim/berlin-{version}/{pct}pct/berlin-{version}-{pct}pct.plans-nopt-noroutes.xml.gz"
+
+[time_limit]
+"1" = "02:00:00"
+"3" = "04:00:00"
+"10" = "10:00:00"
+
+[[grid]]
+pct = [1]
+parts = [8]
+method = ["metis-minconn-const"]
+scoring = [true]
+events = [false]
+traffic = ["kinematicWaves"]
+link = ["PassingQ"]
+seed = [1, 2, 3]
+
+[[grid]]
+pct = [3, 10]
+parts = [8]
+method = ["metis-minconn-const"]
+scoring = [true]
+events = [false]
+traffic = ["kinematicWaves"]
+link = ["PassingQ"]
+seed = [1]

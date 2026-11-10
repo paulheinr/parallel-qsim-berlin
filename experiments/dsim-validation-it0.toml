@@ -1,0 +1,40 @@
+# Validation of the traffic of rust against DSim, part it0, the DSim runs: only the mobsim (iteration 0) with the
+# calibrated plans of Berlin v7.1 with pt, for both traffic dynamics and both link dynamics, 8 partitions. The same runs
+# with rust are validation-it0.toml. Inputs and the commands of a run: input/v7.1/README.md.
+#
+#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation-dsim.toml submit experiments/dsim-validation-it0.toml --dry-run
+#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation-dsim.toml fetch dsim-validation-it0
+
+comment = """
+Validation of rust (validation-it0) against DSim, iteration 0 only, the DSim runs: the mobsim with the calibrated output
+plans of Berlin v7.1 (pt, 1/3/10pct), so that both engines simulate the same routes. Compared are the trips
+(berlin-v7.1-<pct>pct.output_trips.csv.zst, written by DSim itself).
+
+Grid: traffic dynamics queue and kinematicWaves (dsim.trafficDynamics) x link dynamics FIFO and PassingQ
+(dsim.linkDynamics), 8 threads on the network metis-minconn-const.008 with dsim.partitioning = none (the same partitions
+as rust), events off, one run each with the seed of the configs (4711).
+
+Unlike dsim-scaling and dsim-scaling-minconn, the configs are those of this repository
+(input/v7.1/berlin-v7.1-<pct>pct.pt.dsim.config.xml, settings cluster-validation-dsim.toml), which read the same files
+as the rust configs, and the scoring parameters come from the same file as for rust (--scoring-config).
+
+Time limits are rough estimates: locally, 1pct takes about one minute per engine on 8 threads (rust 48 s, DSim 52 s);
+at 8 partitions on Genoa, an iteration of dsim-scaling-minconn took 25/49/125 s at 1/3/10pct, plus reading the inputs.
+"""
+
+iterations = 1
+repetitions = 1
+
+[time_limit]
+"1" = "00:30:00"
+"3" = "00:30:00"
+"10" = "01:00:00"
+
+[[grid]]
+pct = [1, 3, 10]
+parts = [8]
+method = ["metis-minconn-const"]
+scoring = [true]
+events = [false]
+traffic = ["queue", "kinematicWaves"]
+link = ["FIFO", "PassingQ"]

@@ -1,0 +1,45 @@
+# Settings for the DSim runs on the inputs of the validation against rust (experiments/dsim-validation-*.toml) and of
+# later benchmarks on the same inputs: the configs input/v7.1/berlin-v7.1-<pct>pct.{pt,nopt}.dsim.config.xml, which read
+# the same XML files as the rust configs (see input/v7.1/README.md). The rust counterpart is cluster-validation.toml.
+#
+#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation-dsim.toml submit experiments/dsim-validation-it0.toml --dry-run
+#
+# Otherwise as cluster-dsim.toml, but without PLANS, VEHICLES and FACILITIES (the configs contain them) and without a
+# 0pct block. Relative paths are resolved against the repository root.
+
+out_root = "output/experiments"
+
+# The networks partitioned for rust are used with dsim.partitioning=none, so both use the same partitions.
+partitions_root = "../../shared-svn/projects/rust-qsim"
+
+scenario_version = "v7.1"
+# with pt; an experiment can set config = "input/{version}/berlin-{version}-{pct}pct.nopt.dsim.config.xml"
+config_pattern = "input/{version}/berlin-{version}-{pct}pct.pt.dsim.config.xml"
+network_pattern = "berlin-{version}/network/berlin-{version}.network.{method}.{parts:03d}.xml.zst"
+
+# Built with `./mvnw clean package -DskipTests` in matsim-berlin (branch ph/v7.1.1-dsim, needs --scoring-config of
+# OpenBerlinDSimBenchmark). The newest match is used and copied into the experiment.
+binary = "../matsim-berlin/matsim-berlin-7.1-SNAPSHOT-*.jar"
+
+# Written to run.env, {version} and {pct} are replaced.
+[run_env]
+ENGINE = "dsim"
+JAVA = "java"
+JAVA_OPTS = "-XX:MaxRAMPercentage=80"
+# The scoring parameters, the same file as scoring.scoring_parameters_path of the rust configs.
+SCORING_CONFIG = "../../shared-svn/projects/rust-qsim/berlin-{version}/{pct}pct/berlin-{version}-{pct}pct.scoring.xml"
+# Prefix of the output files, the same as in the configs.
+RUN_ID = "berlin-{version}-{pct}pct"
+
+[slurm]
+partition = "cpu-genoa"
+mail_user = "heinrich@vsp.tu-berlin.de"
+mail_type = "FAIL"
+default_time = "01:00:00"
+
+# See cluster.toml.
+[fetch]
+host = "hlrn-genoa"
+remote_repo = "scratch/iterations-rust/parallel-qsim-berlin"
+target = "../../runs-svn/matsim-rust/iterations-vs-dsim-2026"
+extra_files = ["runs/*/output/*.output_trips.csv.zst"]

@@ -34,10 +34,24 @@ from pathlib import Path, PurePosixPath
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO = SCRIPT_DIR.parents[1]
 RUN_SCRIPT = SCRIPT_DIR / "run-sim.sh"
-GRID_KEYS = ("pct", "parts", "method", "scoring", "events", "global_sync")
+GRID_KEYS = ("pct", "parts", "method", "scoring", "events", "global_sync", "traffic", "link", "seed")
 # Grid keys that a [[grid]] block may leave out, with their value then. Runs with the default have the same run id as
 # before the key was added.
-GRID_DEFAULTS = {"global_sync": [False]}
+GRID_DEFAULTS = {"global_sync": [False], "traffic": [None], "link": [None], "seed": [None]}
+# Grid keys whose default None passes nothing, so the value of the config applies. Only runs that set them have them
+# in params.json, and runs.csv only has their columns if a run sets them.
+OPTIONAL_KEYS = ("traffic", "link", "seed")
+# Allowed values of traffic and link in MATSim's spelling (DSim needs it, rust ignores the case) with their short form
+# in run ids. Both forms (in any case) are accepted in experiment definitions and by --only.
+TRAFFIC_DYNAMICS = {"queue": "queue", "kinematicWaves": "kw"}
+LINK_DYNAMICS = {"FIFO": "fifo", "PassingQ": "pq"}
+SHORT_NAMES = {"traffic": TRAFFIC_DYNAMICS, "link": LINK_DYNAMICS}
+# Keys of an experiment definition. config, run_env and extra_args are applied on top of the settings.
+EXPERIMENT_KEYS = {"name", "comment", "grid", "repetitions", "iterations", "time_limit", "config", "run_env",
+                   "extra_args"}
+# run_env variables whose file is copied into <exp>/<directory>/<sha12>/ like the binary, so that rebuilding it does
+# not change queued jobs.
+SNAPSHOT_ENV = {"TRIPS_JAR": "trips-jar"}
 MANIFEST_FIELDS = ["run_id", "job_id", "submitted_at"]
 DESCRIPTION_FILE = "description.md"
 
@@ -63,16 +77,28 @@ class Run:
     events: bool
     global_sync: bool
     rep: int
+    traffic: str | None = None    # traffic dynamics, key of TRAFFIC_DYNAMICS
+    link: str | None = None       # link dynamics, key of LINK_DYNAMICS
+    seed: int | None = None       # random seed
 
     @property
     def run_id(self) -> str:
+        optional = "".join([
+            "_gsync-on" if self.global_sync else "",
+            f"_traffic-{TRAFFIC_DYNAMICS[self.traffic]}" if self.traffic is not None else "",
+            f"_link-{LINK_DYNAMICS[self.link]}" if self.link is not None else "",
+            f"_seed-{self.seed}" if self.seed is not None else "",
+        ])
         return (f"{self.pct}pct_{self.method}_p{self.parts:03d}"
-                f"_score-{on_off(self.scoring)}_events-{on_off(self.events)}"
-                f"{'_gsync-on' if self.global_sync else ''}_r{self.rep}")
+                f"_score-{on_off(self.scoring)}_events-{on_off(self.events)}{optional}_r{self.rep}")
 
     def params(self) -> dict:
-        return {"pct": self.pct, "parts": self.parts, "method": self.method, "scoring": self.scoring,
-                "events": self.events, "global_sync": self.global_sync, "rep": self.rep}
+        values = {key: getattr(self, key) for key in GRID_KEYS}
+        return {k: v for k, v in values.items() if not (k in OPTIONAL_KEYS and v is None)} | {"rep": self.rep}
+
+    def sort_key(self) -> tuple:
+        return (self.pct, self.method, self.parts, not self.scoring, self.events, self.global_sync,
+                self.traffic or "", self.link or "", -1 if self.seed is None else self.seed, self.rep)
 
 
 def on_off(value: bool) -> str:
@@ -107,18 +133,30 @@ class Settings:
             if unknown := set(override) - {"config", "run_env"}:
                 sys.exit(f"{path}: [pct.{pct}] has unknown keys {sorted(unknown)}, use config and run_env.")
 
+    def apply_experiment(self, exp: dict):
+        """config (a pattern like config_pattern) and [run_env] of the experiment definition replace config_pattern and
+        single [run_env] values of the settings. [pct.<n>] of the settings still applies on top."""
+        if "config" in exp:
+            if not isinstance(exp["config"], str):
+                sys.exit(f"config must be a string (pattern with {{version}} and {{pct}}), got {exp['config']!r}")
+            self.config_pattern = exp["config"]
+        if "run_env" in exp:
+            if not isinstance(exp["run_env"], dict):
+                sys.exit(f"run_env must be a table, got {exp['run_env']!r}")
+            self.run_env = {**self.run_env, **exp["run_env"]}
+
     def config(self, pct: int) -> Path:
         pattern = self.pct_overrides.get(str(pct), {}).get("config", self.config_pattern)
         return resolve(pattern.format(version=self.version, pct=pct))
 
     def extra_env(self, pct: int) -> dict:
         """Variables from [run_env] and [pct.<pct>.run_env] with {version} and {pct} replaced. Values starting with
-        '.', '/' or '~' are paths."""
+        '.', '/' or '~' are paths; a glob pattern like matsim-berlin-*.jar becomes its newest match."""
         env = {}
         run_env = {**self.run_env, **self.pct_overrides.get(str(pct), {}).get("run_env", {})}
         for key, value in run_env.items():
             value = str(value).format(version=self.version, pct=pct)
-            env[key] = resolve(value) if value.startswith((".", "/", "~")) else value
+            env[key] = newest(resolve(value)) if value.startswith((".", "/", "~")) else value
         return env
 
     def network(self, run: Run) -> Path:
@@ -162,14 +200,31 @@ def expand_runs(exp: dict) -> list[Run]:
             sys.exit(f"[[grid]] block {i + 1}: unknown keys {sorted(unknown)}, missing keys {sorted(missing)}")
         repetitions = int(grid.get("repetitions", exp.get("repetitions", 1)))
         values = (grid_values(grid[k]) if k in grid else GRID_DEFAULTS[k] for k in GRID_KEYS)
-        for pct, parts, method, scoring, events, global_sync in itertools.product(*values):
-            if int(parts) < 1:
-                sys.exit(f"[[grid]] block {i + 1}: parts must be at least 1, got {parts}")
+        for combination in itertools.product(*values):
+            v = dict(zip(GRID_KEYS, combination))
+            if int(v["parts"]) < 1:
+                sys.exit(f"[[grid]] block {i + 1}: parts must be at least 1, got {v['parts']}")
+            options = {key: grid_option(key, v[key], i) for key in OPTIONAL_KEYS}
             for rep in range(1, repetitions + 1):
-                run = Run(int(pct), int(parts), str(method), bool(scoring), bool(events), bool(global_sync), rep)
+                run = Run(int(v["pct"]), int(v["parts"]), str(v["method"]), bool(v["scoring"]), bool(v["events"]),
+                          bool(v["global_sync"]), rep, **options)
                 runs[run.run_id] = run
-    return sorted(runs.values(),
-                  key=lambda r: (r.pct, r.method, r.parts, not r.scoring, r.events, r.global_sync, r.rep))
+    return sorted(runs.values(), key=Run.sort_key)
+
+
+def grid_option(key: str, value, block: int):
+    """Value of an optional grid key: None (not set), traffic and link in MATSim's spelling, seed as int."""
+    if value is None:
+        return None
+    if key == "seed":
+        if isinstance(value, bool) or not isinstance(value, int):
+            sys.exit(f"[[grid]] block {block + 1}: seed must be an integer, got {value!r}")
+        return value
+    names = SHORT_NAMES[key]
+    for name, short in names.items():
+        if str(value).lower() in (name.lower(), short):
+            return name
+    sys.exit(f"[[grid]] block {block + 1}: {key} must be one of {list(names)}, got {value!r}")
 
 
 def time_limit(exp: dict, settings: Settings, run: Run) -> str:
@@ -200,14 +255,31 @@ def comment(exp: dict) -> str | None:
     return value.strip() if value and value.strip() else None
 
 
+def extra_args(exp: dict) -> list[str]:
+    """Arguments appended to the command of every run (after those of run-sim.sh and global_sync)."""
+    value = exp.get("extra_args", [])
+    if not isinstance(value, list) or not all(isinstance(a, str) for a in value):
+        sys.exit(f"extra_args must be a list of strings, got {value!r}")
+    return value
+
+
 def apply_filters(runs: list[Run], filters: list[str]) -> list[Run]:
     for f in filters:
         key, _, values = f.partition("=")
         if key not in GRID_KEYS + ("rep",):
             sys.exit(f"--only: unknown key {key!r}, use one of {GRID_KEYS + ('rep',)}")
         allowed = {normalize(v) for v in values.split(",")}
-        runs = [r for r in runs if normalize(getattr(r, key)) in allowed]
+        runs = [r for r in runs if filter_names(r, key) & allowed]
     return runs
+
+
+def filter_names(run: Run, key: str) -> set[str]:
+    """The value of a run for --only, for traffic and link also the short form of the run id."""
+    value = getattr(run, key)
+    names = {normalize(value)}
+    if key in SHORT_NAMES and value is not None:
+        names.add(SHORT_NAMES[key][value])
+    return names
 
 
 def normalize(value) -> str:
@@ -254,21 +326,39 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def snapshot_binary(settings: Settings, exp_dir: Path, update: bool) -> tuple[Path, str]:
-    """Copies the binary to <exp>/bin/<sha12>/, so rebuilding does not change queued jobs."""
-    digest = sha256(settings.binary)
-    snapshot_dir = exp_dir / "bin" / digest[:12]
-    target = snapshot_dir / settings.binary.name
+@dataclass(frozen=True)
+class Snapshot:
+    source: Path
+    target: Path    # <root>/<sha12>/<name of source>
+    digest: str
+
+
+def plan_snapshot(source: Path, root: Path, update: bool, what: str) -> Snapshot:
+    """Where source is copied to in <root>/<sha12>/. Exits if other snapshots exist and update is not set."""
+    digest = sha256(source)
+    snapshot_dir = root / digest[:12]
     if not snapshot_dir.exists():
-        existing = sorted(p.name for p in (exp_dir / "bin").glob("*") if p.is_dir())
+        existing = sorted(p.name for p in root.glob("*") if p.is_dir())
         if existing and not update:
-            sys.exit(f"The binary changed since the last submission of this experiment (snapshots: {existing}).\n"
-                     f"Use --update-binary to submit the remaining runs with the new binary.")
-    if not target.exists():
-        snapshot_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(settings.binary, target)
-        write_build_info(exp_dir, settings, digest)
-    return target, digest
+            sys.exit(f"The {what} changed since the last submission of this experiment (snapshots: {existing}).\n"
+                     f"Use --update-binary to submit the remaining runs with the new {what}.")
+    return Snapshot(source, snapshot_dir / source.name, digest)
+
+
+def copy_snapshot(snapshot: Snapshot) -> bool:
+    """Copies the file unless it is there already. Returns whether it was copied."""
+    if snapshot.target.exists():
+        return False
+    snapshot.target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(snapshot.source, snapshot.target)
+    return True
+
+
+def plan_env_snapshots(settings: Settings, exp_dir: Path, runs: list[Run], update: bool) -> dict[Path, Snapshot]:
+    """Snapshots of the files of the SNAPSHOT_ENV variables of these runs, by source path."""
+    sources = {(key, value) for pct in {r.pct for r in runs} for key, value in settings.extra_env(pct).items()
+               if key in SNAPSHOT_ENV and isinstance(value, Path)}
+    return {source: plan_snapshot(source, exp_dir / SNAPSHOT_ENV[key], update, key) for key, source in sorted(sources)}
 
 
 def write_build_info(exp_dir: Path, settings: Settings, digest: str):
@@ -319,6 +409,13 @@ def write_description(exp_dir: Path, name: str, text: str, settings_file: Path, 
         repos = ", ".join(f"{repo_name(repo)} {(git.get('commit') or '?')[:7]}{' (dirty)' if git.get('dirty') else ''}"
                           for repo, git in info.get("repos", {}).items())
         lines.append(f"- `{digest[:12]}` {Path(info['binary']).name}, snapshot {info['snapshot_at']}: {repos}")
+    for key, directory in SNAPSHOT_ENV.items():
+        snapshots = sorted((exp_dir / directory).glob("*/*"), key=lambda p: p.stat().st_mtime)
+        if snapshots:
+            lines += ["", f"`{key}` (`{directory}/`):", ""]
+            lines += [f"- `{p.parent.name}` {p.name}, modified "
+                      f"{datetime.datetime.fromtimestamp(p.stat().st_mtime).isoformat(timespec='seconds')}"
+                      for p in snapshots]
     (exp_dir / DESCRIPTION_FILE).write_text("\n".join(lines) + "\n")
 
 
@@ -341,12 +438,16 @@ def submit(args):
     exp_file = Path(args.experiment).resolve()
     with open(exp_file, "rb") as f:
         exp = tomllib.load(f)
+    if unknown := set(exp) - EXPERIMENT_KEYS:
+        sys.exit(f"{exp_file}: unknown keys {sorted(unknown)}, use {sorted(EXPERIMENT_KEYS)}.")
+    settings.apply_experiment(exp)
     name = exp.get("name", exp_file.stem)
     exp_dir = settings.out_root / name
     all_runs = expand_runs(exp)
     runs = apply_filters(all_runs, args.only)
     iters = iterations(exp)
     text = comment(exp)
+    args_extra = extra_args(exp)
 
     # check inputs
     problems = [f"binary {settings.binary} does not exist"] if not settings.binary.exists() else []
@@ -376,19 +477,29 @@ def submit(args):
         print(f"Comment (-> {DESCRIPTION_FILE}):\n" + textwrap.indent(text, "  | ", lambda line: True))
     else:
         print(f"No comment in the definition, {DESCRIPTION_FILE} is not written.")
+    width = max([48] + [len(run.run_id) for run in todo])
     for run in todo:
-        print(f"  {run.run_id:<48} {time_limit(exp, settings, run)}")
+        print(f"  {run.run_id:<{width}} {time_limit(exp, settings, run)}")
     if args.dry_run:
         if todo:
             print("\nExample command:\n  " + shlex.join(sbatch_command(settings, name, exp_dir, todo[0],
                                                                        time_limit(exp, settings, todo[0]))))
+            env, _ = run_env(settings, todo[0], Snapshot(settings.binary, settings.binary, ""), {}, iters, args_extra)
+            print(f"\nrun.env of {todo[0].run_id} (with the original files, which submit copies into the "
+                  f"experiment):\n" + textwrap.indent(env, "  "), end="")
         print("\nDry run, nothing submitted.")
         return
     if not todo:
         return
 
+    # check all snapshots before copying any of them
+    binary = plan_snapshot(settings.binary, exp_dir / "bin", args.update_binary, "binary")
+    env_snapshots = plan_env_snapshots(settings, exp_dir, todo, args.update_binary)
     exp_dir.mkdir(parents=True, exist_ok=True)
-    binary, digest = snapshot_binary(settings, exp_dir, args.update_binary)
+    if copy_snapshot(binary):
+        write_build_info(exp_dir, settings, binary.digest)
+    for snapshot in env_snapshots.values():
+        copy_snapshot(snapshot)
     definition = f"experiment.{datetime.datetime.now():%Y%m%d-%H%M%S}.toml"
     shutil.copy2(exp_file, exp_dir / definition)
     if text:
@@ -399,7 +510,7 @@ def submit(args):
         run_dir.mkdir(parents=True, exist_ok=True)
         (run_dir / "result.json").unlink(missing_ok=True)
         limit = time_limit(exp, settings, run)
-        write_run_files(settings, name, run, run_dir, binary, digest, limit, iters)
+        write_run_files(settings, name, run, run_dir, binary, env_snapshots, limit, iters, args_extra)
         result = subprocess.run(sbatch_command(settings, name, exp_dir, run, limit),
                                 capture_output=True, text=True)
         if result.returncode != 0:
@@ -409,27 +520,46 @@ def submit(args):
         print(f"Submitted {run.run_id} as job {job_id}")
 
 
-def write_run_files(settings: Settings, name: str, run: Run, run_dir: Path, binary: Path, digest: str,
-                    limit: str, iters: int | None):
+def run_env(settings: Settings, run: Run, binary: Snapshot, env_snapshots: dict[Path, Snapshot],
+            iters: int | None, args_extra: list[str]) -> tuple[str, dict]:
+    """Content of run.env and the variables in it (without EXTRA_ARGS)."""
     env = {
-        "BIN": binary,
+        "BIN": binary.target,
         "CONFIG": settings.config(run.pct),
         "NUM_PARTS": run.parts,
         "NETWORK": settings.network(run),
         "SCORING_MODE": "enabled" if run.scoring else "disabled",
         "WRITE_EVENTS": "file" if run.events else "none",
-        **settings.extra_env(run.pct),
     }
+    for key, variable in (("traffic", "TRAFFIC_DYNAMICS"), ("link", "LINK_DYNAMICS"), ("seed", "SEED")):
+        if getattr(run, key) is not None:
+            env[variable] = getattr(run, key)
+    for key, value in settings.extra_env(run.pct).items():
+        env[key] = env_snapshots[value].target if key in SNAPSHOT_ENV and value in env_snapshots else value
     if iters is not None:
         env["LAST_ITERATION"] = iters - 1
     lines = [f"{k}={shlex.quote(str(v))}\n" for k, v in env.items()]
-    if run.global_sync:
-        # barrier of all partitions in every time step, the configs have global_sync: false
-        lines.append("EXTRA_ARGS=(--set computational_setup.global_sync=true)\n")
-    (run_dir / "run.env").write_text("".join(lines))
+    # global_sync: barrier of all partitions in every time step, the configs have global_sync: false
+    extra = (["--set", "computational_setup.global_sync=true"] if run.global_sync else []) + args_extra
+    if extra:
+        lines.append(f"EXTRA_ARGS=({' '.join(shlex.quote(a) for a in extra)})\n")
+    return "".join(lines), env
+
+
+def write_run_files(settings: Settings, name: str, run: Run, run_dir: Path, binary: Snapshot,
+                    env_snapshots: dict[Path, Snapshot], limit: str, iters: int | None, args_extra: list[str]):
+    text, env = run_env(settings, run, binary, env_snapshots, iters, args_extra)
+    (run_dir / "run.env").write_text(text)
     params = {"experiment": name, "run_id": run.run_id, **run.params(), "iterations": iters,
               "scenario_version": settings.version, "time_limit": limit, "config": str(env["CONFIG"]),
-              "network": str(env["NETWORK"]), "binary": str(binary), "binary_sha256": digest, "submitted_at": now()}
+              "network": str(env["NETWORK"]), "binary": str(binary.target), "binary_sha256": binary.digest}
+    if args_extra:
+        params["extra_args"] = args_extra
+    by_target = {snapshot.target: snapshot for snapshot in env_snapshots.values()}
+    for key in SNAPSHOT_ENV:
+        if (snapshot := by_target.get(env.get(key))) is not None:
+            params |= {key.lower(): str(snapshot.target), f"{key.lower()}_sha256": snapshot.digest}
+    params["submitted_at"] = now()
     (run_dir / "params.json").write_text(json.dumps(params, indent=2) + "\n")
 
 
@@ -458,15 +588,22 @@ def collect(args):
 
     manifest = read_manifest(exp_dir)
     accounting = sacct(list(manifest.values()))
+    run_dirs = sorted(p for p in (exp_dir / "runs").iterdir() if p.is_dir())
+    all_params = {d: read_json(d / "params.json") or {"run_id": d.name} for d in run_dirs}
+    all_results = {d: read_json(d / "result.json") or {} for d in run_dirs}
+    # columns of optional grid keys and of the simulation time (only runs with TRIPS_JAR) only if a run has them, so
+    # runs.csv of older experiments stays the same
+    keys = [k for k in GRID_KEYS if k not in OPTIONAL_KEYS or any(k in p for p in all_params.values())]
+    sim_keys = [k for k in ("sim_elapsed_s", "sim_end") if any(k in r for r in all_results.values())]
     rows = []
-    for run_dir in sorted(p for p in (exp_dir / "runs").iterdir() if p.is_dir()):
-        params = read_json(run_dir / "params.json") or {"run_id": run_dir.name}
-        result = read_json(run_dir / "result.json") or {}
+    for run_dir in run_dirs:
+        params = all_params[run_dir]
+        result = all_results[run_dir]
         job_id = manifest.get(run_dir.name, "")
         acc = accounting.get(job_id, {})
         rows.append({
             **{k: params.get(k, GRID_DEFAULTS.get(k, [None])[0])
-               for k in ("run_id", *GRID_KEYS, "rep", "iterations", "time_limit", "binary_sha256")},
+               for k in ("run_id", *keys, "rep", "iterations", "time_limit", "binary_sha256")},
             "job_id": job_id,
             "slurm_state": acc.get("state", ""),
             "slurm_elapsed": acc.get("elapsed", ""),
@@ -474,6 +611,7 @@ def collect(args):
             "node": result.get("node", acc.get("node", "")),
             "exit_code": result.get("exit_code", ""),
             "elapsed_s": result.get("elapsed_s", ""),
+            **{k: result.get(k, "") for k in sim_keys},
             "start": result.get("start", ""),
             "end": result.get("end", ""),
             "run_dir": str(run_dir.relative_to(exp_dir)),

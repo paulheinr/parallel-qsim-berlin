@@ -1,0 +1,58 @@
+# Berlin v7.1, 10pct, with pt (schedule-based teleportation). Same inputs as berlin-v7.1-10pct.pt.dsim.config.xml for
+# DSim, see README.md. The calibrated output plans are used unchanged.
+modules:
+  network:
+    type: Network
+    path: ../../../../shared-svn/projects/rust-qsim/berlin-v7.1/network/berlin-v7.1.network.metis-minconn-const.008.xml.zst
+  population:
+    type: Population
+    path: ../../../../public-svn/matsim/scenarios/countries/de/berlin/berlin-v7.1/calibrated-10pct/output/berlin-v7.1-10pct.output_plans.xml.gz
+  vehicles:
+    type: Vehicles
+    path: ../../../../public-svn/matsim/scenarios/countries/de/berlin/berlin-v7.1/calibrated-10pct/output/berlin-v7.1-10pct.output_vehicles.xml.gz
+  facilities:
+    type: Facilities
+    path: ../../../../public-svn/matsim/scenarios/countries/de/berlin/berlin-v7.1/calibrated-10pct/output/berlin-v7.1-10pct.output_facilities.xml.gz
+  transit:
+    type: Transit
+    schedule_path: ../../../../public-svn/matsim/scenarios/countries/de/berlin/berlin-v7.1/calibrated-10pct/output/berlin-v7.1-10pct.output_transitSchedule.xml.gz
+    vehicles_path: ../../../../public-svn/matsim/scenarios/countries/de/berlin/berlin-v7.1/calibrated-10pct/output/berlin-v7.1-10pct.output_transitVehicles.xml.gz
+    simulation: ScheduleBasedTeleportation
+  partitioning:
+    type: Partitioning
+    num_parts: 8
+    method: None
+  output:
+    type: Output
+    output_dir: ../../output/v7.1/10pct.pt/output
+    write_events: None
+    logging: Info
+    profiling: !CSV
+      level: INFO
+  routing:
+    type: Routing
+    mode: UsePlans
+    teleported_mode_params:
+      - mode: walk
+        beeline_distance_factor: 1.3
+        teleported_mode_speed: 1.23
+  qsim:
+    type: QSim
+    start_time: 0
+    end_time: 129600
+    sample_size: 0.1
+    stuck_threshold: 30
+    # bike and ride are teleported along their network routes, as in the calibrated Java run
+    main_modes:
+      - car
+      - freight
+      - truck
+    traffic_dynamics: KinematicWaves
+    link_dynamics: PassingQ
+  scoring:
+    type: Scoring
+    scoring_parameters_path: ../../../../shared-svn/projects/rust-qsim/berlin-v7.1/10pct/berlin-v7.1-10pct.scoring.xml
+  computational_setup:
+    type: ComputationalSetup
+    global_sync: false
+    random_seed: 4711
