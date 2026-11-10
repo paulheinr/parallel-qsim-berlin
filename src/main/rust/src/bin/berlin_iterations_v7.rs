@@ -1,14 +1,10 @@
 use clap::Parser;
-use matsim_rust::simulation::config::{CommandLineArgs, Config, ModeParameter, OverwriteFiles, StrategySetting};
+use matsim_rust::simulation::config::{CommandLineArgs, CompressionType, Config, OverwriteFiles, StrategySetting};
 use matsim_rust::simulation::controller::controller::ControllerBuilder;
-use matsim_rust::simulation::id::Id;
 use matsim_rust::simulation::logging::init_std_out_logging_thread_local;
 use matsim_rust::simulation::replanning::DefaultStrategy;
 use matsim_rust::simulation::replanning::selectors::DefaultSelector;
 use matsim_rust::simulation::scenario::Scenario;
-use matsim_rust::simulation::scenario::network::Link;
-use matsim_rust::simulation::scenario::population::InternalPlanElement;
-use matsim_rust::simulation::scoring::OnlyTravelTimeDependentScoring;
 use std::sync::Arc;
 use tracing::info;
 
@@ -20,6 +16,8 @@ struct Args {
     num_parts: usize,
 }
 
+// All subpopulations of Berlin v7.1 get the same strategies, as in the DSim runs (OpenBerlinDSimBenchmark).
+const SUBPOPULATIONS: [&str; 5] = ["person", "freight", "goodsTraffic", "commercialPersonTraffic", "commercialPersonTraffic_service"];
 
 #[hotpath::main]
 fn main() {
@@ -33,22 +31,19 @@ fn main() {
 
     // load config
     let mut config = Config::from_args(delegate);
+    config.output_mut().compression_type = CompressionType::Zst;
     // set directly instead of the partitioning.num_parts override, which appends "-<num_parts>" to the output dir
     config.partitioning_mut().num_parts = args.num_parts as u32;
-    // two iterations by default, more with --set controller.last_iteration=<n> (inclusive)
+    // one iteration by default, more with --set controller.last_iteration=<n> (inclusive)
     if !last_iteration_set {
-        config.controller_mut().last_iteration = 1;
+        config.controller_mut().last_iteration = 0;
     }
-    config.scoring_mut().mode_params.clear();
-    config.scoring_mut().mode_params.push(ModeParameter::default_for_mode("car"));
-    config.scoring_mut().mode_params.push(ModeParameter::default_for_mode("truck"));
-    config.scoring_mut().mode_params.push(ModeParameter::default_for_mode("freight"));
-    config.scoring_mut().mode_params.push(ModeParameter::default_for_mode("bike"));
-    config.scoring_mut().mode_params.push(ModeParameter::default_for_mode("ride"));
 
     config.replanning_mut().strategy_settings.clear();
-    config.replanning_mut().strategy_settings.push(StrategySetting::new(DefaultStrategy::ReRoute.to_string(), 0.2, "person".to_string()));
-    config.replanning_mut().strategy_settings.push(StrategySetting::new(DefaultSelector::SelectExpBeta.to_string(), 0.8, "person".to_string()));
+    for subpopulation in SUBPOPULATIONS {
+        config.replanning_mut().strategy_settings.push(StrategySetting::new(DefaultStrategy::ReRoute.to_string(), 0.2, subpopulation.to_string()));
+        config.replanning_mut().strategy_settings.push(StrategySetting::new(DefaultSelector::SelectExpBeta.to_string(), 0.8, subpopulation.to_string()));
+    }
     config.computational_setup_mut().replanning_threads = args.num_parts as u32;
     config.computational_setup_mut().scoring_threads = args.num_parts as u32;
 
@@ -58,27 +53,16 @@ fn main() {
     config.output_mut().overwrite_files = OverwriteFiles::DeleteDirectoryIfExists;
     let config = Arc::new(config);
 
-    // load scenario
+    // load scenario, the scoring parameters come from scoring.scoring_parameters_path of the config
     let mut scenario = Scenario::load(config.clone());
-    // scenario
-    //     .population
-    //     .persons
-    //     .retain(|i, _| i.external().eq("berlin_46ea2b4a"));
-    scenario
-        .population
-        .persons
-        .retain(|_, p| p.plans()
-            .iter()
-            .flat_map(|plan| plan.elements.iter())
-            .all(|element| match element {
-                InternalPlanElement::Activity(_) => true,
-                InternalPlanElement::Leg(l) => !l.routing_mode.eq(&Some(Id::create("pt"))),
-            }));
-
-    add_dummy_link(&mut scenario);
+    // only the selected plans are kept, as in OpenBerlinDSimBenchmark
+    for person in scenario.population.persons.values_mut() {
+        person.plans_mut().retain(|plan| plan.selected);
+    }
 
     // create controller
-    ControllerBuilder::default_with_scenario(scenario).scoring_function(Box::new(OnlyTravelTimeDependentScoring)).build().unwrap().run();
+    ControllerBuilder::default_with_scenario(scenario)
+        .build().unwrap().run();
 
     // matsim_rust::simulation::events::utils::convert_proto_to_xml_events(
     //     config.output().output_dir.join("events"),
@@ -88,23 +72,3 @@ fn main() {
     //     .unwrap()
 }
 
-// Adds a dummy link between PT and car network at Gotzkowskybrücke
-fn add_dummy_link(scenario: &mut Scenario) {
-    let partition = scenario
-        .network
-        .get_node(&Id::get_from_ext("pt_648553_bus"))
-        .partition;
-
-    scenario.network.add_link(Link {
-        id: Id::create("pt-connection"),
-        from: Id::get_from_ext("pt_648553_bus"),
-        to: Id::get_from_ext("cluster_1807917065_1929624603_1929624605_29962151_#3more"),
-        length: 1.0,
-        capacity: 0.0,
-        freespeed: 0.0,
-        permlanes: 1.0,
-        modes: Default::default(),
-        partition,
-        attributes: Default::default(),
-    });
-}
