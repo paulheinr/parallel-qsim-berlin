@@ -2,7 +2,8 @@
 
 A run of `berlin_iterations_v7` is defined by scenario size (`pct`), number of partitions (`parts`), partition
 method (`method`), scoring on/off (`scoring`), event writing on/off (`events`) and optionally the global sync
-(`global_sync`, default off).
+(`global_sync`, default off), the traffic dynamics (`traffic`), the link dynamics (`link`) and the random seed
+(`seed`).
 
 ## 1. Partition networks (locally)
 
@@ -33,15 +34,34 @@ creates `.venv` on first use (`uv sync` does that explicitly).
 - `global_sync = [true]` in a `[[grid]]` block sets `computational_setup.global_sync=true` (through `EXTRA_ARGS` in
   `run.env`): all partitions wait at a barrier in every time step. Without the key it is off, and the run ids are the
   same as before; with it on, they end in `_gsync-on_r<rep>`. Rust only.
+- `traffic` (`queue` | `kinematicWaves`), `link` (`FIFO` | `PassingQ`) and `seed` (integer) in a `[[grid]]` block set
+  the traffic dynamics, link dynamics and random seed (`TRAFFIC_DYNAMICS`, `LINK_DYNAMICS`, `SEED` in `run.env`; rust
+  `--set qsim.traffic_dynamics=…`, `qsim.link_dynamics=…`, `computational_setup.random_seed=…`, DSim
+  `--config:dsim.trafficDynamics=…`, `dsim.linkDynamics=…`, `global.randomSeed=…`). Without the keys nothing is
+  passed, the value of the config applies, and the run ids are the same as before. With them, the run ids get
+  `_traffic-<queue|kw>`, `_link-<fifo|pq>` and `_seed-<n>` before `_r<rep>`, e.g.
+  `1pct_metis-minconn-const_p008_score-on_events-off_traffic-kw_link-pq_seed-1_r1`. The values are case-insensitive
+  and the short forms are accepted too (also by `--only traffic=kw`). They are in `params.json`, and `runs.csv` has
+  their columns if a run of the experiment sets them.
 - `comment = """..."""` at the top level is a free-text description (Markdown). Every submission writes it to
   `description.md` in the experiment directory, together with the binaries and commits of `build_info.json`. `fetch`
   copies it into runs-svn. The comments of earlier submissions remain in the copies `experiment.<timestamp>.toml`.
+- `config = "input/{version}/...{pct}..."` at the top level replaces the `config_pattern` of the settings, and a
+  `[run_env]` table replaces single `[run_env]` values of the settings (same `{version}`/`{pct}` replacement and path
+  resolution). `[pct.<n>]` of the settings still applies on top. Example: `experiments/validation-it100.toml` (nopt
+  configs, `PLANS` without routes).
+- `extra_args = ["--set", "a.b=c", ...]` at the top level is appended to the command of every run (`EXTRA_ARGS`, after
+  the arguments of `run-sim.sh` and of `global_sync`). The arguments are engine-specific, so an experiment with
+  `extra_args` is for one engine only. They are in `params.json`.
+- Unknown top-level keys are an error (e.g. a misspelled `extra_args`).
 
 - Runs that are already in `manifest.csv` are skipped, so submitting again only adds new runs (e.g. after
   increasing `repetitions` or adding values to the grid). To resubmit a run, delete its line from `manifest.csv`.
 - `--only pct=1 --only parts=16,32` submits a subset.
 - The binary is copied into the experiment directory, so rebuilding does not affect queued jobs. If the build
-  changed since the last submission of the experiment, `--update-binary` is required.
+  changed since the last submission of the experiment, `--update-binary` is required. The same holds for the jar of
+  `TRIPS_JAR` (copied to `trips-jar/<sha12>/`).
+- `--dry-run` also prints the `run.env` of the first run (with the original binary and jar, which `submit` copies).
 - All jobs of an experiment have the experiment name as job name: `squeue --me --name example`,
   `scancel --name example`. The run id is in the job comment.
 
@@ -64,12 +84,37 @@ uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-dsim.toml c
 
 - `binary` may be a glob pattern, the newest match is used (the jar name contains the git commit).
 - `[run_env]` is written to `run.env` (`{version}` and `{pct}` are replaced). With `ENGINE = "dsim"`, `run-sim.sh` starts
-  the jar. Inputs (`PLANS`, ...) are checked on submission.
+  the jar. Inputs (`PLANS`, ...) are checked on submission. Path values may be glob patterns too (newest match).
 - `[pct.<n>]` replaces `config_pattern` (`config = ...`) and single `[run_env]` values (`[pct.<n>.run_env]`) for one
   pct. `cluster-dsim.toml` uses it for 0pct, which has no scenario of its own in public-svn.
+- `PLANS`, `VEHICLES` and `FACILITIES` are optional (otherwise those of the config). `SCORING_CONFIG` is passed as
+  `--scoring-config` of `OpenBerlinDSimBenchmark` (needed by the current jar of `ph/v7.1.1-dsim`).
 - DSim always scores, so `scoring = false` is not supported.
 - The stopwatch has a resolution of one second. Phase times in ms per iteration:
   `python3 ../matsim-berlin/src/main/python/dsim_phase_times.py <run_dir>/output/*.logfile.log <run_dir>/phases.csv`
+
+### Validation inputs (rust and DSim on the same XML files)
+
+`cluster-validation.toml` (rust) and `cluster-validation-dsim.toml` (DSim) use the configs
+`input/v7.1/berlin-v7.1.<pct>pct.{pt,nopt}.config.yml` and `input/v7.1/berlin-v7.1-<pct>pct.{pt,nopt}.dsim.config.xml`,
+which read the same files (see `input/v7.1/README.md`); `pt` is the default, an experiment selects `nopt` with `config`.
+Experiments: `validation-it0` / `dsim-validation-it0` (iteration 0 with the calibrated plans, traffic x link
+dynamics) and `validation-it100` / `dsim-validation-it100` (101 iterations from plans without routes, 3 seeds at 1pct).
+
+```bash
+uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation.toml submit experiments/validation-it0.toml --dry-run
+uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation-dsim.toml submit experiments/dsim-validation-it0.toml --dry-run
+```
+
+- rust: `PLANS` in `run.env` is passed as `--set population.path=…`. With `TRIPS_JAR` (a matsim-berlin jar, set in
+  `cluster-validation.toml`), `run-sim.sh` runs MATSim's `TripsAndLegsCsvWriter --run-directory <run_dir>/output`
+  after a successful simulation, in the same job: it writes `output_trips.csv.zst` and `output_legs.csv.zst` from
+  `output_experienced_plans.xml.zst`. `result.json` then also has `sim_end` and `sim_elapsed_s` (the simulation
+  alone), and `runs.csv` has these columns too. If the trips writer fails, the run has a non-zero exit code.
+- DSim: `SCORING_CONFIG` is the scoring file of shared-svn (the same as in the rust configs); vehicles and facilities
+  come from the configs.
+- `[fetch] extra_files` add the trips files (`runs/*/output/output_trips.csv.zst`, DSim
+  `runs/*/output/*.output_trips.csv.zst`).
 
 ## 3. Collect results
 
@@ -110,12 +155,13 @@ cluster. Fetching again only copies new or changed files.
     experiment.<timestamp>.toml   # copy of the definition at every submission
     build_info.json               # git commit and dirty flag of both repositories per binary
     bin/<sha12>/berlin_iterations_v7
+    trips-jar/<sha12>/matsim-berlin-*.jar   # only with TRIPS_JAR
     manifest.csv                  # run_id, job_id, submitted_at
     runs.csv                      # written by collect
     runs/<run_id>/                # e.g. 1pct_metis_p016_score-on_events-off_r1
         params.json  run.env
         slurm-<jobid>.log
-        result.json               # job_id, node, start, end, elapsed_s, exit_code
+        result.json               # job_id, node, start, end, elapsed_s, [sim_end, sim_elapsed_s,] exit_code
         output/                   # simulation output (instrument/, logs/, ...)
 ```
 
@@ -136,8 +182,11 @@ NUM_PARTS=4
 NETWORK=/path/to/shared-svn/projects/rust-qsim/berlin-v7.1/network/berlin-v7.1-1pct.network.metis.004.xml.zst
 SCORING_MODE=disabled
 WRITE_EVENTS=none
-EXTRA_ARGS=(--set population.path=/path/to/plans.binpb)      # optional
+PLANS=/path/to/plans.binpb                                   # optional, also TRAFFIC_DYNAMICS, LINK_DYNAMICS, SEED, TRIPS_JAR
+EXTRA_ARGS=(--set controller.last_iteration=0)               # optional
 ```
+
+The header of `run-sim.sh` lists all variables.
 
 ## Profiling with hotpath
 
