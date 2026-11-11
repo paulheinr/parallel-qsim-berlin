@@ -25,13 +25,17 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
 
 - Relative paths like `../../shared-svn` in `cluster.toml` / `cluster-dsim.toml` resolve to `~/scratch/...` on the
   cluster and to `~/...` locally, so the same settings work on both.
-- The cluster repo has local changes in `src/main/rust/Cargo.toml` and `Cargo.lock`. There, matsim-rust is a git
-  dependency (GitHub) and `Cargo.lock` pins its commit. Since 2026-10-21 (for scaling-v6) the dependency has
-  `branch = "main-mode-neighbors"` and the lock pins c646f29c; before, main at e20838e. The branch is merged into
-  main (7fc31259, no other changes to the simulation). Remove the branch again for the next experiment with main. Locally it is a path dependency. Do
-  not overwrite these changes. To build a newer matsim-rust from main on the cluster:
-  `cargo update -p matsim-rust && cargo build --release` in `src/main/rust` (ask first, see Rules). Cargo is in
-  `~/.cargo/env`; the build takes about half a minute.
+- matsim-rust is a git dependency on main (GitHub), committed by the user in 9406e49 (2026-11-10) together with
+  `Cargo.lock`, which pins fceaa942 (#343: scoring parameters from a MATSim config, `qsim.link_dynamics`). So the
+  cluster repo has no local changes any more, and locally it is the same git dependency unless the user switches
+  back to the path dependency (commented out in `Cargo.toml`). Before (until 2026-11-10), the cluster had local changes
+  there: `branch = "main-mode-neighbors"` with c646f29c (scaling-v6, 2026-10-21), before that main at e20838e. To
+  build a newer matsim-rust from main on the cluster: `cargo update -p matsim-rust && cargo build --release` in
+  `src/main/rust` (ask first, see Rules). Cargo is in `~/.cargo/env`; the build takes about half a minute.
+- matsim-berlin on the cluster (`~/scratch/iterations-rust/matsim-berlin`): branch `ph/v7.1.1-dsim` at bd866a13 since
+  2026-11-10, jar `matsim-berlin-7.1-SNAPSHOT-v7.1.1-3-gbd866a1.jar` (MATSim 2027.0-PR5260, `--scoring-config`,
+  `TripsAndLegsCsvWriter`), built by the user with `./mvnw clean package -DskipTests`. The older jar of ff27314
+  (dsim-scaling, dsim-scaling-minconn) is still there; the settings take the newest match.
 - To rerun an experiment with a newer library and keep the old runs, give it a new name (a copy of the experiment file,
   e.g. `scaling-v2.toml`). Reusing the name submits nothing, because all runs are already in `manifest.csv`.
 - New experiments get a `comment = """..."""` (since 2026-10-18): what they are for and what changed compared to the
@@ -195,6 +199,22 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   - Cleanup before scaling-v6-gsync (2026-10-22, with the user's approval; work at 2.93 TiB and 232k inodes): deleted
     `ITERS/` and `output_plans.binpb` of all runs of scaling-v5 and scaling-v5-gsync (in runs-svn r6971), about 940 GB;
     now 29G and 25G. scaling-v6 still has them (614 GB).
+- Validation rust vs DSim (since 2026-11-10, see `input/v7.1/README.md` and the README section "Validation inputs"):
+  settings `cluster-validation.toml` / `cluster-validation-dsim.toml`, experiments `validation-it0` /
+  `dsim-validation-it0` (iteration 0, calibrated plans with pt, traffic x link dynamics, 1/3/10pct, 8 partitions) and
+  `validation-it100` / `dsim-validation-it100`. Inputs: shared-svn `rust-qsim/berlin-v7.1` (working copy on the
+  cluster at r40529 since 2026-11-10: `scoring.xml`, `plans-nopt*`) and the calibrated outputs in public-svn.
+  - First submission by the user on 2026-11-10, only 1pct queue/FIFO (`--only pct=1 --only traffic=queue --only
+    link=FIFO`): rust job 9667999 (binary `9d95764ea29b`, matsim-rust fceaa942, 87 s, of which 59 s simulation),
+    DSim job 9668005 (jar `28fea3938c97`, bd866a1, 140 s); both exit 0. Deleted on 2026-11-11 with the user's
+    approval (on the cluster and the uncommitted copies in runs-svn), because the user wants the it0 grid at 96
+    partitions ("alles andere ist zu langsam"; the user wrote 92, there is no such network) and with matsim-rust
+    #345 (route distances in experienced plans). The toml files now have `parts = [96]`; resubmission waits for the
+    merge of #345 and the user's go.
+  - The trips of both runs are identical (sorted rows) to the local runs of the same setting
+    (`output/validation/{rust,dsim}-1pct-pt-queue-fifo-selected`), so both engines are deterministic across machines.
+    rust vs DSim as locally: 183,120 common trips, all with the same main mode; walk/bike/ride same distances and
+    +1/+3/+3 s; car median trav_time -4 s (median |diff| 182 s), distance -167 m; pt +29 s.
 - `scripts/cluster/hotpath.sh [name]` (2026-10-20, written because the user finds rust at many partitions
   unsatisfying): builds with `--features hotpath` into `src/main/rust/target/hotpath` (not `target/release`) and runs
   10 cases in one job on one node: 1 % and 3 % at 32/96/192 partitions with hotpath (scoring on, at 96 also off), and
