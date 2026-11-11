@@ -1239,7 +1239,7 @@ dependencies = [
 [[package]]
 name = "macros"
 version = "1.0.0"
-source = "git+https://github.com/matsim-vsp/matsim-rust#7d25a4930fed25c8e04ddb5af6f50a726b97f447"
+source = "git+https://github.com/matsim-vsp/matsim-rust#6c7afc96c978594804352c6e53762cc1a83af018"
 dependencies = [
  "quote",
  "syn 2.0.119",
@@ -1263,7 +1263,7 @@ checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 [[package]]
 name = "matsim-rust"
 version = "1.0.0"
-source = "git+https://github.com/matsim-vsp/matsim-rust#7d25a4930fed25c8e04ddb5af6f50a726b97f447"
+source = "git+https://github.com/matsim-vsp/matsim-rust#6c7afc96c978594804352c6e53762cc1a83af018"
 dependencies = [
  "ahash",
  "arc-swap",

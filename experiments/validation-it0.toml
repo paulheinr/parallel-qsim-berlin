@@ -21,7 +21,11 @@ input/v7.1/berlin-v7.1.<pct>pct.pt.config.yml, settings cluster-validation.toml)
 Changes against the first submission (2026-11-10, only 1pct queue/FIFO at 8 partitions, deleted on 2026-11-11): 96
 partitions instead of 8 (faster; the results of rust do not depend on the partitioning), and matsim-rust with
 matsim-vsp/matsim-rust#345, which writes the distance of network routes into the experienced plans like MATSim's
-EventsToLegs (before, the trips of rust lacked the length of the end link of every car leg).
+EventsToLegs (before, the trips of rust lacked the length of the end link of every car leg), and
+matsim-vsp/matsim-rust#346 (main at 6c7afc96), which assigns the person vehicles in prepare_for_sim according to
+qsim.vehicles_source (default modeVehicleTypesFromVehiclesData, as in the DSim configs). Before, the loader created a
+vehicle per person and vehicle type and overwrote the person-specific types of the commercial traffic (vehicleTypes,
+e.g. golf1.4 or light8t), so these persons drove with other vehicles than in DSim.
 
 Why kinematicWaves/PassingQ matters: the plans are the output of the QSim calibration with kinematicWaves and PassingQ.
 Locally at 1pct with queue/FIFO, rust had about 6 % more car hours than DSim (robust across seeds); one hypothesis is
