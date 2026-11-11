@@ -1,5 +1,5 @@
 # Validation of the traffic of rust against DSim, part it100: 101 iterations (0 to 100) from plans without routes and
-# without pt users, kinematicWaves and PassingQ, 8 partitions, 3 seeds at 1pct. The same runs with DSim are
+# without pt users, kinematicWaves and PassingQ, 96 partitions, 3 seeds at 1pct. The same runs with DSim are
 # dsim-validation-it100.toml. Inputs and the commands of a run: input/v7.1/README.md.
 #
 #   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation.toml submit experiments/validation-it100.toml --dry-run
@@ -12,17 +12,19 @@ both engines route and replan on their own travel times. Compared are the trips 
 (output_trips.csv.zst, written by MATSim's TripsAndLegsCsvWriter from the experienced plans of rust) and the
 convergence.
 
-Configs input/v7.1/berlin-v7.1.<pct>pct.nopt.config.yml (no transit), kinematicWaves and PassingQ, 8 partitions
-(network metis-minconn-const.008, the same partitions as DSim), scoring on, events off. ReRoute 0.2 and SelectExpBeta 0.8
+Configs input/v7.1/berlin-v7.1.<pct>pct.nopt.config.yml (no transit), kinematicWaves and PassingQ, 96 partitions
+(network metis-minconn-const.096, the same partitions as DSim; 96 instead of 8 since 2026-11-11, as in validation-it0,
+because 8 is too slow), scoring on, events off. ReRoute 0.2 and SelectExpBeta 0.8
 for all subpopulations; innovation off and score MSA from iteration 90
 (replanning.fraction_of_iterations_to_disable_innovation and scoring.fraction_of_iterations_to_start_score_msa = 0.9).
 Seeds 1, 2 and 3 at 1pct (the spread between seeds of one engine is the reference for the difference between the
 engines), seed 1 at 3pct and 10pct.
 
-Time limits are rough estimates: at 8 partitions on Genoa, an iteration of scaling-v6 (calibrated plans with routes)
-took 12/35/113 s at 1/3/10pct, so 101 iterations take about 20 min/1 h/3.2 h, plus the first iterations, which are
-congested because all routes are computed on free-flow travel times. The limits are about 3 times that (at most the
-12 h of cpu-genoa).
+Time limits are rough estimates, made for 8 partitions and kept for 96: at 8 partitions on Genoa, an iteration of
+scaling-v6 (calibrated plans with routes) took 12/35/113 s at 1/3/10pct, so 101 iterations take about 20 min/1 h/3.2 h,
+plus the first iterations, which are congested because all routes are computed on free-flow travel times. The limits
+are about 3 times that (at most the 12 h of cpu-genoa). At 96 partitions the mobsim is faster, so the runs should end
+well before the limits.
 """
 
 config = "input/{version}/berlin-{version}.{pct}pct.nopt.config.yml"
@@ -43,7 +45,7 @@ PLANS = "../../shared-svn/projects/rust-qsim/berlin-{version}/{pct}pct/berlin-{v
 
 [[grid]]
 pct = [1]
-parts = [8]
+parts = [96]
 method = ["metis-minconn-const"]
 scoring = [true]
 events = [false]
@@ -53,7 +55,7 @@ seed = [1, 2, 3]
 
 [[grid]]
 pct = [3, 10]
-parts = [8]
+parts = [96]
 method = ["metis-minconn-const"]
 scoring = [true]
 events = [false]
