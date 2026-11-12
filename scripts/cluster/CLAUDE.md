@@ -254,6 +254,22 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
     (`output/validation/{rust,dsim}-1pct-pt-queue-fifo-selected`), so both engines are deterministic across machines.
     rust vs DSim as locally: 183,120 common trips, all with the same main mode; walk/bike/ride same distances and
     +1/+3/+3 s; car median trav_time -4 s (median |diff| 182 s), distance -167 m; pt +29 s.
+  - Runs with matsim-rust b9b7618 (2026-11-12, the user asked for queue/PassingQ, 1/3/10pct, it0 and it100 with all
+    three engines; whole Genoa nodes, because cpu-genoa is `OverSubscribe=EXCLUSIVE` and the user did not want the
+    shared cpu-clx:large). Cluster repo at 775ac95, rust binary `ea40a6cfde35` (built 2026-11-12). The it0 runs of DSim
+    and QSim are reused (jar bd866a1 unchanged); it100 of DSim and QSim (seed 1, queue/PassingQ) are new.
+    - First submission, by the user: `validation-v2-it0` (jobs 9675272-9675274), `validation-it100` (9675275-9675277),
+      `dsim-validation-it100` (9675278-9675280), `qsim-validation-it100` (9675281-9675283). rust it0 1pct and 3pct
+      panicked in `transit_engine.rs:139` (bus `pt_N53---32583_0_*` from partition 72 to 77, which share no link,
+      received in the tick it is due at stop `463053_bus`; the message recommends the global sync) and hung until the
+      30 min limit. 10pct it0 (7.8 min) and it100 1pct (6 min for 101 iterations) completed without global sync; the
+      pending it100 3pct/10pct were cancelled.
+    - Since then all rust validation runs use global sync, in new experiments `validation-gsync-it0` (jobs
+      9676056-9676058) and `validation-gsync-it100` (9676059-9676061), output in
+      `output/experiments/submit-validation-gsync-it{0,100}.log`. Run ids end in `_gsync-on`;
+      `python -m validation` pairs by run id without it (`pair_id`). For it100, pass the reference explicitly
+      (`--experiment validation-gsync-it100 --reference dsim-validation-it100`). The completed runs without global sync
+      can check that global sync does not change the results.
 - `scripts/cluster/hotpath.sh [name]` (2026-10-20, written because the user finds rust at many partitions
   unsatisfying): builds with `--features hotpath` into `src/main/rust/target/hotpath` (not `target/release`) and runs
   10 cases in one job on one node: 1 % and 3 % at 32/96/192 partitions with hotpath (scoring on, at 96 also off), and
