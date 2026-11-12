@@ -1,0 +1,44 @@
+# Validation of the traffic of rust, part it0, with matsim-rust b9b7618: only the mobsim (iteration 0) with the
+# calibrated plans of Berlin v7.1 with pt, queue and PassingQ, 96 partitions. The references are the DSim and QSim runs
+# with the same settings in dsim-validation-it0.toml and qsim-validation-it0.toml (same jar, unchanged, same run ids).
+#
+#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation.toml submit experiments/validation-v2-it0.toml --dry-run
+#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation.toml fetch validation-v2-it0
+
+comment = """
+Validation of rust against DSim and QSim, iteration 0 only, as validation-it0 (calibrated output plans of Berlin v7.1
+with pt, 1/3/10pct, 96 partitions on metis-minconn-const.096, scoring on, events off, seed 4711 of the configs), but
+with matsim-rust main at b9b7618 instead of 6c7afc96 and for queue/PassingQ only (other dynamics can be added later by
+extending the grid; submit only submits the missing runs).
+
+New against validation-it0:
+- matsim-vsp/matsim-rust#347 (changeable transit schedule), used by berlin_iterations_v7 --pt-arrival-shift (default
+  30 s): every arrival offset but the first of each transit route is moved 30 s earlier, at most to the previous
+  departure, because vehicles simulated on the Berlin pt network reach each stop about 30 s early in QSim.
+- matsim-vsp/matsim-rust#348: transit departure delays carried to the next arrival, flow capacity of waiting
+  arrivals.
+- matsim-vsp/matsim-rust#349: ride and freight are routed with the travel times of car and truck (as in
+  OpenBerlinScenario). Not relevant in iteration 0, where the routes of the plans are used.
+
+References: the queue/PassingQ runs of dsim-validation-it0 and qsim-validation-it0 (matsim-berlin bd866a1, unchanged
+since then, deterministic), e.g. python -m validation --experiment validation-v2-it0 --reference dsim-validation-it0.
+
+Time limits as in validation-it0 (rust took 1.5-8 min there).
+"""
+
+iterations = 1
+repetitions = 1
+
+[time_limit]
+"1" = "00:30:00"
+"3" = "00:30:00"
+"10" = "01:00:00"
+
+[[grid]]
+pct = [1, 3, 10]
+parts = [96]
+method = ["metis-minconn-const"]
+scoring = [true]
+events = [false]
+traffic = ["queue"]
+link = ["PassingQ"]

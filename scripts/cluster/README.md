@@ -99,7 +99,9 @@ uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-dsim.toml c
 `input/v7.1/berlin-v7.1.<pct>pct.{pt,nopt}.config.yml` and `input/v7.1/berlin-v7.1-<pct>pct.{pt,nopt}.dsim.config.xml`,
 which read the same files (see `input/v7.1/README.md`); `pt` is the default, an experiment selects `nopt` with `config`.
 Experiments: `validation-it0` / `dsim-validation-it0` (iteration 0 with the calibrated plans, traffic x link
-dynamics) and `validation-it100` / `dsim-validation-it100` (101 iterations from plans without routes, 3 seeds at 1pct).
+dynamics), `validation-v2-it0` (rust only, matsim-rust b9b7618, compared with the DSim and QSim runs of it0) and
+`validation-it100` / `dsim-validation-it100` / `qsim-validation-it100` (101 iterations from plans without routes,
+queue/PassingQ, seed 1). QSim runs use `cluster-validation-qsim.toml`.
 
 ```bash
 uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation.toml submit experiments/validation-it0.toml --dry-run

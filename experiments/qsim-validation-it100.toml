@@ -1,0 +1,53 @@
+# Validation of the traffic of rust and DSim against MATSim's QSim, part it100, the QSim runs: 101 iterations (0 to 100)
+# from plans without routes and without pt users, queue and PassingQ, seed 1. The same runs with rust are
+# validation-it100.toml, with DSim dsim-validation-it100.toml. Inputs: input/v7.1/README.md.
+#
+#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation-qsim.toml submit experiments/qsim-validation-it100.toml --dry-run
+#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation-qsim.toml fetch qsim-validation-it100
+
+comment = """
+Reference runs with MATSim's QSim for the validation of rust (validation-it100) and DSim (dsim-validation-it100) with
+replanning: 101 iterations (0 to 100) from the plans berlin-v7.1-<pct>pct.plans-nopt-noroutes.xml.gz (persons with a
+pt leg in any plan removed, routes removed), so that all engines route and replan on their own travel times. Compared
+are the trips of the last iteration (berlin-v7.1-<pct>pct.output_trips.csv.zst, written by MATSim itself) and the
+convergence.
+
+Same jar (matsim-berlin bd866a1, OpenBerlinDSimBenchmark) and configs (input/v7.1/berlin-v7.1-<pct>pct.nopt.dsim.config.xml,
+no transit) as dsim-validation-it100, but with controller.mobsim = qsim and qsim.numberOfThreads = 12 as in the
+calibrated runs (settings cluster-validation-qsim.toml). qsim.trafficDynamics queue and qsim.linkDynamics PassingQ
+(other dynamics can be added later by extending the grid), events off, seed 1 (global.randomSeed) at 1/3/10pct.
+ReRoute 0.2 and SelectExpBeta 0.8 for all subpopulations; innovation off and score MSA from iteration 90.
+
+The network is metis-minconn-const.096, the same file as for rust and DSim (QSim ignores its partition attributes), so
+that the run ids are the same in all three experiments; parts = 96 only sets --threads (global.numberOfThreads, used
+by routing and replanning, not by the mobsim).
+
+Time limits: QSim with 12 threads is slower than DSim with 96 (qsim-validation-it0 took 2.5-10 min for iteration 0),
+so the limits are 1.5 times those of dsim-validation-it100, at most the 12 h of cpu-genoa.
+"""
+
+config = "input/{version}/berlin-{version}-{pct}pct.nopt.dsim.config.xml"
+extra_args = [
+    "--config:replanning.fractionOfIterationsToDisableInnovation=0.9",
+    "--config:scoring.fractionOfIterationsToStartScoreMSA=0.9",
+]
+iterations = 101
+repetitions = 1
+
+[run_env]
+PLANS = "../../shared-svn/projects/rust-qsim/berlin-{version}/{pct}pct/berlin-{version}-{pct}pct.plans-nopt-noroutes.xml.gz"
+
+[time_limit]
+"1" = "03:00:00"
+"3" = "06:00:00"
+"10" = "12:00:00"
+
+[[grid]]
+pct = [1, 3, 10]
+parts = [96]
+method = ["metis-minconn-const"]
+scoring = [true]
+events = [false]
+traffic = ["queue"]
+link = ["PassingQ"]
+seed = [1]
