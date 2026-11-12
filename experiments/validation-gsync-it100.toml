@@ -1,0 +1,63 @@
+# Validation of the traffic of rust against DSim and QSim, part it100, with global sync: 101 iterations (0 to 100) from plans without
+# routes and without pt users, queue and PassingQ, 96 partitions, seed 1. The same runs with DSim are
+# dsim-validation-it100.toml, with QSim qsim-validation-it100.toml. Inputs and the commands of a run:
+# input/v7.1/README.md.
+#
+#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation.toml submit experiments/validation-gsync-it100.toml --dry-run
+#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation.toml fetch validation-gsync-it100
+
+comment = """
+Validation of rust against DSim (dsim-validation-it100) and QSim (qsim-validation-it100) with replanning, as
+validation-it100 but with global sync (computational_setup.global_sync = true; run ids end in _gsync-on, the validation
+pairs them with the runs of the same id without it), as all rust validation runs since validation-gsync-it0, whose pt
+runs need it (no transit here, but the same setting for all rust runs). The rust results do not depend on the global
+sync, only the speed should (to be checked against the 1pct run of
+validation-it100, which completed without it). 101
+iterations (0 to 100) from the plans berlin-v7.1-<pct>pct.plans-nopt-noroutes.xml.gz (persons with a pt leg in any plan
+removed, routes removed), so that all engines route and replan on their own travel times. Compared are the trips of
+the last iteration (output_trips.csv.zst, written by MATSim's TripsAndLegsCsvWriter from the experienced plans of rust)
+and the convergence.
+
+matsim-rust main at b9b7618, i.e. with matsim-vsp/matsim-rust#349: ride and freight are routed with the travel times of
+car and truck, as in OpenBerlinScenario (before, ride, which is teleported and so never observed, was routed with free
+speed travel times).
+
+Configs input/v7.1/berlin-v7.1.<pct>pct.nopt.config.yml (no transit), queue and PassingQ (other dynamics can be added
+later by extending the grid; submit only submits the missing runs), 96 partitions (network metis-minconn-const.096,
+the same partitions as DSim), scoring on, events off, seed 1 at 1/3/10pct. ReRoute 0.2 and SelectExpBeta 0.8 for all
+subpopulations; innovation off and score MSA from iteration 90
+(replanning.fraction_of_iterations_to_disable_innovation and scoring.fraction_of_iterations_to_start_score_msa = 0.9).
+
+
+Time limits are rough estimates: at 8 partitions on Genoa, an iteration of scaling-v6 (calibrated plans with routes)
+took 12/35/113 s at 1/3/10pct, so 101 iterations take about 20 min/1 h/3.2 h, plus the first iterations, which are
+congested because all routes are computed on free-flow travel times. The limits are about 3 times that. At 96
+partitions the mobsim is faster, so the runs should end well before the limits.
+"""
+
+config = "input/{version}/berlin-{version}.{pct}pct.nopt.config.yml"
+extra_args = [
+    "--set", "replanning.fraction_of_iterations_to_disable_innovation=0.9",
+    "--set", "scoring.fraction_of_iterations_to_start_score_msa=0.9",
+]
+iterations = 101
+repetitions = 1
+
+[run_env]
+PLANS = "../../shared-svn/projects/rust-qsim/berlin-{version}/{pct}pct/berlin-{version}-{pct}pct.plans-nopt-noroutes.xml.gz"
+
+[time_limit]
+"1" = "02:00:00"
+"3" = "04:00:00"
+"10" = "10:00:00"
+
+[[grid]]
+pct = [1, 3, 10]
+parts = [96]
+method = ["metis-minconn-const"]
+scoring = [true]
+events = [false]
+traffic = ["queue"]
+link = ["PassingQ"]
+seed = [1]
+global_sync = [true]

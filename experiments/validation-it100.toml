@@ -1,3 +1,6 @@
+# Superseded by validation-gsync-it100.toml: global sync for all rust runs (2026-11-12). Only the 1pct run (job 9675275)
+# ran here; the 3pct and 10pct runs (jobs 9675276/9675277) were cancelled while pending.
+#
 # Validation of the traffic of rust against DSim and QSim, part it100: 101 iterations (0 to 100) from plans without
 # routes and without pt users, queue and PassingQ, 96 partitions, seed 1. The same runs with DSim are
 # dsim-validation-it100.toml, with QSim qsim-validation-it100.toml. Inputs and the commands of a run:

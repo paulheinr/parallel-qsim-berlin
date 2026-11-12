@@ -9,7 +9,7 @@ With --rust and --dsim, DIR is the output directory of a run (or the run directo
 output_trips.csv.zst, DSim with <runId>.output_trips.csv.zst (or .csv.gz). Prints the per-trip agreement per mode.
 
 With --experiment, every run of an experiment in runs-svn (load.DATA_ROOT) is compared with the run of the same run_id
-in the reference experiment (--reference, default dsim-<experiment>), e.g. rust or DSim against QSim. The engines come
+(ignoring _gsync-on, since the global sync of rust does not change its results) in the reference experiment (--reference, default dsim-<experiment>), e.g. rust or DSim against QSim. The engines come
 from the run.env of the runs. The figures of each pair go into a directory named after its setting (e.g. 1pct_kw_pq),
 by default below DATA_ROOT/plots/<experiment>_vs_<reference>/ (e.g. validation-it0_vs_dsim-validation-it0), together
 with agreement.csv (the agreement of all pairs in one table) and README.md (runs, builds, command). Afterwards
@@ -37,6 +37,12 @@ TRAFFIC_SHORT = {"queue": "queue", "kinematicWaves": "kw", "withHoles": "holes"}
 LINK_SHORT = {"FIFO": "fifo", "PassingQ": "pq"}
 # Run parameters that are written into agreement.csv (as far as params.json has them)
 PAIR_KEYS = ["pct", "traffic", "link", "seed", "parts", "run_id"]
+
+
+def pair_id(run_id: str) -> str:
+    """The run_id under which a run is paired: without _gsync-on, so that rust runs with global sync (needed by
+    schedule-based transit across partitions without a common link) pair with DSim and QSim runs, which have none."""
+    return run_id.replace("_gsync-on", "")
 
 
 def summary(table):
@@ -151,17 +157,17 @@ def compare_experiments(experiment: Path, reference: Path, out_dir: Path):
     engines = (experiment_engine(runs, experiment), experiment_engine(ref_runs, reference))
     if engines[0] == engines[1]:
         raise SystemExit(f"Both experiments are {engines[0]} runs")
-    ref_paths = dict(zip(ref_runs["run_id"], ref_runs["path"]))
-    missing = sorted(set(runs["run_id"]) - set(ref_paths))
+    ref_paths = dict(zip(ref_runs["run_id"].map(pair_id), ref_runs["path"]))
+    missing = sorted(run_id for run_id in runs["run_id"] if pair_id(run_id) not in ref_paths)
     if missing:
         print(f"No run in {reference.name} for {len(missing)} runs, left out: {', '.join(missing)}")
     tables, pairs = [], []
     for run in runs.sort_values(["pct", "run_id"]).to_dict("records"):
-        if run["run_id"] not in ref_paths:
+        if pair_id(run["run_id"]) not in ref_paths:
             continue
         name = pair_name(run)
         print(f"== {name} ({run['run_id']})")
-        table = compare(read_trips(run["path"] / "output"), read_trips(ref_paths[run["run_id"]] / "output"),
+        table = compare(read_trips(run["path"] / "output"), read_trips(ref_paths[pair_id(run["run_id"])] / "output"),
                         out_dir / name, engines)
         keys = {k: run[k] for k in PAIR_KEYS if k in run and pd.notna(run[k])}
         counts = {f"only_{engines[0]}": table.attrs["only_a"], f"only_{engines[1]}": table.attrs["only_b"],

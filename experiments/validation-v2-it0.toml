@@ -1,3 +1,7 @@
+# Superseded by validation-gsync-it0.toml: the 1pct and 3pct runs (jobs 9675272/9675273, 2026-11-12) panicked in the
+# transit engine ("Transit vehicle ... received in tick t, but it is due at stop ... in tick t ... enable the global
+# sync") and hung until the time limit; only 10pct (job 9675274) completed.
+#
 # Validation of the traffic of rust, part it0, with matsim-rust b9b7618: only the mobsim (iteration 0) with the
 # calibrated plans of Berlin v7.1 with pt, queue and PassingQ, 96 partitions. The references are the DSim and QSim runs
 # with the same settings in dsim-validation-it0.toml and qsim-validation-it0.toml (same jar, unchanged, same run ids).
