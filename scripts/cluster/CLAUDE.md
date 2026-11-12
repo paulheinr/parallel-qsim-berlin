@@ -26,7 +26,9 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
 - Relative paths like `../../shared-svn` in `cluster.toml` / `cluster-dsim.toml` resolve to `~/scratch/...` on the
   cluster and to `~/...` locally, so the same settings work on both.
 - matsim-rust is a git dependency on main (GitHub), committed by the user in 9406e49 (2026-11-10) together with
-  `Cargo.lock`, which pins fceaa942 (#343: scoring parameters from a MATSim config, `qsim.link_dynamics`). So the
+  `Cargo.lock`, which pinned fceaa942 (#343: scoring parameters from a MATSim config, `qsim.link_dynamics`); since
+  2026-11-12 it pins b9b7618 (#349: `ControllerBuilder::travel_time_mode`, ride and freight routed with the travel
+  times of car and truck; not built on the cluster yet). So the
   cluster repo has no local changes any more, and locally it is the same git dependency unless the user switches
   back to the path dependency (commented out in `Cargo.toml`). Before (until 2026-11-10), the cluster had local changes
   there: `branch = "main-mode-neighbors"` with c646f29c (scaling-v6, 2026-10-21), before that main at e20838e. To
@@ -220,7 +222,8 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
     queue/kinematicWaves x FIFO/PassingQ at 96 partitions, limits 30/30/60 min. Output in
     `output/experiments/submit-{,dsim-}validation-it0.log`. All 24 completed (exit 0, rust 1.5-8 min, DSim 2.5-7
     min) and were fetched on 2026-11-12 (about 1 GB, mostly trips; svn add, not committed yet).
-  - Plots in runs-svn (layout chosen by the user, 2026-11-12): `iterations-vs-dsim-2026/plots/<experiment>/`, one
+  - Plots in runs-svn (layout chosen by the user, 2026-11-12): `iterations-vs-dsim-2026/plots/<a>_vs_<b>/` (e.g.
+    `validation-it0_vs_dsim-validation-it0`; first written as `plots/validation-it0/`, moved by the user's wish), one
     directory per pair named after the setting (`1pct_kw_pq`, with `_seed<n>` if seeds vary), plus `agreement.csv`
     (all pairs) and `README.md` (builds, command). Written by
     `uv run --group analysis python -m validation --experiment validation-it0` (pairs by run_id with
@@ -229,6 +232,24 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
     10pct), truck/freight -1.5 to -3.9 %, pt +3.5 to +3.7 %, walk/bike/ride +0.2-0.3 %. Before #346 (local 1pct
     queue/FIFO), rust had about +6 % car hours. Trips only in one run: 44/111/~310 only in DSim, up to 760 only in rust
     at 10pct kinematicWaves (not checked why).
+  - QSim reference (2026-11-12, the user asked for it): `qsim-validation-it0` (settings `cluster-validation-qsim.toml`,
+    `ENGINE=qsim` in run-sim.sh: same jar and config as DSim, `controller.mobsim=qsim`, `qsim.numberOfThreads=12` as in
+    the calibrated runs; network `.096` only so that the run ids match). 12 runs, jobs 9674261-9674272, output in
+    `output/experiments/submit-qsim-validation-it0.log`. All 12 completed (exit 0, 2.5-10 min; logs confirm 12
+    QSimEngineRunners and the qsim.* dynamics) and were fetched on 2026-11-12 (0.5 GB, svn add). Plots:
+    `python -m validation --experiment validation-it0 --reference qsim-validation-it0` and the same for
+    `dsim-validation-it0`, into `plots/<a>_vs_<b>/`. `plots/index.html` (`python -m validation.report`, also
+    rewritten by every `--experiment` run; the user wanted one document to scroll through all figures) shows all
+    comparisons side by side per setting, with an agreement matrix on top. QSim is blue
+    `#2a78d6` in `validation.plots.ENGINES` (not in `iterations.plots.ENGINES`, whose loops would add it to the scaling
+    legends).
+  - Results with QSim (2026-11-12, car hours of the it0 runs with PassingQ, 1/3/10pct): calibrated MATSim run 29.1k /
+    81.9k / 251k; QSim kinematicWaves 29.2k / 81.8k / 251k (reproduces the calibration), QSim queue 29.0k / 80.9k /
+    245k; rust kinematicWaves 32.2k / 110k / 449k, DSim kinematicWaves 33.0k / 113k / 459k; rust queue 29.0k / 81.0k /
+    246k, DSim queue 29.8k / 83.8k / 255k. So kinematicWaves of rust and DSim both deviate strongly from QSim, growing
+    with the sample size (car +10/+34/+80 % vs. QSim), while with queue rust matches QSim within 0.3 % per mode (car
+    median diff +2 s; DSim +3-4 %). The rust-vs-DSim agreement with kinematicWaves only meant both are off in the same
+    way. Cause not investigated yet (a guess: the scaling of holes / backward wave with the sample size).
   - The trips of both runs are identical (sorted rows) to the local runs of the same setting
     (`output/validation/{rust,dsim}-1pct-pt-queue-fifo-selected`), so both engines are deterministic across machines.
     rust vs DSim as locally: 183,120 common trips, all with the same main mode; walk/bike/ride same distances and

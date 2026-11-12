@@ -1,11 +1,12 @@
-"""Figures of the traffic validation rust vs. DSim (Berlin v7.1). Every function takes trips tables of load.read_trips
+"""Figures of the traffic validation rust vs. DSim and QSim (Berlin v7.1). Every function takes trips tables of load.read_trips
 (one per run) and returns a figure; the style is that of iterations.plots.
 
     rust, dsim = read_trips(rust_output), read_trips(dsim_output)
     fig = departures(rust, dsim)
     save(fig, "departures")
 
-The functions compare a run `a` with a reference run `b`: by default a is rust and b is DSim.
+The functions compare a run `a` with a reference run `b`: by default a is rust and b is DSim; the labels (and in
+trav_time_ecdf the engines) can be given, e.g. DSim vs. QSim.
 
 Colors: figures with the engine colors (rust red, DSim violet) show the modes in separate panels; the one figure with
 mode colors (departures) tells the runs apart by line style, as phase_lines in iterations.plots does. The mode
@@ -22,10 +23,16 @@ from matplotlib.colors import LinearSegmentedColormap, LogNorm
 from matplotlib.lines import Line2D
 from matplotlib.ticker import FixedLocator, LogLocator, NullFormatter, PercentFormatter
 
-from iterations.plots import ENGINES, FULL_WIDTH, GRID, MUTED, STYLE, TEXT, TITLE
+from iterations.plots import ENGINES as SCALING_ENGINES
+from iterations.plots import FULL_WIDTH, GRID, MUTED, STYLE, TEXT, TITLE
 from iterations.plots import save as _save
 
 OUT_DIR = Path(__file__).resolve().parents[1] / "jupyter-notebooks/plots/rust-vs-dsim-validation"
+
+# Engine styles: rust and DSim as in iterations.plots, plus QSim (only here, the scaling figures loop over their engines).
+# QSim is blue (categorical slot 1), which passes the palette validator against the red of rust and the violet of DSim.
+ENGINES = {**SCALING_ENGINES,
+           "qsim": {"label": "QSim (Java)", "color": "#2a78d6", "linestyle": (0, (1, 1.5)), "marker": "^"}}
 
 # Panel order of the modes (others follow alphabetically), and "all" for all trips
 MODES = ["car", "pt", "walk", "bike", "ride", "truck", "freight"]
@@ -46,6 +53,10 @@ COLUMNS = {"trav_time": ("Travel time", "min", 60, "s"),
            "traveled_distance": ("Traveled distance", "km", 1000, "m"),
            "dep_time": ("Departure time", "h", 3600, "s")}
 SUMMARY_FONTSIZE = 6
+# Fixed geometry of the per-trip scatter figures in inches (see square_panels), so that the panels of all of them have
+# the same size, whatever the tick labels: side of a square panel, margins of the figure and gaps between the panels
+SCATTER_PANEL = 1.1
+SCATTER_MARGINS = {"left": 0.5, "right": 0.75, "top": 0.3, "bottom": 0.45, "wspace": 0.45, "hspace": 0.28}
 # Every figure names its runs in small print below its lower right corner (see run_note). Turn off for the paper.
 RUN_NOTE = True
 
@@ -93,6 +104,30 @@ def label_outer(axes: list, xlabel: str, ylabel: str, ncols: int = 4):
             ax.set_ylabel(ylabel)
 
 
+def square_panels(n: int, summary_lines: int, ncols: int = 4, panel: float = SCATTER_PANEL,
+                  margins: dict = SCATTER_MARGINS):
+    """Figure with n square panels of `panel` inches in rows of ncols at fixed positions (unlike constrained layout,
+    independent of the tick labels and texts), room above each row for the title of panel_title with
+    `summary_lines` lines of summary, and an axes for a colorbar on the right. Returns figure, panels and colorbar
+    axes."""
+    m = margins
+    nrows = math.ceil(n / ncols)
+    header = (1.3 * TITLE["fontsize"] + 4 + summary_lines * 1.25 * SUMMARY_FONTSIZE + 3) / 72
+    width = m["left"] + ncols * panel + (ncols - 1) * m["wspace"] + m["right"]
+    height = m["top"] + nrows * (header + panel) + (nrows - 1) * m["hspace"] + m["bottom"]
+    fig = plt.figure(figsize=(width, height))
+    axes = []
+    for i in range(n):
+        row, col = divmod(i, ncols)
+        left = m["left"] + col * (panel + m["wspace"])
+        bottom = height - m["top"] - (row + 1) * (header + panel) - row * m["hspace"]
+        axes.append(fig.add_axes((left / width, bottom / height, panel / width, panel / height)))
+    span = height - m["top"] - header - m["bottom"]  # from the lowest to the highest panel edge
+    cax = fig.add_axes(((width - m["right"] + 0.15) / width, (m["bottom"] + 0.2 * span) / height, 0.1 / width,
+                        0.6 * span / height))
+    return fig, axes, cax
+
+
 def summary_box(ax, text: str, loc: str = "upper left"):
     x, ha = (0.04, "left") if "left" in loc else (0.96, "right")
     y, va = (0.96, "top") if "upper" in loc else (0.04, "bottom")
@@ -115,6 +150,14 @@ def number(value: float, unit: str) -> str:
     return f"{value:.0f} {unit}" if abs(value) >= 100 else f"{value:.3g} {unit}"
 
 
+def signed(value: float, unit: str) -> str:
+    """With a sign, whole units from 10 on and one decimal below (the trips file has whole seconds and meters):
+    +127 s, -32 s, +3.0 s, +0.1 m."""
+    if not np.isfinite(value):
+        return "-"
+    return f"{value:+.0f} {unit}" if abs(value) >= 10 else f"{value:+.1f} {unit}"
+
+
 # ---------------------------------------------------------------------------------------------------------------------
 # Per-trip comparison
 
@@ -131,8 +174,10 @@ def agreement(a: pd.DataFrame, b: pd.DataFrame, columns=("trav_time", "traveled_
               ) -> pd.DataFrame:
     """Per-trip agreement of run a with reference b, one row per column and mode (main mode in both runs; "all" for
     all common trips, also those whose main mode changed): number of trips, share with identical values, median and
-    mean of a - b, median of |a - b| (seconds or meters), Pearson correlation. The attrs of the result count the trips
-    only in a, only in b and those with another main mode."""
+    mean of a - b, the mean relative to the mean of b (rel_mean_diff = sum of a / sum of b - 1, e.g. of the vehicle
+    hours), median of |a - b| (seconds or meters), Pearson correlation. The mean shows a systematic deviation, in
+    which per-trip deviations in both directions cancel; median |a - b| shows how much single trips scatter. The attrs
+    of the result count the trips only in a, only in b and those with another main mode."""
     joined = join_trips(a, b)
     rows = []
     for column in columns:
@@ -142,9 +187,11 @@ def agreement(a: pd.DataFrame, b: pd.DataFrame, columns=("trav_time", "traveled_
             d, g = diff[selected], joined[selected]
             if not len(d):
                 continue
+            mean_b = g[f"{column}_b"].mean()
             rows.append({"column": column, "mode": mode, "trips": len(d), "identical": (d == 0).mean(),
-                         "median_diff": d.median(), "mean_diff": d.mean(), "median_abs_diff": d.abs().median(),
-                         "r": g[f"{column}_a"].corr(g[f"{column}_b"])})
+                         "median_diff": d.median(), "mean_diff": d.mean(),
+                         "rel_mean_diff": d.mean() / mean_b if mean_b else np.nan,
+                         "median_abs_diff": d.abs().median(), "r": g[f"{column}_a"].corr(g[f"{column}_b"])})
     result = pd.DataFrame(rows)
     result.attrs.update(only_a=int((~a["trip_id"].isin(b["trip_id"])).sum()),
                         only_b=int((~b["trip_id"].isin(a["trip_id"])).sum()),
@@ -161,10 +208,21 @@ def log_extent(*values: pd.Series) -> tuple[float, float]:
 
 
 def log_ticks(axis):
-    axis.set_major_locator(LogLocator(base=10))
-    axis.set_minor_locator(LogLocator(base=10, subs=range(2, 10)))
-    axis.set_major_formatter(lambda x, _: f"{x:g}")
+    """Logarithmic axis for reading values: ticks at 1-9 of every decade, labels only at the powers of 10, in scientific notation (10^-1, 10^0, ...) so that they stay apart."""
+    axis.set_major_locator(LogLocator(base=10, numticks=20))
+    axis.set_minor_locator(LogLocator(base=10, subs=range(2, 10), numticks=20))
+    axis.set_major_formatter(lambda x, _: f"$10^{{{round(math.log10(x))}}}$")
     axis.set_minor_formatter(NullFormatter())
+    axis.set_tick_params(which="minor", length=2)
+    axis.set_tick_params(which="major", length=4)
+
+
+def log_grid(ax):
+    """Grid lines at the powers of 10 on both axes, on top of the data (thin and transparent, so that the dense areas
+    of the hexbins can be read too)."""
+    ax.set_axisbelow(False)
+    ax.grid(True, which="major", color=TEXT, alpha=0.22, linewidth=0.5)
+    ax.grid(False, which="minor")
 
 
 def trip_scatter(a: pd.DataFrame, b: pd.DataFrame, column: str = "trav_time", label_a: str = ENGINES["rust"]["label"],
@@ -172,13 +230,16 @@ def trip_scatter(a: pd.DataFrame, b: pd.DataFrame, column: str = "trav_time", la
     """Plot 2: per trip, the value of `column` (trav_time or traveled_distance) in run a (y) over reference b (x),
     joined on trip_id: hexbins with a logarithmic color scale shared by all panels, the 1:1 line, one panel per mode
     (main mode in both runs) and one for all common trips. Both axes are logarithmic, so trips with 0 in a or b are
-    not drawn; the summary (share of identical values, median |a - b|, Pearson r) counts them."""
+    not drawn; the summary counts them: share of identical values and Pearson r (agreement of single trips), mean of
+    Δ = a - b with its share of the mean of b (systematic deviation: deviations in both directions cancel, e.g. +5 %
+    = 5 % more vehicle hours in a), and median of Δ (deviation of a typical trip). The panels have the same size in
+    all figures (square_panels)."""
     title, unit, scale, summary_unit = COLUMNS[column]
     joined = join_trips(a, b)
     stats = agreement(a, b, columns=(column,)).set_index("mode")
     modes = [m for m in modes_of(a, b) + [ALL] if m in stats.index]
     with plt.rc_context(STYLE):
-        fig, axes = mode_panels(len(modes), height=1.95, layout="constrained")
+        fig, axes, cax = square_panels(len(modes), summary_lines=3)
         collections = []
         for ax, mode in zip(axes, modes):
             g = joined if mode == ALL else joined[joined["mode"] == mode]
@@ -188,24 +249,27 @@ def trip_scatter(a: pd.DataFrame, b: pd.DataFrame, column: str = "trav_time", la
             collections.append(ax.hexbin(x[shown], y[shown], xscale="log", yscale="log", gridsize=gridsize,
                                          extent=(lo, hi, lo, hi), mincnt=1, cmap=DENSITY, linewidths=0))
             ax.plot([10 ** lo, 10 ** hi], [10 ** lo, 10 ** hi], color=MUTED, linewidth=0.8, linestyle=(0, (4, 2)))
+            # square panel and the same range on both axes: 1:1 is the diagonal
             ax.set_xlim(10 ** lo, 10 ** hi)
             ax.set_ylim(10 ** lo, 10 ** hi)
-            ax.set_aspect("equal")
             log_ticks(ax.xaxis)
             log_ticks(ax.yaxis)
-            ax.grid(False)
+            log_grid(ax)
             s = stats.loc[mode]
-            panel_title(ax, f"{mode} ({s['trips']:,.0f})", f"identical {s['identical']:.1%}, r = {s['r']:.4f}\n"
-                                                           f"median |Δ| {number(s['median_abs_diff'], summary_unit)}")
+            relative = f" ({s['rel_mean_diff']:+.1%})" if np.isfinite(s["rel_mean_diff"]) else ""
+            panel_title(ax, f"{mode} ({s['trips']:,.0f})",
+                        f"identical {s['identical']:.1%}, r = {s['r']:.4f}\n"
+                        f"mean Δ {signed(s['mean_diff'], summary_unit)}{relative}\n"
+                        f"median Δ {signed(s['median_diff'], summary_unit)}")
         vmax = max(c.get_array().max() for c in collections)
         norm = LogNorm(vmin=1, vmax=vmax)
         for c in collections:
             c.set_norm(norm)
         label_outer(axes, f"{label_b} [{unit}]", f"{label_a} [{unit}]")
-        bar = fig.colorbar(collections[0], ax=list(axes), shrink=0.6, aspect=25, pad=0.02)
+        bar = fig.colorbar(collections[0], cax=cax)
         bar.set_label("Trips per hexagon")
         bar.outline.set_visible(False)
-        fig.suptitle(f"{title} per trip", x=0.0, ha="left", **TITLE)
+        fig.suptitle(f"{title} per trip (Δ = {label_a} − {label_b})", x=0.0, ha="left", **TITLE)
         run_note(fig, a, b, label_a, label_b)
     return fig
 
@@ -270,12 +334,16 @@ def ks_distance(x: np.ndarray, y: np.ndarray) -> float:
                                - np.searchsorted(y, grid, side="right") / len(y))))
 
 
-def trav_time_ecdf(a: pd.DataFrame, b: pd.DataFrame, label_a: str = ENGINES["rust"]["label"],
-                   label_b: str = ENGINES["dsim"]["label"]) -> plt.Figure:
+def trav_time_ecdf(a: pd.DataFrame, b: pd.DataFrame, label_a: str | None = None, label_b: str | None = None,
+                   engines: tuple[str, str] = ("rust", "dsim")) -> plt.Figure:
     """Plot 3: distribution (ECDF) of the travel time per main mode, run a and reference b, one panel per mode and one
     for all trips, logarithmic travel time (trips of 0 s are counted in the share but not drawn). Each panel gives the
-    difference of the medians and the Kolmogorov-Smirnov distance D. Colors and line styles: a as rust, b as DSim."""
-    styles = (ENGINES["rust"], ENGINES["dsim"])
+    difference of the medians (median of a - median of b, not trip by trip) and the Kolmogorov-Smirnov distance D:
+    the largest vertical gap between the two curves, i.e. the largest difference of the shares of trips below some
+    travel time (0 = same distribution, 0.02 = 2 percentage points at most). D has no sign. Colors, line styles and
+    default labels: those of `engines` in ENGINES (a rust, b DSim by default)."""
+    styles = tuple(ENGINES[e] for e in engines)
+    label_a, label_b = label_a or styles[0]["label"], label_b or styles[1]["label"]
     modes = modes_of(a, b) + [ALL]
     with plt.rc_context(STYLE):
         fig, axes = mode_panels(len(modes), height=1.75, sharey=True)
@@ -293,7 +361,7 @@ def trav_time_ecdf(a: pd.DataFrame, b: pd.DataFrame, label_a: str = ENGINES["rus
             ax.set_title(mode, loc="left", **TITLE)
             if all(len(v) for v in values):
                 delta = np.median(values[0]) - np.median(values[1])
-                summary_box(ax, f"Δ median {delta * 60:+.0f} s\nD = {ks_distance(*values):.3f}")
+                summary_box(ax, f"Δ median {delta * 60:+.0f} s\nKS D = {ks_distance(*values):.3f}")
         label_outer(axes, "Travel time [min]", "Share of trips")
         handles = [Line2D([], [], color=s["color"], linestyle=s["linestyle"], label=label)
                    for s, label in zip(styles, (label_a, label_b))]

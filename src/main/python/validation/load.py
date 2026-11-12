@@ -1,4 +1,5 @@
-"""Loads the trips of rust (matsim-rust) and Java DSim runs of Berlin v7.1 for the validation of the traffic.
+"""Loads the trips of rust (matsim-rust) and Java DSim runs of Berlin v7.1 for the validation of the traffic (also
+MATSim QSim runs, which write the same files as DSim).
 
     trips = read_trips(output_dir)        # one run: one row per trip, times in seconds
     trips = read_experiment("validation-it0")  # all runs of an experiment, with the run parameters and engine
@@ -6,7 +7,7 @@
 Both engines write the MATSim trips file (semicolon separated, times as HH:MM:SS, also beyond 24:00:00): rust
 `output_trips.csv.zst`, DSim `<runId>.output_trips.csv.zst` (older Java runs `.csv.gz`). Experiments from the cluster
 are in runs-svn below DATA_ROOT, one directory per run in `runs/<run_id>/` with `params.json` and the outputs in
-`output/` (see scripts/cluster/README.md). rust experiments are named `validation-*`, DSim ones `dsim-validation-*`.
+`output/` (see scripts/cluster/README.md). rust experiments are named `validation-*`, DSim ones `dsim-validation-*`, QSim ones `qsim-validation-*`.
 """
 import json
 import re
@@ -63,10 +64,12 @@ def read_trips(output_dir: Path) -> pd.DataFrame:
 
 
 def engine(run_dir: Path) -> str:
-    """dsim if run.env sets ENGINE=dsim, rust if it exists without; otherwise from the name of the trips file."""
+    """The ENGINE of run.env (dsim or qsim), rust if run.env exists without it; otherwise from the name of the trips
+    file (rust, or dsim for any Java run)."""
     env = run_dir / "run.env"
     if env.exists():
-        return "dsim" if re.search(r"^ENGINE=['\"]?dsim", env.read_text(), re.MULTILINE) else "rust"
+        found = re.search(r"^ENGINE=['\"]?(\w+)", env.read_text(), re.MULTILINE)
+        return found.group(1) if found else "rust"
     return trips_file(run_dir / "output")[1]
 
 
