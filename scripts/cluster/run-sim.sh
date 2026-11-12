@@ -23,6 +23,11 @@
 # PLANS, VEHICLES and FACILITIES (otherwise those of the config), SCORING_CONFIG (--scoring-config of
 # OpenBerlinDSimBenchmark), JAVA, JAVA_OPTS and RUN_ID (prefix of the output files).
 #
+# With ENGINE=qsim (set in cluster-validation-qsim.toml), the same jar and DSim config run with MATSim's QSim
+# (controller.mobsim=qsim) and QSIM_THREADS threads (qsim.numberOfThreads); TRAFFIC_DYNAMICS and LINK_DYNAMICS then set
+# qsim.* instead of dsim.*. NETWORK still works: QSim ignores the partition attributes, and --threads NUM_PARTS keeps
+# the partition check of OpenBerlinDSimBenchmark happy.
+#
 # At the end, result.json is written into the run directory (also on failure, scancel and time limit). With TRIPS_JAR it
 # also has sim_end and sim_elapsed_s, the end and elapsed time of the simulation alone.
 
@@ -63,10 +68,10 @@ trap 'exit 130' INT
 
 read -ra JAVA_ARGS <<< "${JAVA_OPTS:-}"
 
-if [[ ${ENGINE:-rust} == dsim ]]; then
-    # Java config
+if [[ ${ENGINE:-rust} == dsim || ${ENGINE:-rust} == qsim ]]; then
+    # Java config, the mobsim is DSim or QSim
     if [[ $SCORING_MODE != enabled ]]; then
-        echo "DSim always scores, scoring=off is not supported." >&2
+        echo "$ENGINE always scores, scoring=off is not supported." >&2
         exit 2
     fi
     CMD=("${JAVA:-java}" ${JAVA_ARGS[@]+"${JAVA_ARGS[@]}"} --add-exports java.base/jdk.internal.misc=ALL-UNNAMED
@@ -95,11 +100,17 @@ if [[ ${ENGINE:-rust} == dsim ]]; then
     if [[ -n ${RUN_ID:-} ]]; then
         CMD+=(--config:controller.runId="$RUN_ID")
     fi
+    if [[ $ENGINE == qsim ]]; then
+        CMD+=(--config:controller.mobsim=qsim)
+        if [[ -n ${QSIM_THREADS:-} ]]; then
+            CMD+=(--config:qsim.numberOfThreads="$QSIM_THREADS")
+        fi
+    fi
     if [[ -n ${TRAFFIC_DYNAMICS:-} ]]; then
-        CMD+=(--config:dsim.trafficDynamics="$TRAFFIC_DYNAMICS")
+        CMD+=(--config:"$ENGINE".trafficDynamics="$TRAFFIC_DYNAMICS")
     fi
     if [[ -n ${LINK_DYNAMICS:-} ]]; then
-        CMD+=(--config:dsim.linkDynamics="$LINK_DYNAMICS")
+        CMD+=(--config:"$ENGINE".linkDynamics="$LINK_DYNAMICS")
     fi
     if [[ -n ${SEED:-} ]]; then
         CMD+=(--config:global.randomSeed="$SEED")
@@ -145,7 +156,7 @@ echo "Command: ${CMD[*]}"
 
 run "${CMD[@]}"
 
-if [[ ${ENGINE:-rust} != dsim && -n ${TRIPS_JAR:-} ]]; then
+if [[ ${ENGINE:-rust} == rust && -n ${TRIPS_JAR:-} ]]; then
     SIM_END=$(timestamp)
     SIM_ELAPSED_S=$(( $(date +%s) - START_S ))
     echo "Simulation ended at $SIM_END after $SIM_ELAPSED_S s, writing the trips."

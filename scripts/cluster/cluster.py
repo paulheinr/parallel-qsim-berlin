@@ -458,7 +458,7 @@ def submit(args):
     problems += [f"{key} {path} does not exist" for key, path in sorted(
         {(k, v) for pct in {r.pct for r in runs} for k, v in settings.extra_env(pct).items()
          if isinstance(v, Path) and not v.exists()})]
-    if settings.run_env.get("ENGINE") == "dsim" and any(r.global_sync for r in runs):
+    if settings.run_env.get("ENGINE") in ("dsim", "qsim") and any(r.global_sync for r in runs):
         problems.append("global_sync = true is only supported by rust")
     if problems:
         print(f"{len(problems)} problem(s):", *problems, sep="\n  ", file=sys.stderr)

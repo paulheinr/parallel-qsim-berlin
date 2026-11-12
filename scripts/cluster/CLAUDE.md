@@ -209,8 +209,26 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
     DSim job 9668005 (jar `28fea3938c97`, bd866a1, 140 s); both exit 0. Deleted on 2026-11-11 with the user's
     approval (on the cluster and the uncommitted copies in runs-svn), because the user wants the it0 grid at 96
     partitions ("alles andere ist zu langsam"; the user wrote 92, there is no such network) and with matsim-rust
-    #345 (route distances in experienced plans). The toml files now have `parts = [96]`; resubmission waits for the
-    merge of #345 and the user's go.
+    #345 (route distances in experienced plans). The toml files now have `parts = [96]`.
+  - matsim-rust #346 (merged 2026-11-11, main 6c7afc96) assigns person vehicles in `prepare_for_sim` by
+    `qsim.vehicles_source` (default `modeVehicleTypesFromVehiclesData`, as in the DSim configs; the user wants no
+    explicit setting). Before, the loader created one vehicle per person and type and overwrote the `vehicleTypes` of the
+    2,777 commercial persons (1pct). With the calibrated `output_vehicles` (all `<person>_<mode>` already there with their
+    types), rust now writes exactly the input vehicles. Local runs named `*-vehfix*` predate the merge and are outdated.
+  - Resubmitted on 2026-11-11 with the user's go, cluster repo at ef04392 (Cargo.lock 6c7afc96, rebuilt):
+    `validation-it0` 12 runs (jobs 9672912-9672923) and `dsim-validation-it0` 12 runs (jobs 9672924-9672935), 1/3/10pct x
+    queue/kinematicWaves x FIFO/PassingQ at 96 partitions, limits 30/30/60 min. Output in
+    `output/experiments/submit-{,dsim-}validation-it0.log`. All 24 completed (exit 0, rust 1.5-8 min, DSim 2.5-7
+    min) and were fetched on 2026-11-12 (about 1 GB, mostly trips; svn add, not committed yet).
+  - Plots in runs-svn (layout chosen by the user, 2026-11-12): `iterations-vs-dsim-2026/plots/<experiment>/`, one
+    directory per pair named after the setting (`1pct_kw_pq`, with `_seed<n>` if seeds vary), plus `agreement.csv`
+    (all pairs) and `README.md` (builds, command). Written by
+    `uv run --group analysis python -m validation --experiment validation-it0` (pairs by run_id with
+    `dsim-<experiment>`), about 16 MB per 12 pairs.
+  - it0 results (rust - DSim, rel. mean diff of trav_time): car -2.2 to -3.6 % (median -14 s at 1pct, -40 s at
+    10pct), truck/freight -1.5 to -3.9 %, pt +3.5 to +3.7 %, walk/bike/ride +0.2-0.3 %. Before #346 (local 1pct
+    queue/FIFO), rust had about +6 % car hours. Trips only in one run: 44/111/~310 only in DSim, up to 760 only in rust
+    at 10pct kinematicWaves (not checked why).
   - The trips of both runs are identical (sorted rows) to the local runs of the same setting
     (`output/validation/{rust,dsim}-1pct-pt-queue-fifo-selected`), so both engines are deterministic across machines.
     rust vs DSim as locally: 183,120 common trips, all with the same main mode; walk/bike/ride same distances and

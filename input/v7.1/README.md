@@ -4,7 +4,7 @@
 |---|---|---|
 | `berlin-v7.1.<pct>pct.config.yml` | rust | scaling experiments up to scaling-v6 (binpb inputs) |
 | `berlin-v7.1.<pct>pct.{pt,nopt}.config.yml` | rust | validation rust vs. DSim, later the new benchmark |
-| `berlin-v7.1-<pct>pct.{pt,nopt}.dsim.config.xml` | DSim | the same |
+| `berlin-v7.1-<pct>pct.{pt,nopt}.dsim.config.xml` | DSim, QSim | the same (QSim with `controller.mobsim=qsim`) |
 | `berlin-v7.1-0pct.plans.xml`, `berlin-v7.1.0pct.config.yml` | both | 0pct runs (empty population) |
 
 The `pt` and `nopt` configs of rust and DSim read the same files (see `readme.txt` in
@@ -73,5 +73,17 @@ java -Xmx40G --add-exports java.base/jdk.internal.misc=ALL-UNNAMED -cp $JAR org.
   --config:replanning.fractionOfIterationsToDisableInnovation=0.9 --config:scoring.fractionOfIterationsToStartScoreMSA=0.9
 ```
 
-On the cluster, the experiments `validation-*` and `dsim-validation-*` run the same commands through
-`scripts/cluster/cluster.py`.
+MATSim's QSim as a reference runs with the same jar and config as DSim, with the mobsim switched and the dynamics set
+in `qsim` instead of `dsim` (12 threads as in the calibrated runs), e.g. it0 with kinematicWaves and PassingQ:
+
+```shell
+java -Xmx40G --add-exports java.base/jdk.internal.misc=ALL-UNNAMED -cp $JAR org.matsim.run.dsim.OpenBerlinDSimBenchmark \
+  --config input/v7.1/berlin-v7.1-1pct.pt.dsim.config.xml --threads 8 --scoring-config $SCORING \
+  --output $PWD/output/validation/qsim-1pct-pt-kw-pq/output --config:controller.mobsim=qsim \
+  --config:qsim.numberOfThreads=12 --config:qsim.trafficDynamics=kinematicWaves --config:qsim.linkDynamics=PassingQ
+```
+
+On the cluster, the experiments `validation-*`, `dsim-validation-*` and `qsim-validation-*` run the same commands
+through `scripts/cluster/cluster.py` (settings `cluster-validation.toml`, `cluster-validation-dsim.toml` and
+`cluster-validation-qsim.toml`). The figures of the comparison are written by `python -m validation --experiment ...`
+in `src/main/python` into runs-svn `iterations-vs-dsim-2026/plots/`.
