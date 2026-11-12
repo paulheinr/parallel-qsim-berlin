@@ -24,6 +24,19 @@ Both: main modes car, freight and truck (bike and ride are teleported along thei
 beeline factor of 1.3, kinematicWaves and PassingQ, stuck time 30 s, end time 36:00, ReRoute 0.2 / SelectExpBeta 0.8 for
 all subpopulations (in `berlin_iterations_v7` and in the DSim configs), no innovation switch-off and no score MSA.
 
+Routing travel times: as in `OpenBerlinScenario`, `berlin_iterations_v7` routes ride with the travel times of car and
+freight with those of truck (`ControllerBuilder::travel_time_mode`, matsim-rust #349). Without it, ride, which is
+teleported and so never observed, was always routed with free speed travel times. bike keeps free speed travel times,
+bounded by the maximum speed of its vehicle type (Java: `BicycleTravelTime`, plus the bicycle infrastructure factor).
+
+pt arrivals: the Berlin pt network is built (`CreateTransitScheduleFromGtfs`, `minStopTime` = 30 s) so that vehicles
+simulated on it reach each stop about 30 s before the scheduled arrival; passengers alight then, and the vehicles wait
+for the scheduled departure. rust's `ScheduleBasedTeleportation` (like the SBB transit engine of MATSim) arrives on
+schedule, which made pt trips about 30 s (+3.5 %) longer than in QSim. `berlin_iterations_v7` therefore moves every
+arrival offset but the first of each route 30 s earlier, at most to the previous departure (`--pt-arrival-shift <s>`,
+default 30, 0 keeps the schedule). Against QSim at 1pct it0 queue/FIFO, pt trips are then +1 s in the median and +0.6 %
+on average. The router of later iterations sees the shifted schedule, too.
+
 rust writes no trips file. `TripsAndLegsCsvWriter` (MATSim 2027.0-PR5260, in the matsim-berlin jar) writes
 `output_trips.csv.zst` and `output_legs.csv.zst` from its `output_experienced_plans.xml.zst`. DSim writes
 `berlin-v7.1-<pct>pct.output_trips.csv.zst` itself (MATSim 2027 compresses with zstd; `controller.writeTripsInterval` must be
