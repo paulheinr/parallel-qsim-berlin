@@ -1,18 +1,16 @@
-# Validation of the traffic of rust against DSim and QSim, part it100, with global sync: 101 iterations (0 to 100) from plans without
+# Superseded by validation-gsync-it100.toml: global sync for all rust runs (2026-11-12). Only the 1pct run (job 9675275)
+# ran here; the 3pct and 10pct runs (jobs 9675276/9675277) were cancelled while pending.
+#
+# Validation of the traffic of rust against DSim and QSim, part it100: 101 iterations (0 to 100) from plans without
 # routes and without pt users, queue and PassingQ, 96 partitions, seed 1. The same runs with DSim are
 # dsim-validation-it100.toml, with QSim qsim-validation-it100.toml. Inputs and the commands of a run:
 # input/v7.1/README.md.
 #
-#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation.toml submit experiments/validation-gsync-it100.toml --dry-run
-#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation.toml fetch validation-gsync-it100
+#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation.toml submit experiments/validation-it100.toml --dry-run
+#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation.toml fetch validation-it100
 
 comment = """
-Validation of rust against DSim (dsim-validation-it100) and QSim (qsim-validation-it100) with replanning, as
-validation-it100 but with global sync (computational_setup.global_sync = true; run ids end in _gsync-on, the validation
-pairs them with the runs of the same id without it), as all rust validation runs since validation-gsync-it0, whose pt
-runs need it (no transit here, but the same setting for all rust runs). The rust results do not depend on the global
-sync, only the speed should (to be checked against the 1pct run of
-validation-it100, which completed without it). 101
+Validation of rust against DSim (dsim-validation-it100) and QSim (qsim-validation-it100) with replanning: 101
 iterations (0 to 100) from the plans berlin-v7.1-<pct>pct.plans-nopt-noroutes.xml.gz (persons with a pt leg in any plan
 removed, routes removed), so that all engines route and replan on their own travel times. Compared are the trips of
 the last iteration (output_trips.csv.zst, written by MATSim's TripsAndLegsCsvWriter from the experienced plans of rust)
@@ -28,6 +26,8 @@ the same partitions as DSim), scoring on, events off, seed 1 at 1/3/10pct. ReRou
 subpopulations; innovation off and score MSA from iteration 90
 (replanning.fraction_of_iterations_to_disable_innovation and scoring.fraction_of_iterations_to_start_score_msa = 0.9).
 
+Before the first submission (2026-11-12), this experiment was defined with kinematicWaves/PassingQ and seeds 1-3 at
+1pct, but never submitted.
 
 Time limits are rough estimates: at 8 partitions on Genoa, an iteration of scaling-v6 (calibrated plans with routes)
 took 12/35/113 s at 1/3/10pct, so 101 iterations take about 20 min/1 h/3.2 h, plus the first iterations, which are
@@ -60,4 +60,3 @@ events = [false]
 traffic = ["queue"]
 link = ["PassingQ"]
 seed = [1]
-global_sync = [true]

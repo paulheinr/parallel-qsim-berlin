@@ -49,5 +49,5 @@ modules:
     scoring_parameters_path: ../../../../shared-svn/projects/rust-qsim/berlin-v7.1/3pct/berlin-v7.1-3pct.scoring.xml
   computational_setup:
     type: ComputationalSetup
-    global_sync: false
+    global_sync: true
     random_seed: 4711

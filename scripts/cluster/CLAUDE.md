@@ -270,6 +270,30 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
       `python -m validation` pairs by run id without it (`pair_id`). For it100, pass the reference explicitly
       (`--experiment validation-gsync-it100 --reference dsim-validation-it100`). The completed runs without global sync
       can check that global sync does not change the results.
+    - With global sync, `validation-gsync-it0` 3pct and 10pct panicked the same way (bus `pt_N53---32583_0_{3,12}`, 72 to
+      77), and hung until the time limit; 1pct and all of it100 completed. Cause (2026-11-13): the arrival shift
+      makes the hop 617893_bus -> 463053_bus 0 s (due in t+1), 72 and 77 are no neighbors, and the barrier of global
+      sync was before sending, so a message of a non-neighbor was read one tick late at random. Fixed in
+      matsim-vsp/matsim-rust#351 (main a96a8525): send, barrier, receive, and `receive_vehicles` always reads all
+      arrived messages; mobsim workers report panics to the controller instead of hanging. Cluster repo at 08df990,
+      binary `1b698e43a9d0`. The 3pct and 10pct runs were deleted (only logs) and resubmitted with `--update-binary`
+      on 2026-11-13 (jobs 9677463-9677464, output in `output/experiments/submit-validation-gsync-it0-rerun.log`,
+      old manifest in `manifest.csv.bak-20261113`); 1pct keeps `ea40a6cfde35` (b9b7618).
+      Both completed (exit 0, 2.9 and 7.9 min). Fetched on 2026-11-13 with `validation-gsync-it100`,
+      `dsim-validation-it100` and `qsim-validation-it100` (svn add, not committed). Plots written for gsync-it0 and
+      gsync-it100 against DSim and QSim and for DSim-it100 against QSim. Results (queue/PassingQ, rel. mean diff of
+      trav_time): rust vs QSim car +0.1-0.6 %, truck -0.5-+0.3 %, ride +0.3 % (it0 and it100); DSim vs QSim car
+      +2.9-4.0 %, truck +2.1-3.9 %. it100 without global sync (1pct) has identical outputs to gsync-it100 1pct.
+  - Renamed on 2026-11-13 (the user found rust with and without global sync confusing, since the results are the
+    same), on the cluster, in runs-svn and in `experiments/`: `validation-gsync-it0` -> `validation-it0`,
+    `validation-gsync-it100` -> `validation-it100`, run ids without `_gsync-on` (manifest, runs.csv, params.json,
+    run.env and the submit logs rewritten; `params.json` still says `global_sync: true`). Global sync is now set in the
+    rust configs `input/v7.1/berlin-v7.1.<pct>pct.{pt,nopt}.config.yml` (`global_sync: true`), not in the grid. The
+    earlier rust runs moved to `archive/` (cluster `output/experiments/archive/`, runs-svn `archive/`, toml files
+    `experiments/archive/`): `validation-it0` (6c7afc96, 12 settings with kinematicWaves; its plots in runs-svn
+    `plots/archive/`), and only on the cluster `validation-v2-it0` and `validation-it100` (b9b7618, without global
+    sync). So `validation-it0` and `validation-it100` are now the gsync runs; older mentions above refer to the
+    archived experiments of the same name. The cluster repo still has the old toml files until a `git pull`.
 - `scripts/cluster/hotpath.sh [name]` (2026-10-20, written because the user finds rust at many partitions
   unsatisfying): builds with `--features hotpath` into `src/main/rust/target/hotpath` (not `target/release`) and runs
   10 cases in one job on one node: 1 % and 3 % at 32/96/192 partitions with hotpath (scoring on, at 96 also off), and
