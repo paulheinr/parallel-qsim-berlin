@@ -1,12 +1,20 @@
 use clap::Parser;
-use matsim_rust::simulation::config::{CommandLineArgs, CompressionType, Config, OverwriteFiles, StrategySetting};
+use matsim_rust::external_services::routing::RoutingServiceAdapterFactory;
+use matsim_rust::external_services::{AdapterHandleBuilder, AsyncExecutor, ExternalServiceType};
+use matsim_rust::simulation::config::{
+    CommandLineArgs, CompressionType, Config, OverwriteFiles, RoutingMode, StrategySetting,
+};
+use matsim_rust::simulation::controller::ExternalServices;
 use matsim_rust::simulation::controller::controller::ControllerBuilder;
 use matsim_rust::simulation::logging::init_std_out_logging_thread_local;
+use matsim_rust::simulation::population::agent_source::PreplanningHorizonAgentSource;
 use matsim_rust::simulation::replanning::DefaultStrategy;
 use matsim_rust::simulation::replanning::selectors::DefaultSelector;
 use matsim_rust::simulation::scenario::Scenario;
+use matsim_rust::simulation::scenario::population::PREPLANNING_HORIZON;
 use matsim_rust::simulation::scenario::transit::{TransitRouteStop, TransitSchedule};
-use std::sync::Arc;
+use matsim_rust::simulation::scenario::trip_structure_utils::{get_trip_spans_default, identify_main_mode};
+use std::sync::{Arc, Barrier};
 use std::time::Duration;
 use tracing::info;
 
@@ -23,6 +31,15 @@ struct Args {
     /// schedule as it is.
     #[arg(long, default_value_t = 30)]
     pt_arrival_shift: u64,
+    /// Addresses of external pt routers (e.g. "http://host:50051"), separated by spaces. With them, pt trips marked
+    /// with a preplanning horizon (see --horizon) are routed by these routers during the simulation (routing mode
+    /// ad-hoc). Without them, the run is the same as before. Started directly or by scripts/cluster/run-sim.sh.
+    #[arg(long, num_args = 1.., value_delimiter = ' ')]
+    router_ip: Vec<String>,
+    /// Preplanning horizon in seconds for every pt trip of the selected plans: the agent asks the router for the
+    /// trip this long before it departs. Only with --router-ip.
+    #[arg(long, requires = "router_ip")]
+    horizon: Option<u32>,
 }
 
 // All subpopulations of Berlin v7.1 get the same strategies, as in the DSim runs (OpenBerlinDSimBenchmark).
@@ -57,6 +74,9 @@ fn main() {
     config.computational_setup_mut().scoring_threads = args.num_parts as u32;
 
     config.routing_mut().network_modes.append(&mut vec!["bike", "car", "truck", "ride", "freight"].iter().map(|s| s.to_string()).collect());
+    if !args.router_ip.is_empty() {
+        config.routing_mut().mode = RoutingMode::AdHoc;
+    }
 
     // config.computational_setup_mut().global_sync = true;
     config.output_mut().overwrite_files = OverwriteFiles::DeleteDirectoryIfExists;
@@ -71,15 +91,21 @@ fn main() {
     if args.pt_arrival_shift > 0 && !scenario.transit_schedule.is_empty() {
         shift_arrival_offsets(&mut scenario.transit_schedule, Duration::from_secs(args.pt_arrival_shift));
     }
+    if let Some(horizon) = args.horizon {
+        add_preplanning_horizon(&mut scenario, horizon);
+    }
 
     // create controller
     // ride is teleported along its network route and freight drives on the network as its own mode, so the routers use
     // the travel times of car and truck, as OpenBerlinScenario binds them in Java. bike keeps its free speed travel
     // times (bounded by the maximum speed of the bike vehicle).
-    ControllerBuilder::default_with_scenario(scenario)
+    let mut controller = ControllerBuilder::default_with_scenario(scenario)
         .travel_time_mode("ride", "car")
-        .travel_time_mode("freight", "truck")
-        .build().unwrap().run();
+        .travel_time_mode("freight", "truck");
+    if !args.router_ip.is_empty() {
+        controller = with_external_routers(controller, args.router_ip, config);
+    }
+    controller.build().unwrap().run();
 
     // matsim_rust::simulation::events::utils::convert_proto_to_xml_events(
     //     config.output().output_dir.join("events"),
@@ -89,6 +115,41 @@ fn main() {
     //     .unwrap()
 }
 
+
+/// Connects the controller to the external pt routers at `addresses`, as matsim-rust's `local_qsim_routing` does: one
+/// routing adapter thread with its own async runtime, which the mobsim threads send their requests to.
+fn with_external_routers(controller: ControllerBuilder, addresses: Vec<String>, config: Arc<Config>) -> ControllerBuilder {
+    info!("Routing pt trips with the external routers at {addresses:?}.");
+    // the partitions plus the thread of the routing adapter
+    let barrier = Arc::new(Barrier::new(config.partitioning().num_parts as usize + 1));
+    let executor = AsyncExecutor::from_config(&config, barrier.clone());
+    let factory = RoutingServiceAdapterFactory::new(addresses, config.clone(), executor.shutdown_handles());
+    let (handle, send, shutdown) = executor.spawn_thread("router", factory);
+
+    let mut services = ExternalServices::default();
+    services.insert(ExternalServiceType::Routing("pt".into()), send.into());
+    controller
+        .external_services(services)
+        .agent_sources(vec![Arc::new(PreplanningHorizonAgentSource)])
+        .global_barrier(barrier)
+        .adapter_handles(vec![AdapterHandleBuilder::default().shutdown_sender(shutdown).handle(handle).build().unwrap()])
+}
+
+/// Marks the origin activity of every pt trip of the selected plans with a preplanning horizon of `horizon` seconds, so
+/// that the agent asks the external router for the trip (see `PreplanningHorizonAgentSource`).
+fn add_preplanning_horizon(scenario: &mut Scenario, horizon: u32) {
+    let mut marked = 0usize;
+    for person in scenario.population.persons.values_mut() {
+        let plan = person.selected_plan_mut();
+        for span in get_trip_spans_default(&plan.elements) {
+            if identify_main_mode(span.trip_elements(&plan.elements)).is_some_and(|mode| mode == "pt") {
+                span.origin_mut(&mut plan.elements).attributes.insert(PREPLANNING_HORIZON, horizon);
+                marked += 1;
+            }
+        }
+    }
+    info!("Marked {marked} pt trips with a preplanning horizon of {horizon} s.");
+}
 
 /// Moves the arrival offset of every stop but the first of each route of `schedule` `shift` earlier, but not earlier
 /// than the departure offset of the previous stop (as given in the schedule). A stop without arrival offset gets one,
