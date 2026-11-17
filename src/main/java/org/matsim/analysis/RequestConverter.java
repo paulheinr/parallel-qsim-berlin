@@ -6,14 +6,15 @@ import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.core.network.NetworkUtils;
-import routing.Routing;
+import org.matsim.schemas.io.types.Coordinate;
+import org.matsim.schemas.services.routing.v1.Request;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.matsim.routing.ph.RoutingServicePH.sToNs;
+import static org.matsim.routing.RoutingUtils.sToNs;
 
 public class RequestConverter {
     public static void main(String[] args) {
@@ -31,15 +32,15 @@ public class RequestConverter {
                 String to = strings.get(4);
                 Entry entry = new Entry(Integer.parseInt(now), Integer.parseInt(departureTime), Id.createLinkId(from), Id.createLinkId(to));
 
-                Routing.Coordinate.Builder fromCoord = Routing.Coordinate.newBuilder()
+                Coordinate.Builder fromCoord = Coordinate.newBuilder()
                         .setX(network.getLinks().get(entry.from()).getCoord().getX())
                         .setY(network.getLinks().get(entry.from()).getCoord().getY());
 
-                Routing.Coordinate.Builder toCoord = Routing.Coordinate.newBuilder()
+                Coordinate.Builder toCoord = Coordinate.newBuilder()
                         .setX(network.getLinks().get(entry.to()).getCoord().getX())
                         .setY(network.getLinks().get(entry.to()).getCoord().getY());
 
-                Routing.Request request = Routing.Request.newBuilder()
+                Request request = Request.newBuilder()
                         .setMode("pt")
                         .setFromLinkId(entry.from().toString())
                         .setToLinkId(entry.to().toString())
