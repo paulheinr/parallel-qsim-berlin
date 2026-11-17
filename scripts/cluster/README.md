@@ -120,6 +120,68 @@ uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-validation-
 - `[fetch] extra_files` add the trips files (`runs/*/output/output_trips.csv.zst`, DSim
   `runs/*/output/*.output_trips.csv.zst`).
 
+### Runs with external pt routers
+
+`scripts/cluster/run-routing.sh` runs a rust simulation together with external pt routers in one job, each on a node
+of its own. The settings `cluster-routing.toml` select it (`[slurm] script = "run-routing.sh"`), request
+`[slurm] nodes = 2` (the simulation and one router; `nodes = N` gives N - 1 routers) and set the router in
+`[run_env]`:
+
+```bash
+uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-routing.toml submit experiments/<x>.toml --dry-run
+```
+
+```toml
+[run_env]
+ROUTER_JAR = "./parallel-qsim-berlin-1.0-*.jar"     # newest match, copied to router-jar/<sha12>/ like the binary
+ROUTER_CONFIG = "./input/{version}/berlin-{version}-{pct}pct.pt.dsim.config.xml"  # with ./, so that it is resolved as a path
+ROUTER_THREADS = 192                                # optional, default: the CPUs of a node
+ROUTER_MEMORY = "400g"                              # optional, maximum heap of a router
+HORIZON = 600                                       # optional: --horizon, preplanning horizon of the pt trips in s
+```
+
+The jar is the one of this repository (`./mvnw package`, main class `org.matsim.routing.RoutingServer`). Another
+router: instead of `ROUTER_JAR`, set `ROUTER_CLASSPATH` (a jar, copied to `router-classpath/<sha12>/`; a class path
+with several entries, separated by `:`, is passed as written and must then be absolute) and `ROUTER_CLASS` (its main
+class). Any router works that takes the options `--config`, `--threads`, `--port` and `--output`, opens its port only
+when it is ready and ends on `Shutdown`, as `org.matsim.routing.RoutingServer` does.
+
+`run-routing.sh` writes the commands into `tasks.conf` and starts them with one `srun --multi-prog`, one task per
+node: task 0 is the simulation on the first node, task i router i - 1 on node i. So simulation and routers start and
+end together:
+
+1. All tasks start together. The simulation gets `--router-ip http://<node>.ib.hlrn.de:50051 …` (`ROUTER_DOMAIN`
+   changes the domain) and retries each connection for up to `computational_setup.retry_time_seconds` (default
+   600 s). A router opens its port only when its routing threads are ready.
+2. If a task ends with an error, Slurm stops all tasks (`--kill-on-bad-exit`).
+3. Otherwise the step ends with its last task: the simulation sends `Shutdown` to the routers as the last thing it
+   does, after writing its output, and the routers end right after.
+4. `scancel` and the time limit stop the whole step. `result.json` is written as by `run-sim.sh`.
+
+The console output of all tasks goes into `slurm-<jobid>.log`, prefixed with the task number (`--label`): `0:` for
+the simulation, `1:`, `2:`, ... for the routers. Router output is in `runs/<run_id>/routers/<i>/`. Slurm splits the
+arguments in `tasks.conf` at white space without shell quoting, so `run-routing.sh` refuses arguments with white
+space, quotes, `%` or backslashes.
+
+Without Slurm, start the router and the simulation in two terminals (`./mvnw package` writes the jar to the
+repository root):
+
+```bash
+# Terminal 1, from the repository root
+java -jar parallel-qsim-berlin-1.0-*.jar --config /path/to/router-config.xml --threads 8 --port 50051
+
+# Terminal 2, from the repository root
+src/main/rust/target/debug/berlin_iterations_v7 --config /path/to/simulation.yml 8 \
+    --router-ip http://localhost:50051 --horizon 600
+```
+
+The simulation ends the router with `Shutdown`. A prepared run directory also works with `run-sim.sh` and
+`EXTRA_ARGS=(--router-ip http://localhost:50051 --horizon 600)` in its `run.env`.
+
+Outlook (not built yet): to use Apptainer, put `apptainer exec --bind <dirs> <image.sif>` before the program in each
+line of `tasks.conf` (on Lise after `module load apptainer/1.4.5`). Apptainer uses the network of the node, so ports
+and addresses stay the same, and Slurm still starts and stops the tasks.
+
 ## 3. Collect results
 
 ```bash
@@ -160,16 +222,20 @@ cluster. Fetching again only copies new or changed files.
     build_info.json               # git commit and dirty flag of both repositories per binary
     bin/<sha12>/berlin_iterations_v7
     trips-jar/<sha12>/matsim-berlin-*.jar   # only with TRIPS_JAR
+    router-jar/<sha12>/parallel-qsim-berlin-*.jar   # only with ROUTER_JAR
+    router-classpath/<sha12>/*.jar  # only with ROUTER_CLASSPATH (a single jar)
     manifest.csv                  # run_id, job_id, submitted_at
     runs.csv                      # written by collect
     runs/<run_id>/                # e.g. 1pct_metis_p016_score-on_events-off_r1
         params.json  run.env
-        slurm-<jobid>.log
+        tasks.conf                # only run-routing.sh: commands of the tasks
+        slurm-<jobid>.log         # run-routing.sh: output of all tasks, prefixed with the task number
         result.json               # job_id, node, start, end, elapsed_s, [sim_end, sim_elapsed_s,] exit_code
         output/                   # simulation output (instrument/, logs/, ...)
+        routers/<i>/              # only run-routing.sh: output of router i
 ```
 
-`result.json` is written by `run-sim.sh` when the job ends, also on failure, `scancel` and time limit. If it is
+`result.json` is written by `run-sim.sh` (or `run-routing.sh`) when the job ends, also on failure, `scancel` and time limit. If it is
 missing, the job is pending, running or was killed hard; `collect` also reports the state from `sacct`.
 
 On Lise, `sacct` reports no useful memory usage (MaxRSS of the batch step is 0), so `max_rss_mb` is not meaningful there.

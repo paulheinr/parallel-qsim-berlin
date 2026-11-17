@@ -67,6 +67,16 @@ grpcurl -plaintext \
 
 For Berlin, use link ids of the Berlin network (e.g. `4597426#2` to `1082080800#2`) and their coordinates.
 
+Locally, start the router above in one terminal and the simulation in another:
+
+```shell
+src/main/rust/target/debug/berlin_iterations_v7 --config path/to/simulation.yml 8 \
+  --router-ip http://localhost:50051 --horizon 600
+```
+
+The Rust client retries connections while the router initializes and sends `Shutdown` when the simulation ends.
+On the cluster, `scripts/cluster/run-routing.sh` starts both together in one Slurm job step, each on a node of its own.
+See "Runs with external pt routers" in `scripts/cluster/README.md`.
 `Makefile` and `scripts/run-routing.sh` still start the old router and are deprecated.
 
 # Open Tasks

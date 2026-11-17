@@ -401,6 +401,26 @@ The details are in [README.md](README.md).
   needs a `git pull`; ask the user first.
 - Use the settings file that matches the experiment: rust experiments use the default `cluster.toml`,
   DSim experiments use `cluster-dsim.toml`.
+- Runs with external pt routers (since 2026-11-17): own job script `run-routing.sh` and settings
+  `cluster-routing.toml` (`[slurm] script = "run-routing.sh"`, `nodes = 2`: the simulation and nodes - 1 routers;
+  cluster.py passes `--nodes=N --ntasks=N`). `run-sim.sh` has no router code (the user found it too cluttered; no
+  shared file between the two scripts, the rust command and `result.json` are copied). `[run_env]`: `ROUTER_JAR` (or
+  `ROUTER_CLASSPATH` + `ROUTER_CLASS`), `ROUTER_CONFIG`, optional `ROUTER_THREADS` (default CPUs per task),
+  `ROUTER_MEMORY`, `ROUTER_DOMAIN` (default `ib.hlrn.de`, may be empty), `HORIZON`. The script writes `tasks.conf`
+  and runs one `srun --multi-prog --ntasks-per-node=1 --kill-on-bad-exit=1 --label` step (task 0 simulation, task i
+  router i - 1 on node i), without `--wait` (the user did not want it): the step ends with its last task. Rust retries
+  connections for `computational_setup.retry_time_seconds` (default 600 s). Shutdown: matsim-rust up to faa369b0
+  sends it before writing the output (`Controller::run`), so the routers end first; matsim-vsp/matsim-rust#356
+  moves it to the end of `run` (open on 2026-11-17; after the merge `cargo update -p matsim-rust`). Router output in
+  `routers/<i>/`, console output of all tasks in the Slurm log. No Python launcher (removed, the user found it too
+  complicated). Locally: two processes by hand; `src/main/rust/tests/pt_adaptive.rs` (ignored, moved from
+  matsim-rust in #356) runs the pt tutorial against a router on localhost:50051 (`pt_adaptive_with_access_egress`
+  fails in `prepare_for_mobsim`: "No routing module found for mode pt", not investigated). Not run on Lise yet; check
+  there that task i lands on node i of `scontrol show hostnames`.
+  - The global barrier of the controller (num_parts + 1 with one adapter) stays: the user wants it so that waiting
+    for the routers is not part of the measured mobsim time. Known risk: if the adapter cannot connect within
+    `retry_time_seconds`, its thread panics before the barrier and the mobsim workers wait forever (until the time
+    limit). `retry_time_seconds` can only be set in the config file, `--set` has no handler for it.
 - DSim `runtimes-*/tasks.csv` (about 23 MB per run) is not fetched by default. Add it with `extra_files` in `[fetch]`
   only if the user wants it in svn.
 
