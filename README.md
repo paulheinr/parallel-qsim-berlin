@@ -43,21 +43,31 @@ Some other runtimes:
 
 ## External Routing
 
-Call RPC Raptor Routing from command line:
+The Rust simulation can ask a pt router over gRPC. The router is `org.matsim.routing.RoutingServer` in this
+repository; the API (`matsim.services.routing.v1`) and the shared message types come from
+[matsim-schemas](https://github.com/matsim-org/matsim-schemas). Build the jar with `./mvnw package` and start the
+router with a MATSim config that contains network, transit schedule and routing parameters (plans and counts are not
+read):
+
+```shell
+java -jar parallel-qsim-berlin-1.0-*.jar --config path/to/config.xml --threads 4 --port 50051
+```
+
+It opens the port once all routing threads are ready, then reports `SERVING` on the standard gRPC health service
+(`grpcurl -plaintext localhost:50051 grpc.health.v1.Health/Check`), and stops on the `Shutdown` call of the simulation
+or on SIGTERM.
+
+Call it from the command line (times in nanoseconds since simulation start; here the pt-tutorial scenario):
 
 ```shell
 grpcurl -plaintext \
-  -d '{"person_id": "1", "from_link_id": "1112", "to_link_id": "4142", "mode": "pt", "departure_time": 27126}' \
-  localhost:50051 routing.RoutingService/GetRoute
+  -d '{"person_id": "1", "from_link_id": "1112", "from": {"x": 1000, "y": 1500}, "to_link_id": "4142", "to": {"x": 4000, "y": 1500}, "mode": "pt", "departure_time_ns": "27126000000000"}' \
+  localhost:50051 matsim.services.routing.v1.RoutingService/GetRoute
 ```
 
-Real Berlin call:
+For Berlin, use link ids of the Berlin network (e.g. `4597426#2` to `1082080800#2`) and their coordinates.
 
-```shell
- grpcurl -plaintext \
-  -d '{"person_id": "1", "from_link_id": "4597426#2", "to_link_id": "1082080800#2", "mode": "pt", "departure_time": 27126}' \
-  localhost:50051 routing.RoutingService/GetRoute
-```
+`Makefile` and `scripts/run-routing.sh` still start the old router and are deprecated.
 
 # Open Tasks
 

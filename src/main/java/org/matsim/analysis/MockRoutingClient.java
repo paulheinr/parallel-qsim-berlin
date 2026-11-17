@@ -7,8 +7,9 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import org.matsim.application.MATSimAppCommand;
 import picocli.CommandLine;
-import routing.Routing;
-import routing.RoutingServiceGrpc;
+import org.matsim.schemas.services.routing.v1.Request;
+import org.matsim.schemas.services.routing.v1.Response;
+import org.matsim.schemas.services.routing.v1.RoutingServiceGrpc;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,7 +41,7 @@ public class MockRoutingClient implements MATSimAppCommand {
 
     @Override
     public Integer call() throws Exception {
-        List<List<Routing.Request>> requests = readRequests(Path.of(requestsFile));
+        List<List<Request>> requests = readRequests(Path.of(requestsFile));
 
         ManagedChannel channel = ManagedChannelBuilder.forAddress(ip, port).usePlaintext().build();
 
@@ -50,7 +51,7 @@ public class MockRoutingClient implements MATSimAppCommand {
 
         RoutingServiceGrpc.RoutingServiceFutureStub service = RoutingServiceGrpc.newFutureStub(channel);
 
-        List<List<ListenableFuture<Routing.Response>>> openFuturesByDeparture = new ArrayList<>(SIM_TIME);
+        List<List<ListenableFuture<Response>>> openFuturesByDeparture = new ArrayList<>(SIM_TIME);
 
         for (int i = 0; i < SIM_TIME; i++) {
             openFuturesByDeparture.add(new ArrayList<>(50));
@@ -62,15 +63,15 @@ public class MockRoutingClient implements MATSimAppCommand {
                 System.out.println("Processing now = " + now / 3600 + "h");
             }
 
-            List<Routing.Request> currentRequests = requests.get(now);
-            for (Routing.Request currentRequest : currentRequests) {
+            List<Request> currentRequests = requests.get(now);
+            for (Request currentRequest : currentRequests) {
                 int dep = nsToSec(currentRequest.getDepartureTimeNs());
-                ListenableFuture<Routing.Response> future = service.getRoute(currentRequest);
+                ListenableFuture<Response> future = service.getRoute(currentRequest);
                 openFuturesByDeparture.get(dep).add(future);
             }
 
             // process all open futures for now departures
-            for (ListenableFuture<Routing.Response> future : openFuturesByDeparture.get(now)) {
+            for (ListenableFuture<Response> future : openFuturesByDeparture.get(now)) {
                 try {
                     future.get();
                     // process response if needed
@@ -92,13 +93,13 @@ public class MockRoutingClient implements MATSimAppCommand {
         return Math.toIntExact(time / NS_PER_SEC);
     }
 
-    private static List<List<Routing.Request>> readRequests(Path path) {
+    private static List<List<Request>> readRequests(Path path) {
         System.out.println("Reading requests from " + path);
-        List<Routing.Request> messages = new LinkedList<>();
+        List<Request> messages = new LinkedList<>();
 
         try (InputStream in = Files.newInputStream(path)) {
-            Routing.Request msg;
-            while ((msg = Routing.Request.parseDelimitedFrom(in)) != null) {
+            Request msg;
+            while ((msg = Request.parseDelimitedFrom(in)) != null) {
                 messages.add(msg);
             }
         } catch (IOException e) {
@@ -109,14 +110,14 @@ public class MockRoutingClient implements MATSimAppCommand {
 
         messages.sort(Comparator.comparing(m -> nsToSec(m.getDepartureTimeNs())));
 
-        List<List<Routing.Request>> res = new ArrayList<>(SIM_TIME);
+        List<List<Request>> res = new ArrayList<>(SIM_TIME);
 
         for (int i = 0; i < SIM_TIME; i++) {
             res.add(new ArrayList<>(50));
         }
 
         int now = 0;
-        for (Routing.Request message : messages) {
+        for (Request message : messages) {
             if (nsToSec(message.getNowNs()) < now) {
                 throw new IllegalStateException("Messages are not sorted by now");
             } else if (nsToSec(message.getNowNs()) == now) {

@@ -10,8 +10,9 @@ import org.matsim.api.core.v01.network.Network;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.core.network.NetworkUtils;
 import picocli.CommandLine;
-import routing.Routing;
-import routing.RoutingServiceGrpc;
+import org.matsim.schemas.services.routing.v1.Request;
+import org.matsim.schemas.services.routing.v1.Response;
+import org.matsim.schemas.services.routing.v1.RoutingServiceGrpc;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -70,7 +71,7 @@ public class ProfileRouting implements MATSimAppCommand {
     private R call(RoutingServiceGrpc.RoutingServiceBlockingStub routingService, String from, String to) {
         log.info("Calling routing service from {} to {}", from, to);
 
-        Routing.Request request = Routing.Request.newBuilder()
+        Request request = Request.newBuilder()
                 .setMode("pt")
                 .setDepartureTimeNs(36000 * NS_PER_SEC)
                 .setFromLinkId(from)
@@ -79,7 +80,7 @@ public class ProfileRouting implements MATSimAppCommand {
                 .build();
 
         long startTime = System.nanoTime();
-        Routing.Response response = routingService.getRoute(request);
+        Response response = routingService.getRoute(request);
         int sum = response.getLegsList().stream().mapToInt(l -> MockRoutingClient.nsToSec(l.getTravTimeNs())).sum();
         long endTime = System.nanoTime();
         return new R(endTime - startTime, sum);
