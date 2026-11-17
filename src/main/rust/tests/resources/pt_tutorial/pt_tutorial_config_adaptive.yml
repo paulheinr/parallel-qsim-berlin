@@ -1,0 +1,35 @@
+# The pt tutorial for tests/pt_adaptive.rs: pt is routed during the simulation (routing mode AdHoc) by an external
+# router. Paths without ./ are relative to this file; the test sets the population and the output directory.
+modules:
+  scoring:
+    type: Scoring
+    scoring_parameters_path: scoring-parameters.yml
+  network:
+    type: Network
+    path: multimodalnetwork.xml
+  population:
+    type: Population
+    path: plans_1-dummy.xml
+  vehicles:
+    type: Vehicles
+    path: vehicles.xml
+  transit:
+    type: Transit
+    schedule_path: transitschedule.xml
+  partitioning:
+    type: Partitioning
+    num_parts: 1
+    method: !Metis
+      vertex_weight:
+        - Constant
+  output:
+    type: Output
+    overwrite_files: DeleteDirectoryIfExists
+    output_dir: ./output/pt_adaptive
+    write_events: XmlGz
+  routing:
+    type: Routing
+    mode: AdHoc
+  controller:
+    type: Controller
+    last_iteration: 0
