@@ -2,7 +2,7 @@ use clap::Parser;
 use matsim_rust::external_services::routing::RoutingServiceAdapterFactory;
 use matsim_rust::external_services::{AdapterHandleBuilder, AsyncExecutor, ExternalServiceType};
 use matsim_rust::simulation::config::{
-    CommandLineArgs, CompressionType, Config, OverwriteFiles, RoutingMode, StrategySetting,
+    CommandLineArgs, CompressionType, Config, OverwriteFiles, StrategySetting,
 };
 use matsim_rust::simulation::controller::ExternalServices;
 use matsim_rust::simulation::controller::controller::ControllerBuilder;
@@ -75,7 +75,7 @@ fn main() {
 
     config.routing_mut().network_modes.append(&mut vec!["bike", "car", "truck", "ride", "freight"].iter().map(|s| s.to_string()).collect());
     if !args.router_ip.is_empty() {
-        config.routing_mut().mode = RoutingMode::AdHoc;
+        // config.routing_mut().mode = RoutingMode::AdHoc;
     }
 
     // config.computational_setup_mut().global_sync = true;
