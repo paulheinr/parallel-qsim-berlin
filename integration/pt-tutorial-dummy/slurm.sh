@@ -10,11 +10,11 @@
 #SBATCH --job-name=integration-pt-tutorial-dummy
 #SBATCH --time=00:10:00
 #SBATCH --output=slurm-integration-pt-tutorial-dummy-%j.log
-#SBATCH --partition=cpu-genoa:test
+#SBATCH --partition=cpu-genoa
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH hetjob
-#SBATCH --partition=cpu-genoa:test
+#SBATCH --partition=cpu-genoa
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 
