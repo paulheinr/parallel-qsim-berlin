@@ -413,9 +413,11 @@ The details are in [README.md](README.md).
   sends it before writing the output (`Controller::run`), so the routers end first; matsim-vsp/matsim-rust#356
   moves it to the end of `run` (open on 2026-11-17; after the merge `cargo update -p matsim-rust`). Router output in
   `routers/<i>/`, console output of all tasks in the Slurm log. No Python launcher (removed, the user found it too
-  complicated). Locally: two processes by hand; `src/main/rust/tests/pt_adaptive.rs` (ignored, moved from
-  matsim-rust in #356) runs the pt tutorial against a router on localhost:50051 (`pt_adaptive_with_access_egress`
-  fails in `prepare_for_mobsim`: "No routing module found for mode pt", not investigated). Not run on Lise yet; check
+  complicated). Locally: two processes by hand, or the integration scenarios in `integration/` (since
+  2026-11-18; process-compose with router, matsim-rust's `local_qsim_routing` and `compare_events`, also run in CI,
+  see `integration/README.md`; they replace `src/main/rust/tests/pt_adaptive.rs`). `plans_1-access_egress.xml` is
+  kept there but not run (it failed in `prepare_for_mobsim`: "No routing module found for mode pt", not
+  investigated). Not run on Lise yet; check
   there that task i lands on node i of `scontrol show hostnames`.
   - The global barrier of the controller (num_parts + 1 with one adapter) stays: the user wants it so that waiting
     for the routers is not part of the measured mobsim time. Known risk: if the adapter cannot connect within

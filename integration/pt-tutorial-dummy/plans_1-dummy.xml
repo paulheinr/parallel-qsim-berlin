@@ -16,7 +16,7 @@
             <attribute name="vehicles" class="org.matsim.vehicles.PersonVehicles">{"car":"102"}</attribute>
         </attributes>
         <plan score="127.97011670773018" selected="yes">
-            <activity type="h" link="1112" x="938.0" y="642.0" end_time="07:32:06" >
+            <activity type="h" link="1112" x="938.0" y="642.0" end_time="07:32:06">
                 <attributes>
                     <attribute name="preplanningHorizon" class="java.lang.Integer">600</attribute>
                 </attributes>
@@ -25,9 +25,9 @@
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">pt</attribute>
                 </attributes>
-                <route type="default_pt" start_link="11" end_link="33" trav_time="00:00:42" distance="6100.0">{"transitRouteId":"1to3","boardingTime":"07:50:00","transitLineId":"Blue Line","accessFacilityId":"1","egressFacilityId":"3"}</route>
+                <!--                <route type="default_pt" start_link="11" end_link="33" trav_time="00:00:42" distance="6100.0">{"transitRouteId":"1to3","boardingTime":"07:50:00","transitLineId":"Blue Line","accessFacilityId":"1","egressFacilityId":"3"}</route>-->
             </leg>
-            <activity type="w" link="3141" x="3619.0" y="1217.0" end_time="17:27:24" >
+            <activity type="w" link="3141" x="3619.0" y="1217.0" end_time="17:27:24">
                 <attributes>
                     <attribute name="preplanningHorizon" class="java.lang.Integer">600</attribute>
                 </attributes>
@@ -36,9 +36,10 @@
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">pt</attribute>
                 </attributes>
-                <route type="generic" start_link="3141" end_link="4142" trav_time="00:05:45" distance="287.7232176936717"></route>
+<!--                <route type="generic" start_link="3141" end_link="4142" trav_time="00:05:45"-->
+<!--                       distance="287.7232176936717"></route>-->
             </leg>
-            <activity type="s" link="4142" x="3840.0" y="1205.0" end_time="18:25:10" >
+            <activity type="s" link="4142" x="3840.0" y="1205.0" end_time="18:25:10">
                 <attributes>
                     <attribute name="preplanningHorizon" class="java.lang.Integer">600</attribute>
                 </attributes>
@@ -47,9 +48,9 @@
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">pt</attribute>
                 </attributes>
-                <route type="default_pt" start_link="33" end_link="11" trav_time="00:00:42" distance="6100.0">{"transitRouteId":"3to1","boardingTime":"18:40:00","transitLineId":"Blue Line","accessFacilityId":"3","egressFacilityId":"1"}</route>
+<!--                <route type="default_pt" start_link="33" end_link="11" trav_time="00:00:42" distance="6100.0">{"transitRouteId":"3to1","boardingTime":"18:40:00","transitLineId":"Blue Line","accessFacilityId":"3","egressFacilityId":"1"}</route>-->
             </leg>
-            <activity type="h" link="1112" x="938.0" y="642.0" >
+            <activity type="h" link="1112" x="938.0" y="642.0">
             </activity>
         </plan>
 

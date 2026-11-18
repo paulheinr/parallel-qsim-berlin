@@ -1,5 +1,6 @@
-# The pt tutorial for tests/pt_adaptive.rs: pt is routed during the simulation (routing mode AdHoc) by an external
-# router. Paths without ./ are relative to this file; the test sets the population and the output directory.
+# Simulation config of the integration scenario pt-tutorial-dummy (see ../README.md): pt is routed during the
+# simulation by the external router of router-config.xml. Paths without ./ are relative to this file, the output
+# directory is relative to the repository root, where process-compose runs.
 modules:
   scoring:
     type: Scoring
@@ -25,11 +26,9 @@ modules:
   output:
     type: Output
     overwrite_files: DeleteDirectoryIfExists
-    output_dir: ./output/pt_adaptive
-    write_events: XmlGz
-  routing:
-    type: Routing
-    mode: AdHoc
+    output_dir: ./output/integration/pt-tutorial-dummy/sim
+    compression_type: Zst
   controller:
     type: Controller
     last_iteration: 0
+    ignore_routing_mode_during_preparation: [ "pt" ]

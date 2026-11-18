@@ -51,3 +51,70 @@ jobs:
         run: cargo build --locked --all-targets
       - name: Run tests
         run: cargo test --locked
+
+  integration:
+    # Runs the scenarios in integration/ (router of this repository + matsim-rust as separate processes), see
+    # integration/README.md.
+    name: Integration (${{ matrix.scenario }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [pt-tutorial-dummy]
+    env:
+      PROCESS_COMPOSE_VERSION: 1.124.0
+      GRPCURL_VERSION: 1.9.3
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Read matsim-rust revision from Cargo.lock
+        id: matsim-rust
+        run: |
+          rev=$(grep -A2 '^name = "matsim-rust"' src/main/rust/Cargo.lock | sed -n 's/.*#\([0-9a-f]*\)"/\1/p')
+          test -n "$rev"
+          echo "rev=$rev" >> "$GITHUB_OUTPUT"
+      - name: Cache matsim-rust binaries
+        id: matsim-rust-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/local_qsim_routing
+            ~/.cargo/bin/compare_events
+          key: matsim-rust-bins-${{ runner.os }}-${{ steps.matsim-rust.outputs.rev }}
+      - name: Install matsim-rust binaries
+        if: steps.matsim-rust-cache.outputs.cache-hit != 'true'
+        run: >-
+          cargo install --locked --git https://github.com/matsim-vsp/matsim-rust
+          --rev ${{ steps.matsim-rust.outputs.rev }} matsim-rust
+          --bin local_qsim_routing --bin compare_events
+      - name: Install process-compose and grpcurl
+        run: |
+          mkdir -p ~/.local/bin
+          curl -fsSL "https://github.com/F1bonacc1/process-compose/releases/download/v${PROCESS_COMPOSE_VERSION}/process-compose_linux_amd64.tar.gz" \
+            | tar -xz -C ~/.local/bin process-compose
+          curl -fsSL "https://github.com/fullstorydev/grpcurl/releases/download/v${GRPCURL_VERSION}/grpcurl_${GRPCURL_VERSION}_linux_x86_64.tar.gz" \
+            | tar -xz -C ~/.local/bin grpcurl
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Build router
+        run: ./mvnw --batch-mode --no-transfer-progress package -DskipTests
+      - name: Run scenario
+        run: |
+          export ROUTER_JAR=$(ls parallel-qsim-berlin-1.0-*.jar)
+          export SIM_BIN=~/.cargo/bin/local_qsim_routing
+          export COMPARE_BIN=~/.cargo/bin/compare_events
+          process-compose --no-server up -t=false -f integration/${{ matrix.scenario }}/process-compose.yml
+      - name: Upload output
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-${{ matrix.scenario }}
+          path: output/integration/${{ matrix.scenario }}
+          if-no-files-found: ignore

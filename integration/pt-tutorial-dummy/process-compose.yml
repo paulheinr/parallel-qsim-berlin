@@ -1,0 +1,59 @@
+# Integration scenario pt-tutorial-dummy: the pt tutorial with one agent whose pt trips are routed during the
+# simulation by the external router. See ../README.md. Run from the repository root:
+#
+#   ROUTER_JAR=... SIM_BIN=... COMPARE_BIN=... \
+#     process-compose --no-server up -t=false -f integration/pt-tutorial-dummy/process-compose.yml
+#
+# The exit code is that of compare: 0 if the events equal expected/events, else not 0 (also if the router or the
+# simulation fails).
+
+disable_env_expansion: true
+
+processes:
+  router:
+    command: |
+      if [ ! -f "${ROUTER_JAR:-}" ]; then
+        echo 'Set ROUTER_JAR to the executable JAR built by ./mvnw package.' >&2
+        exit 1
+      fi
+      exec java -Dmatsim.preferLocalDtds=true -jar "$ROUTER_JAR" \
+        --config integration/pt-tutorial-dummy/router-config.xml \
+        --threads 1 --port 50051 --output output/integration/pt-tutorial-dummy/router
+    readiness_probe:
+      exec:
+        command: >-
+          grpcurl -plaintext -max-time 2 localhost:50051 grpc.health.v1.Health/Check
+          | grep -Eq '"status"[[:space:]]*:[[:space:]]*"SERVING"'
+      period_seconds: 1
+      timeout_seconds: 3
+      failure_threshold: 60
+    availability:
+      restart: exit_on_failure
+    shutdown:
+      signal: 15
+      timeout_seconds: 15
+
+  sim:
+    command: |
+      if [ ! -x "${SIM_BIN:-}" ]; then
+        echo "Set SIM_BIN to matsim-rust's local_qsim_routing binary." >&2
+        exit 1
+      fi
+      exec "$SIM_BIN" --config integration/pt-tutorial-dummy/sim-config.yml --router-ip http://localhost:50051
+    depends_on:
+      router:
+        condition: process_healthy
+
+  compare:
+    command: |
+      if [ ! -x "${COMPARE_BIN:-}" ]; then
+        echo "Set COMPARE_BIN to matsim-rust's compare_events binary." >&2
+        exit 1
+      fi
+      exec "$COMPARE_BIN" integration/pt-tutorial-dummy/expected/events output/integration/pt-tutorial-dummy/sim/events
+    depends_on:
+      sim:
+        condition: process_completed_successfully
+    availability:
+      exit_on_end: true
+      exit_on_skipped: true
