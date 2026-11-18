@@ -1,4 +1,4 @@
-# Simulation config of the integration scenario pt-tutorial-dummy (see ../README.md): pt is routed during the
+# Simulation config of the integration scenario pt-tutorial-dummy (see ../../README.md): pt is routed during the
 # simulation by the external router of router-config.xml. Paths without ./ are relative to this file, the output
 # directory is relative to the repository root, where process-compose runs.
 modules:

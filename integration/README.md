@@ -16,6 +16,9 @@ COMPARE_BIN=<matsim-rust>/target/release/compare_events \
 `ROUTER_JAR` comes from `./mvnw package -DskipTests`. Build the binaries from matsim-rust at the revision that
 `src/main/rust/Cargo.lock` pins. `process-compose` and `grpcurl` must be on the `PATH`.
 
+On a Slurm cluster, use `sbatch integration/<scenario>/slurm.sh` with the same variables. This is a heterogeneous job
+with the router and the simulation on nodes of their own; the script header has the details.
+
 After an intended change, replace `expected/events/` with the uncompressed events of the run
 (`output/integration/<scenario>/sim/events/`) and check the diff.
 
