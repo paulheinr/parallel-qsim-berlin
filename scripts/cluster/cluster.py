@@ -574,10 +574,13 @@ def sbatch_command(settings: Settings, name: str, exp_dir: Path, run: Run, limit
         cmd.append(f"--partition={settings.slurm['partition']}")
     if settings.slurm.get("mail_user"):
         cmd += [f"--mail-user={settings.slurm['mail_user']}", f"--mail-type={settings.slurm.get('mail_type', 'FAIL')}"]
-    if "nodes" in settings.slurm:
-        # one task per node, e.g. for run-routing.sh the simulation and nodes - 1 routers
-        nodes = int(settings.slurm["nodes"])
-        cmd += [f"--nodes={nodes}", f"--ntasks={nodes}"]
+    if "routers" in settings.slurm:
+        # heterogeneous job for run-routing.sh: component 0 the simulation on one node, component 1 one router per node
+        routers = int(settings.slurm["routers"])
+        router_component = [f"--time={limit}", f"--nodes={routers}", f"--ntasks={routers}"]
+        if "partition" in settings.slurm:
+            router_component.insert(0, f"--partition={settings.slurm['partition']}")
+        cmd += ["--nodes=1", "--ntasks=1", ":", *router_component]
     return cmd + [str(settings.run_script), str(run_dir)]
 
 
@@ -649,10 +652,15 @@ def sacct(job_ids: list[str]) -> dict[str, dict]:
                              capture_output=True, text=True, check=True).stdout
         for line in out.splitlines():
             job_step, state, elapsed, max_rss, node = line.split("|")
-            job_id = job_step.split(".")[0]
+            # components of a heterogeneous job (run-routing.sh) are <id>+0, <id>+1, ..., their steps <id>+0.batch
+            allocation = job_step.split(".")[0]
+            job_id, _, component = allocation.partition("+")
             entry = result.setdefault(job_id, {})
-            if job_step == job_id:
-                entry.update(state=state.split()[0], elapsed=elapsed, node=node)
+            if job_step == allocation:
+                if component in ("", "0"):
+                    entry.update(state=state.split()[0], elapsed=elapsed, node=node)
+                else:
+                    entry["node"] = f"{entry['node']},{node}" if entry.get("node") else node
             if max_rss:
                 entry["max_rss_mb"] = max(entry.get("max_rss_mb", 0), rss_to_mb(max_rss))
     return result

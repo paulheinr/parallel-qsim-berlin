@@ -1,5 +1,5 @@
-# Settings for rust runs with external pt routers: run-routing.sh starts the simulation and the routers together in one
-# job, each on a node of its own (see "Runs with external pt routers" in README.md). Inputs as in
+# Settings for rust runs with external pt routers: run-routing.sh starts the simulation and the routers together as a
+# heterogeneous job, each on a node of its own (see "Runs with external pt routers" in README.md). Inputs as in
 # cluster-validation.toml (rust configs with pt).
 #
 #   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-routing.toml submit experiments/<x>.toml --dry-run
@@ -17,7 +17,7 @@ network_pattern = "berlin-{version}/network/berlin-{version}.network.{method}.{p
 binary = "src/main/rust/target/release/berlin_iterations_v7"
 
 # Written to run.env, {version} and {pct} are replaced. An experiment can set more in its [run_env], e.g. HORIZON
-# (preplanning horizon of the pt trips in s), ROUTER_THREADS or ROUTER_MEMORY (see run-routing.sh).
+# (preplanning horizon of the pt trips in s), ROUTER_THREADS, ROUTER_MEMORY or WORKER_THREADS (see run-routing.sh).
 [run_env]
 # The jar of this repository (`./mvnw package`, main class org.matsim.routing.RoutingServer). The newest match is
 # copied into the experiment (router-jar/<sha12>/), like the binary.
@@ -30,7 +30,7 @@ TRIPS_JAR = "../matsim-berlin/matsim-berlin-7.1-SNAPSHOT-*.jar"
 
 [slurm]
 script = "run-routing.sh"     # job script in scripts/cluster/, default run-sim.sh
-nodes = 2                     # one node per process: the simulation and nodes - 1 routers
+routers = 1                   # heterogeneous job: the simulation on one node, one router per node on `routers` nodes
 partition = "cpu-genoa"
 mail_user = "heinrich@vsp.tu-berlin.de"
 mail_type = "FAIL"

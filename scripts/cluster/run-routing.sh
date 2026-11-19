@@ -1,19 +1,13 @@
 #!/bin/bash --login
-#SBATCH --partition=cpu-genoa
-#SBATCH --nodes=2
-#SBATCH --ntasks=2
-#SBATCH --cpus-per-task=192
-#SBATCH --exclusive
-
-# Runs a rust simulation together with external pt routers in one Slurm job step. As with run-sim.sh, all parameters
-# are read from <run_dir>/run.env, which scripts/cluster/cluster.py writes before submitting (settings e.g.
-# cluster-routing.toml). Time limit, job name, log file and the number of nodes are set by cluster.py.
+# Runs a rust simulation together with external pt routers as a heterogeneous Slurm job: component 0 is the simulation
+# (one node), component 1 the routers (one router per node). As with run-sim.sh, all parameters are read from
+# <run_dir>/run.env, which scripts/cluster/cluster.py writes before submitting (settings e.g. cluster-routing.toml).
+# cluster.py also sets the components, time limit, job name and log file ([slurm] routers = R):
 #
-#   sbatch [--time=...] [--nodes=N --ntasks=N] scripts/cluster/run-routing.sh <run_dir>
+#   sbatch [job options] --partition=P --time=T --nodes=1 --ntasks=1 \
+#       : --partition=P --time=T --nodes=R --ntasks=R scripts/cluster/run-routing.sh <run_dir>
 #
-# Every process gets a node of its own: the simulation the first node of the job, router i node i + 1, so a job with
-# N nodes has N - 1 routers. One srun --multi-prog runs them as the tasks of one job step, with the commands in
-# <run_dir>/tasks.conf:
+# One srun starts both components as one heterogeneous job step:
 # - All tasks start together. The simulation gets the addresses of the routers (--router-ip) and retries connecting
 #   until they are ready (computational_setup.retry_time_seconds, default 600 s). A router opens its port only when
 #   all its routing threads are ready.
@@ -22,6 +16,7 @@
 #   it does, and the routers end right after.
 # - scancel and the time limit stop the whole step. result.json is written as in run-sim.sh.
 # The output of all tasks goes into the Slurm log, each line prefixed with its task: 0: simulation, 1:, 2:, ... routers.
+# Each router writes its output to <run_dir>/routers/<node>/.
 #
 # run.env has the variables of the rust runs of run-sim.sh (BIN, CONFIG, NUM_PARTS, SCORING_MODE, WRITE_EVENTS and
 # optionally NETWORK, LAST_ITERATION, TRAFFIC_DYNAMICS, LINK_DYNAMICS, SEED, PLANS, EXTRA_ARGS, TRIPS_JAR, JAVA,
@@ -30,12 +25,13 @@
 #   ROUTER_CLASSPATH and ROUTER_CLASS for another main class. A router takes --config, --threads, --port and
 #   --output, opens its port only when it is ready and ends on Shutdown.
 # - ROUTER_CONFIG, the MATSim config of the routers.
-# - optionally ROUTER_THREADS (default: the CPUs of a node), ROUTER_MEMORY (maximum heap of a router, e.g. 400g),
-#   ROUTER_DOMAIN (appended to the node names in the addresses, default ib.hlrn.de, i.e. InfiniBand on Lise; empty:
-#   the node names alone) and HORIZON (--horizon: preplanning horizon of the pt trips in s).
+# - optionally ROUTER_THREADS (default: the CPUs of a router node), ROUTER_MEMORY (maximum heap of a router, e.g.
+#   400g), ROUTER_DOMAIN (appended to the node names in the addresses, default ib.hlrn.de, i.e. InfiniBand on Lise;
+#   empty: the node names alone), HORIZON (--horizon: preplanning horizon of the pt trips in s) and WORKER_THREADS
+#   (computational_setup.adapter_worker_threads: async worker threads of the routing adapter of the simulation).
 #
 # Without Slurm, start the router and the simulation yourself, see "Runs with external pt routers" in
-# scripts/cluster/README.md. scripts/run-routing.sh (with the Makefile) is the old way and deprecated.
+# scripts/cluster/README.md.
 
 set -euo pipefail
 
@@ -78,9 +74,9 @@ fail() {
     exit 2
 }
 
-if [[ -z ${SLURM_JOB_ID:-} ]]; then
-    fail "run-routing.sh runs only in a Slurm job. Without Slurm, start the router and the simulation yourself" \
-        "(see scripts/cluster/README.md)."
+if [[ ${SLURM_HET_SIZE:-} != 2 ]]; then
+    fail "run-routing.sh runs only in a heterogeneous Slurm job with two components (simulation and routers), see" \
+        "its header. Without Slurm, start the router and the simulation yourself (see scripts/cluster/README.md)."
 fi
 if [[ ${ENGINE:-rust} != rust ]]; then
     fail "run-routing.sh runs only rust simulations, not ENGINE=$ENGINE."
@@ -95,10 +91,10 @@ fi
 if [[ -z ${ROUTER_CONFIG:-} ]]; then
     fail "Set ROUTER_CONFIG, the MATSim config of the routers."
 fi
-read -ra NODES <<< "$(scontrol show hostnames "$SLURM_JOB_NODELIST" | tr '\n' ' ')"
-if (( ${#NODES[@]} < 2 )); then
-    fail "The job needs at least 2 nodes (simulation and one router), it has ${#NODES[@]}."
-fi
+read -ra ROUTER_NODES <<< "$(scontrol show hostnames "$SLURM_JOB_NODELIST_HET_GROUP_1" | tr '\n' ' ')"
+# CPUs of a node of each component, e.g. "192" or "192(x2)"; the nodes are exclusive
+SIM_CPUS=${SLURM_JOB_CPUS_PER_NODE_HET_GROUP_0%%(*}
+ROUTER_CPUS=${SLURM_JOB_CPUS_PER_NODE_HET_GROUP_1%%(*}
 
 # the simulation, as the rust runs of run-sim.sh
 CMD=("$BIN" --config "$CONFIG" "$NUM_PARTS"
@@ -124,50 +120,37 @@ fi
 if [[ -n ${SEED:-} ]]; then
     CMD+=(--set "computational_setup.random_seed=$SEED")
 fi
+if [[ -n ${WORKER_THREADS:-} ]]; then
+    CMD+=(--set "computational_setup.adapter_worker_threads=$WORKER_THREADS")
+fi
 if [[ -n ${HORIZON:-} ]]; then
     CMD+=(--horizon "$HORIZON")
 fi
 CMD+=(${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"})
 
-# router i runs on node i + 1 and listens on port 50051
+# one router per node of component 1, listening on port 50051
 DOMAIN=${ROUTER_DOMAIN-ib.hlrn.de}
 ADDRESSES=()
-for node in "${NODES[@]:1}"; do
+for node in "${ROUTER_NODES[@]}"; do
     ADDRESSES+=("http://$node${DOMAIN:+.$DOMAIN}:50051")
 done
 CMD+=(--router-ip "${ADDRESSES[@]}")
 
-# One line per task: task number, program, arguments. Slurm splits the arguments at white space, without shell quoting,
-# and replaces %t and %o in them, so arguments with white space, quotes, % or backslashes are refused.
-TASKS=()
-task() {
-    local arg
-    for arg in "${@:2}"; do
-        if [[ -z $arg || $arg == *[[:space:]\'\"%\\]* ]]; then
-            fail "Cannot write this argument into tasks.conf (empty, or with white space, quotes, % or \\): $arg"
-        fi
-    done
-    TASKS+=("$*")
-}
-task 0 "${CMD[@]}"
-for (( i = 0; i < ${#NODES[@]} - 1; i++ )); do
-    ROUTER_CMD=("${JAVA:-java}")
-    if [[ -n ${ROUTER_MEMORY:-} ]]; then
-        ROUTER_CMD+=("-Xmx$ROUTER_MEMORY")
-    fi
-    ROUTER_CMD+=("${ROUTER_MAIN[@]}" --config "$ROUTER_CONFIG" --threads "${ROUTER_THREADS:-$SLURM_CPUS_PER_TASK}"
-        --port 50051 --output "$RUN_DIR/routers/$i")
-    task "$((i + 1))" "${ROUTER_CMD[@]}"
-done
-printf '%s\n' "${TASKS[@]}" > tasks.conf
+ROUTER_CMD=("${JAVA:-java}")
+if [[ -n ${ROUTER_MEMORY:-} ]]; then
+    ROUTER_CMD+=("-Xmx$ROUTER_MEMORY")
+fi
+ROUTER_CMD+=("${ROUTER_MAIN[@]}" --config "$ROUTER_CONFIG" --threads "${ROUTER_THREADS:-$ROUTER_CPUS}" --port 50051)
 
 echo "Run directory: $RUN_DIR"
-echo "Tasks (tasks.conf):"
-cat tasks.conf
+echo "Simulation on $SLURM_JOB_NODELIST_HET_GROUP_0 ($SIM_CPUS CPUs): ${CMD[*]}"
+echo "Routers on ${ROUTER_NODES[*]} ($ROUTER_CPUS CPUs each): ${ROUTER_CMD[*]} --output $RUN_DIR/routers/<node>"
 
-# One task per node, task i on node i of the job. No --wait: the step ends with its last task, see above.
-srun --nodes="${#NODES[@]}" --ntasks="${#NODES[@]}" --ntasks-per-node=1 --cpus-per-task="$SLURM_CPUS_PER_TASK" \
-    --kill-on-bad-exit=1 --label --multi-prog tasks.conf
+# One heterogeneous step: component 0 the simulation, component 1 one router per node, each writing to
+# routers/<node>. No --wait: the step ends with its last task, see above.
+srun --kill-on-bad-exit=1 --label --ntasks=1 --cpus-per-task="$SIM_CPUS" "${CMD[@]}" \
+    : --kill-on-bad-exit=1 --label --ntasks="${#ROUTER_NODES[@]}" --ntasks-per-node=1 --cpus-per-task="$ROUTER_CPUS" \
+    bash -c 'exec "$@" --output "$0/routers/$(hostname -s)"' "$RUN_DIR" "${ROUTER_CMD[@]}"
 
 if [[ -n ${TRIPS_JAR:-} ]]; then
     SIM_END=$(timestamp)
@@ -177,6 +160,6 @@ if [[ -n ${TRIPS_JAR:-} ]]; then
     TRIPS_CMD=("${JAVA:-java}" ${JAVA_ARGS[@]+"${JAVA_ARGS[@]}"} -cp "$TRIPS_JAR"
         org.matsim.application.analysis.population.TripsAndLegsCsvWriter --run-directory "$RUN_DIR/output")
     echo "Command: ${TRIPS_CMD[*]}"
-    srun --nodes=1 --ntasks=1 --cpus-per-task="$SLURM_CPUS_PER_TASK" "${TRIPS_CMD[@]}"
+    srun --het-group=0 --ntasks=1 --cpus-per-task="$SIM_CPUS" "${TRIPS_CMD[@]}"
     echo "Trips written at $(timestamp)."
 fi

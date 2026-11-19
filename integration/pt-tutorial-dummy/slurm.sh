@@ -2,7 +2,9 @@
 # pt-tutorial-dummy on Slurm (Lise), the counterpart of process-compose.yml: hetjob with the router as component 0 and
 # the simulation as component 1. Submit from the repository root:
 #
-#   ROUTER_JAR=... SIM_BIN=... COMPARE_BIN=... sbatch integration/pt-tutorial-dummy/slurm.sh
+#   sbatch --export=ROUTER_JAR=...,SIM_BIN=...,COMPARE_BIN=... integration/pt-tutorial-dummy/slurm.sh
+#
+# --export is needed on Lise, where SBATCH_EXPORT=none keeps the environment of the shell out of the job.
 #
 # The simulation retries connecting until the router is ready and stops it at its end. The job ends with the exit
 # code of compare_events. If a step fails, the job ends and Slurm stops the other one.

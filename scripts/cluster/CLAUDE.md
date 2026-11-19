@@ -402,23 +402,29 @@ The details are in [README.md](README.md).
 - Use the settings file that matches the experiment: rust experiments use the default `cluster.toml`,
   DSim experiments use `cluster-dsim.toml`.
 - Runs with external pt routers (since 2026-11-17): own job script `run-routing.sh` and settings
-  `cluster-routing.toml` (`[slurm] script = "run-routing.sh"`, `nodes = 2`: the simulation and nodes - 1 routers;
-  cluster.py passes `--nodes=N --ntasks=N`). `run-sim.sh` has no router code (the user found it too cluttered; no
-  shared file between the two scripts, the rust command and `result.json` are copied). `[run_env]`: `ROUTER_JAR` (or
-  `ROUTER_CLASSPATH` + `ROUTER_CLASS`), `ROUTER_CONFIG`, optional `ROUTER_THREADS` (default CPUs per task),
-  `ROUTER_MEMORY`, `ROUTER_DOMAIN` (default `ib.hlrn.de`, may be empty), `HORIZON`. The script writes `tasks.conf`
-  and runs one `srun --multi-prog --ntasks-per-node=1 --kill-on-bad-exit=1 --label` step (task 0 simulation, task i
-  router i - 1 on node i), without `--wait` (the user did not want it): the step ends with its last task. Rust retries
+  `cluster-routing.toml` (`[slurm] script = "run-routing.sh"`, `routers = R`). Since 2026-11-19 a heterogeneous job
+  (the user wants to scale the routers differently from the simulation later): cluster.py passes
+  `--nodes=1 --ntasks=1 : --partition --time --nodes=R --ntasks=R`, component 0 the simulation, component 1 one
+  router per node; `sacct` lines `<id>+<k>` are mapped to the job id in `collect`. Before, it was one
+  `srun --multi-prog` with `tasks.conf` (`nodes = N`); no runs were made with that. `run-sim.sh` has no router code
+  (the user found it too cluttered; no shared file between the two scripts, the rust command and `result.json` are
+  copied). `[run_env]`: `ROUTER_JAR` (or `ROUTER_CLASSPATH` + `ROUTER_CLASS`), `ROUTER_CONFIG`, optional
+  `ROUTER_THREADS` (default CPUs of a router node), `ROUTER_MEMORY`, `ROUTER_DOMAIN` (default `ib.hlrn.de`, may be
+  empty), `HORIZON`, `WORKER_THREADS` (`computational_setup.adapter_worker_threads`, from the old
+  `scripts/run-routing.sh`, which was deleted). The script runs one heterogeneous step
+  `srun --kill-on-bad-exit=1 --label sim : router` with `--cpus-per-task` = CPUs of a node per component, without
+  `--wait` (the user did not want it): the step ends with its last task. Not run on Lise yet (the user will test it
+  later): check that `--kill-on-bad-exit` and `--cpus-per-task` work in the het step. Rust retries
   connections for `computational_setup.retry_time_seconds` (default 600 s). Shutdown: matsim-rust up to faa369b0
   sends it before writing the output (`Controller::run`), so the routers end first; matsim-vsp/matsim-rust#356
   moves it to the end of `run` (open on 2026-11-17; after the merge `cargo update -p matsim-rust`). Router output in
-  `routers/<i>/`, console output of all tasks in the Slurm log. No Python launcher (removed, the user found it too
+  `routers/<node>/`, console output of all tasks in the Slurm log. No Python launcher (removed, the user found it too
   complicated). Locally: two processes by hand, or the integration scenarios in `integration/` (since
   2026-11-18; process-compose with router, matsim-rust's `local_qsim_routing` and `compare_events`, also run in CI,
   see `integration/README.md`; they replace `src/main/rust/tests/pt_adaptive.rs`). `plans_1-access_egress.xml` is
   kept there but not run (it failed in `prepare_for_mobsim`: "No routing module found for mode pt", not
-  investigated). Not run on Lise yet; check
-  there that task i lands on node i of `scontrol show hostnames`.
+  investigated). `integration/pt-tutorial-dummy/slurm.sh` runs that scenario as a hetjob on Lise (needs `sbatch
+  --export=...`, since Lise sets `SBATCH_EXPORT=none`).
   - The global barrier of the controller (num_parts + 1 with one adapter) stays: the user wants it so that waiting
     for the routers is not part of the measured mobsim time. Known risk: if the adapter cannot connect within
     `retry_time_seconds`, its thread panics before the barrier and the mobsim workers wait forever (until the time

@@ -75,9 +75,9 @@ src/main/rust/target/debug/berlin_iterations_v7 --config path/to/simulation.yml 
 ```
 
 The Rust client retries connections while the router initializes and sends `Shutdown` when the simulation ends.
-On the cluster, `scripts/cluster/run-routing.sh` starts both together in one Slurm job step, each on a node of its own.
-See "Runs with external pt routers" in `scripts/cluster/README.md`.
-`Makefile` and `scripts/run-routing.sh` still start the old router and are deprecated.
+On the cluster, `scripts/cluster/run-routing.sh` starts both together as a heterogeneous Slurm job, each on a node of
+its own. See "Runs with external pt routers" in `scripts/cluster/README.md`.
+The `Makefile` still starts the old router and is deprecated.
 
 # Open Tasks
 
