@@ -1,0 +1,39 @@
+# Example of a run with an external pt router: Berlin v7.1, 1pct, iteration 0, 96 partitions, the simulation on one
+# node and one router on another (heterogeneous job, see "Runs with external pt routers" in scripts/cluster/README.md).
+#
+#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-routing.toml submit experiments/routing-example.toml --dry-run
+
+comment = """
+First run of rust with the external pt router of this repository (org.matsim.routing.RoutingServer) on Lise, as a
+heterogeneous job of scripts/cluster/run-routing.sh: the simulation on one node, one router on another, connected over
+InfiniBand.
+
+Berlin v7.1, 1pct, iteration 0 with the calibrated plans with pt (input/v7.1/berlin-v7.1.1pct.pt.config.yml), 96
+partitions on metis-minconn-const.096, queue and PassingQ, scoring on, as validation-it0, but with events. Every pt trip
+asks the router 600 s before it departs (--horizon 600), so the router routes all pt trips anew during the mobsim.
+
+Router: integration/berlin/router-config.xml (network and transit schedule of the calibrated 1pct run, its pt routing
+parameters), one thread per CPU of the router node. The router reads the schedule as it is; the simulation moves the
+arrivals 30 s earlier (--pt-arrival-shift).
+
+Mainly a test of run-routing.sh and of the het step (--kill-on-bad-exit, --cpus-per-task per component).
+"""
+
+iterations = 1
+repetitions = 1
+
+[time_limit]
+"1" = "00:30:00"
+
+[run_env]
+ROUTER_CONFIG = "./integration/berlin/router-config.xml"
+HORIZON = "600"
+
+[[grid]]
+pct = [1]
+parts = [96]
+method = ["metis-minconn-const"]
+scoring = [true]
+events = [true]
+traffic = ["queue"]
+link = ["PassingQ"]
