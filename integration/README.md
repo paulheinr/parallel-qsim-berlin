@@ -23,3 +23,7 @@ After an intended change, replace `expected/events/` with the uncompressed event
 (`output/integration/<scenario>/sim/events/`) and check the diff.
 
 CI: the job `integration` in `.github/workflows/ci.yml`. To add a scenario, add an entry to its matrix.
+
+`berlin/` is no such scenario: Berlin v7.1, 1pct, iteration 0 with the router, for local tests only (it needs the svn
+checkouts and has no reference events). Run `process-compose up -f integration/berlin/process-compose.yml` from the
+repository root; the defaults are in its header.
