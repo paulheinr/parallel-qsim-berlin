@@ -1,0 +1,44 @@
+# Settings for rust runs with external pt routers: run-routing.sh starts the simulation and the routers together as a
+# heterogeneous job, each on a node of its own (see "Runs with external pt routers" in README.md). Inputs as in
+# cluster-validation.toml (rust configs with pt).
+#
+#   uv run scripts/cluster/cluster.py --settings scripts/cluster/cluster-routing.toml submit experiments/<x>.toml --dry-run
+#
+# Otherwise as cluster.toml. Relative paths are resolved against the repository root.
+
+out_root = "output/experiments"
+
+partitions_root = "../../shared-svn/projects/rust-qsim"
+
+scenario_version = "v7.1"
+config_pattern = "input/{version}/berlin-{version}.{pct}pct.pt.config.yml"
+network_pattern = "berlin-{version}/network/berlin-{version}.network.{method}.{parts:03d}.xml.zst"
+
+binary = "src/main/rust/target/release/berlin_iterations_v7"
+
+# Written to run.env, {version} and {pct} are replaced. An experiment can set more in its [run_env], e.g. HORIZON
+# (preplanning horizon of the pt trips in s), ROUTER_THREADS, ROUTER_MEMORY or WORKER_THREADS (see run-routing.sh).
+[run_env]
+# The jar of this repository (`./mvnw package`, main class org.matsim.routing.RoutingServer). The newest match is
+# copied into the experiment (router-jar/<sha12>/), like the binary.
+ROUTER_JAR = "./parallel-qsim-berlin-1.0-*.jar"
+# MATSim config of the routers (network, transit schedule, routing parameters); plans and counts are not read.
+# Not checked yet whether this DSim config is the right one for routing.
+ROUTER_CONFIG = "./input/{version}/berlin-{version}-{pct}pct.pt.dsim.config.xml"
+# See cluster-validation.toml.
+TRIPS_JAR = "../matsim-berlin/matsim-berlin-7.1-SNAPSHOT-*.jar"
+
+[slurm]
+script = "run-routing.sh"     # job script in scripts/cluster/, default run-sim.sh
+routers = 1                   # heterogeneous job: the simulation on one node, one router per node on `routers` nodes
+partition = "cpu-genoa"
+mail_user = "heinrich@vsp.tu-berlin.de"
+mail_type = "FAIL"
+default_time = "01:00:00"
+
+# See cluster.toml.
+[fetch]
+host = "hlrn-genoa"
+remote_repo = "scratch/iterations-rust/parallel-qsim-berlin"
+target = "../../runs-svn/matsim-rust/iterations-vs-dsim-2026"
+extra_files = ["runs/*/output/output_trips.csv.zst"]

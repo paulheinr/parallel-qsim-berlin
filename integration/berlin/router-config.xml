@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE config SYSTEM "http://www.matsim.org/files/dtd/config_v2.dtd">
+<!--
+	Router config for Berlin v7.1, 1pct: network and transit schedule of the calibrated run, and the parameters of its
+	pt routing (routing, transitRouter, swissRailRaptor, scoring of
+	calibrated-1pct/output/berlin-v7.1-1pct.output_config_reduced.xml). Only the scoring parameters that the pt router
+	uses are copied (no activity parameters, no taste variations).
+
+	The router reads the schedule as it is. The simulation (berlin_iterations_v7) moves the arrivals 30 s earlier
+	(pt-arrival-shift, see input/v7.1/README.md), so routes of this router arrive up to 30 s later than the simulated ones.
+
+	Relative paths are relative to this file.
+-->
+<config>
+	<module name="global">
+		<param name="coordinateSystem" value="EPSG:25832"/>
+		<param name="insistingOnDeprecatedConfigVersion" value="false"/>
+		<param name="randomSeed" value="4711"/>
+	</module>
+	<module name="network">
+		<param name="inputNetworkFile" value="../../../../public-svn/matsim/scenarios/countries/de/berlin/berlin-v7.1/calibrated-1pct/output/berlin-v7.1-1pct.output_network.xml.gz"/>
+	</module>
+	<module name="transit">
+		<param name="useTransit" value="true"/>
+		<param name="transitScheduleFile" value="../../../../public-svn/matsim/scenarios/countries/de/berlin/berlin-v7.1/calibrated-1pct/output/berlin-v7.1-1pct.output_transitSchedule.xml.gz"/>
+		<param name="vehiclesFile" value="../../../../public-svn/matsim/scenarios/countries/de/berlin/berlin-v7.1/calibrated-1pct/output/berlin-v7.1-1pct.output_transitVehicles.xml.gz"/>
+	</module>
+	<module name="routing">
+		<param name="accessEgressType" value="accessEgressModeToLink"/>
+		<param name="clearDefaultTeleportedModeParams" value="true"/>
+		<param name="networkModes" value="car,truck,freight,ride,bike"/>
+		<parameterset type="teleportedModeParameters">
+			<param name="mode" value="walk"/>
+			<param name="beelineDistanceFactor" value="1.3"/>
+			<param name="teleportedModeSpeed" value="1.23"/>
+		</parameterset>
+	</module>
+	<module name="transitRouter">
+		<param name="maxBeelineWalkConnectionDistance" value="300.0"/>
+	</module>
+	<module name="swissRailRaptor">
+		<param name="intermodalAccessEgressModeSelection" value="CalcLeastCostModePerStop"/>
+		<param name="intermodalLegOnlyHandling" value="forbid"/>
+		<param name="scoringParameters" value="Default"/>
+		<param name="transferCalculation" value="Initial"/>
+		<param name="transferPenaltyBaseCost" value="0.0"/>
+		<param name="transferPenaltyCostPerTravelTimeHour" value="0.0"/>
+		<param name="transferWalkMargin" value="5.0"/>
+		<param name="useCapacityConstraints" value="false"/>
+		<param name="useIntermodalAccessEgress" value="false"/>
+		<param name="useModeMappingForPassengers" value="false"/>
+		<param name="useRangeQuery" value="false"/>
+	</module>
+	<module name="scoring">
+		<parameterset type="scoringParameters">
+			<param name="marginalUtilityOfMoney" value="0.397322"/>
+			<param name="performing" value="5.501071"/>
+			<param name="waitingPt" value="0.0"/>
+			<parameterset type="modeParams">
+				<param name="mode" value="pt"/>
+				<param name="constant" value="-1.5457706277415049"/>
+				<param name="dailyMonetaryConstant" value="-0.805866"/>
+				<param name="marginalUtilityOfTraveling_util_hr" value="0.0"/>
+			</parameterset>
+			<parameterset type="modeParams">
+				<param name="mode" value="walk"/>
+				<param name="marginalUtilityOfTraveling_util_hr" value="0.0"/>
+			</parameterset>
+		</parameterset>
+	</module>
+</config>

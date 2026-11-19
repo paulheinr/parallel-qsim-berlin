@@ -1,0 +1,34 @@
+# Simulation config of the integration scenario pt-tutorial-dummy (see ../../README.md): pt is routed during the
+# simulation by the external router of router-config.xml. Paths without ./ are relative to this file, the output
+# directory is relative to the repository root, where process-compose runs.
+modules:
+  scoring:
+    type: Scoring
+    scoring_parameters_path: scoring-parameters.yml
+  network:
+    type: Network
+    path: multimodalnetwork.xml
+  population:
+    type: Population
+    path: plans_1-dummy.xml
+  vehicles:
+    type: Vehicles
+    path: vehicles.xml
+  transit:
+    type: Transit
+    schedule_path: transitschedule.xml
+  partitioning:
+    type: Partitioning
+    num_parts: 1
+    method: !Metis
+      vertex_weight:
+        - Constant
+  output:
+    type: Output
+    overwrite_files: DeleteDirectoryIfExists
+    output_dir: ./output/integration/pt-tutorial-dummy/sim
+    compression_type: Zst
+  controller:
+    type: Controller
+    last_iteration: 0
+    ignore_routing_mode_during_preparation: [ "pt" ]

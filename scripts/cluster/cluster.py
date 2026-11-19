@@ -33,7 +33,6 @@ from pathlib import Path, PurePosixPath
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO = SCRIPT_DIR.parents[1]
-RUN_SCRIPT = SCRIPT_DIR / "run-sim.sh"
 GRID_KEYS = ("pct", "parts", "method", "scoring", "events", "global_sync", "traffic", "link", "seed")
 # Grid keys that a [[grid]] block may leave out, with their value then. Runs with the default have the same run id as
 # before the key was added.
@@ -51,7 +50,7 @@ EXPERIMENT_KEYS = {"name", "comment", "grid", "repetitions", "iterations", "time
                    "extra_args"}
 # run_env variables whose file is copied into <exp>/<directory>/<sha12>/ like the binary, so that rebuilding it does
 # not change queued jobs.
-SNAPSHOT_ENV = {"TRIPS_JAR": "trips-jar"}
+SNAPSHOT_ENV = {"TRIPS_JAR": "trips-jar", "ROUTER_JAR": "router-jar", "ROUTER_CLASSPATH": "router-classpath"}
 MANIFEST_FIELDS = ["run_id", "job_id", "submitted_at"]
 DESCRIPTION_FILE = "description.md"
 
@@ -126,6 +125,8 @@ class Settings:
         self.binary = newest(resolve(s["binary"]))
         self.run_env = s.get("run_env", {})
         self.slurm = s.get("slurm", {})
+        # the job script, run-routing.sh for runs with external routers
+        self.run_script = SCRIPT_DIR / self.slurm.get("script", "run-sim.sh")
         self.fetch = s.get("fetch", {})
         # [pct.<n>] replaces config_pattern and single [run_env] values for one pct, e.g. for 0pct without own inputs
         self.pct_overrides = s.get("pct", {})
@@ -151,12 +152,13 @@ class Settings:
 
     def extra_env(self, pct: int) -> dict:
         """Variables from [run_env] and [pct.<pct>.run_env] with {version} and {pct} replaced. Values starting with
-        '.', '/' or '~' are paths; a glob pattern like matsim-berlin-*.jar becomes its newest match."""
+        '.', '/' or '~' are paths (unless they contain ':', like a Java class path with several entries); a glob
+        pattern like matsim-berlin-*.jar becomes its newest match."""
         env = {}
         run_env = {**self.run_env, **self.pct_overrides.get(str(pct), {}).get("run_env", {})}
         for key, value in run_env.items():
             value = str(value).format(version=self.version, pct=pct)
-            env[key] = newest(resolve(value)) if value.startswith((".", "/", "~")) else value
+            env[key] = newest(resolve(value)) if value.startswith((".", "/", "~")) and ":" not in value else value
         return env
 
     def network(self, run: Run) -> Path:
@@ -451,6 +453,7 @@ def submit(args):
 
     # check inputs
     problems = [f"binary {settings.binary} does not exist"] if not settings.binary.exists() else []
+    problems += [f"job script {settings.run_script} does not exist"] if not settings.run_script.exists() else []
     problems += [f"config {settings.config(pct)} does not exist"
                  for pct in sorted({r.pct for r in runs}) if not settings.config(pct).exists()]
     missing_networks = sorted({str(settings.network(r)) for r in runs if not settings.network(r).exists()})
@@ -571,7 +574,14 @@ def sbatch_command(settings: Settings, name: str, exp_dir: Path, run: Run, limit
         cmd.append(f"--partition={settings.slurm['partition']}")
     if settings.slurm.get("mail_user"):
         cmd += [f"--mail-user={settings.slurm['mail_user']}", f"--mail-type={settings.slurm.get('mail_type', 'FAIL')}"]
-    return cmd + [str(RUN_SCRIPT), str(run_dir)]
+    if "routers" in settings.slurm:
+        # heterogeneous job for run-routing.sh: component 0 the simulation on one node, component 1 one router per node
+        routers = int(settings.slurm["routers"])
+        router_component = [f"--time={limit}", f"--nodes={routers}", f"--ntasks={routers}"]
+        if "partition" in settings.slurm:
+            router_component.insert(0, f"--partition={settings.slurm['partition']}")
+        cmd += ["--nodes=1", "--ntasks=1", ":", *router_component]
+    return cmd + [str(settings.run_script), str(run_dir)]
 
 
 # ----------------------------------------------------------------------
@@ -642,10 +652,15 @@ def sacct(job_ids: list[str]) -> dict[str, dict]:
                              capture_output=True, text=True, check=True).stdout
         for line in out.splitlines():
             job_step, state, elapsed, max_rss, node = line.split("|")
-            job_id = job_step.split(".")[0]
+            # components of a heterogeneous job (run-routing.sh) are <id>+0, <id>+1, ..., their steps <id>+0.batch
+            allocation = job_step.split(".")[0]
+            job_id, _, component = allocation.partition("+")
             entry = result.setdefault(job_id, {})
-            if job_step == job_id:
-                entry.update(state=state.split()[0], elapsed=elapsed, node=node)
+            if job_step == allocation:
+                if component in ("", "0"):
+                    entry.update(state=state.split()[0], elapsed=elapsed, node=node)
+                else:
+                    entry["node"] = f"{entry['node']},{node}" if entry.get("node") else node
             if max_rss:
                 entry["max_rss_mb"] = max(entry.get("max_rss_mb", 0), rss_to_mb(max_rss))
     return result

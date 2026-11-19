@@ -1,0 +1,57 @@
+# Berlin v7.1, 1pct, iteration 0, with the external pt router: for local tests, not run in CI (needs the svn
+# checkouts). The simulation reads input/v7.1/berlin-v7.1.1pct.pt.config.yml (calibrated plans, network with 8
+# partitions), the router router-config.xml (calibrated network and transit schedule). Run from the repository root:
+#
+#   process-compose up -f integration/berlin/process-compose.yml
+#
+# Defaults, set any of them to change it:
+#   ROUTER_JAR      newest parallel-qsim-berlin-1.0-*.jar in the repository root (./mvnw package)
+#   SIM_BIN         src/main/rust/target/release/berlin_iterations_v7 (cargo build --release in src/main/rust)
+#   ROUTER_THREADS  4
+#   HORIZON         600 (preplanning horizon of the pt trips in s; every pt trip is routed by the router)
+#   SIM_ARGS        more arguments of berlin_iterations_v7, e.g. "--set output.write_events=XML"
+# Output in output/integration/berlin/{sim,router}. The run ends with the simulation, which stops the router.
+
+disable_env_expansion: true
+
+processes:
+  router:
+    command: |
+      ROUTER_JAR=${ROUTER_JAR:-$(ls -t parallel-qsim-berlin-1.0-*.jar 2>/dev/null | head -1)}
+      if [ ! -f "$ROUTER_JAR" ]; then
+        echo 'No router jar, build it with ./mvnw package or set ROUTER_JAR.' >&2
+        exit 1
+      fi
+      exec java -Dmatsim.preferLocalDtds=true -jar "$ROUTER_JAR" \
+        --config integration/berlin/router-config.xml \
+        --threads "${ROUTER_THREADS:-4}" --port 50051 --output output/integration/berlin/router
+    readiness_probe:
+      exec:
+        command: >-
+          grpcurl -plaintext -max-time 2 localhost:50051 grpc.health.v1.Health/Check
+          | grep -Eq '"status"[[:space:]]*:[[:space:]]*"SERVING"'
+      period_seconds: 2
+      timeout_seconds: 3
+      failure_threshold: 150
+    availability:
+      restart: exit_on_failure
+    shutdown:
+      signal: 15
+      timeout_seconds: 15
+
+  sim:
+    command: |
+      SIM_BIN=${SIM_BIN:-src/main/rust/target/release/berlin_iterations_v7}
+      if [ ! -x "$SIM_BIN" ]; then
+        echo 'No simulation binary, build it with cargo build --release in src/main/rust or set SIM_BIN.' >&2
+        exit 1
+      fi
+      exec "$SIM_BIN" --config input/v7.1/berlin-v7.1.1pct.pt.config.yml 8 \
+        --set output.output_dir="$PWD/output/integration/berlin/sim" \
+        --router-ip http://localhost:50051 --horizon "${HORIZON:-600}" ${SIM_ARGS:-}
+    depends_on:
+      router:
+        condition: process_healthy
+    availability:
+      exit_on_end: true
+      exit_on_skipped: true
