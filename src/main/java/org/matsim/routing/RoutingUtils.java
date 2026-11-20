@@ -35,4 +35,18 @@ public final class RoutingUtils {
 	public static long sToNs(double s) {
 		return (long) s * NANOS_PER_SECOND;
 	}
+
+	/**
+	 * Nanoseconds on the wire to seconds, for times that must be whole seconds (those of the timetable versions).
+	 *
+	 * @throws IllegalArgumentException if {@code ns} is not a whole number of seconds, or does not fit into an
+	 *                                  {@code int} of seconds; a {@code uint64} above 2^63 arrives as a negative value
+	 */
+	public static int wholeSeconds(long ns) {
+		if (ns < 0 || ns % NANOS_PER_SECOND != 0 || ns / NANOS_PER_SECOND > Integer.MAX_VALUE) {
+			throw new IllegalArgumentException("Time " + Long.toUnsignedString(ns) + " ns is not a whole number of seconds between 0 and "
+				+ Integer.MAX_VALUE + " s.");
+		}
+		return (int) (ns / NANOS_PER_SECOND);
+	}
 }

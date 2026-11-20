@@ -6,10 +6,12 @@
         <artifactId>matsim-all</artifactId>
 
         <!-- weekly release -->
-        <version>2027.0-2026w45</version>
+        <!--        <version>2027.0-2026w45</version>-->
 
-        <!-- snapshot == not recommended: rather use PR-labelled release!-->
-        <!--		<version>2025.0-SNAPSHOT</version>-->
+        <!-- Until the PR release: the matsim-libs branch ph/raptor-timetable (timetable updates for
+             SwissRailRaptor), installed locally with mvn install. matsim-libs publishes no snapshots, so the
+             local install is the only source. -->
+        <version>2027.0-SNAPSHOT</version>
     </parent>
 
     <modelVersion>4.0.0</modelVersion>
@@ -32,7 +34,9 @@
         <grpc.version>1.85.1</grpc.version>
         <!-- at least the version matsim-schemas was generated with -->
         <protobuf.version>4.35.1</protobuf.version>
-        <matsim-schemas.version>0.3.0</matsim-schemas.version>
+        <!-- Until the release: the branch ph/timetable-updates (TimetableService), installed locally with
+             mvn -f java/pom.xml install in matsim-schemas -->
+        <matsim-schemas.version>0.4.0-SNAPSHOT</matsim-schemas.version>
         <java.version>25</java.version>
         <rust.qsim.source>/Users/paulh/git/parallel_qsim_rust</rust.qsim.source>
     </properties>
@@ -201,6 +205,11 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-engine</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-params</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
