@@ -22,8 +22,13 @@ Changes against the first submission (2026-11-10, only 1pct queue/FIFO at 8 thre
 threads/partitions instead of 8, same jar (matsim-berlin bd866a1). DSim sorts the messages between partitions by the
 sending partition, so its results may depend on the partitioning, unlike those of rust.
 
+Changes against the second submission (2026-11-11, jobs 9672924-9672935, moved to archive/dsim-validation-it0 on
+2026-11-23): jar of matsim-berlin c23368b (ph/v7.1.1-dsim, MATSim 2027.0-PR5308 instead of 2027.0-PR5260), same grid,
+configs and time limits. The only change to DSim between the two MATSim builds is matsim-libs#5235 (explicit casts in the
+comparator of PassingQueue, same order), so the trips should be identical to those of the archived runs.
+
 Time limits are rough estimates: at 8 threads, 1pct took 140 s on Genoa (2026-11-10); 3 and 10pct mostly add reading
-the inputs.
+the inputs. At 96 threads, the runs of 2026-11-11 took 2.5-7 min.
 """
 
 iterations = 1
