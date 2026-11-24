@@ -26,3 +26,7 @@ parallel-qsim-berlin*jar
 
 */.ipynb_checkpoints
 .ipynb_checkpoints
+
+# macOS Finder and Python bytecode
+.DS_Store
+__pycache__/
