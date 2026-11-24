@@ -13,6 +13,8 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
 - Never read, copy or upload private keys. Never store svn or git credentials on the cluster.
 - `git push` of this repo over the HTTPS remote fails from my shell (no access to the keychain credentials). Pushing to
   `git@github.com:paulheinr/parallel-qsim-berlin.git` over SSH works (outside the sandbox), then `git fetch origin`.
+- `main` of this repo takes no direct pushes (repository rules, seen 2026-11-23): only pull requests whose checks
+  Java, Rust and Integration (pt-tutorial-dummy) pass. Push a branch and open a PR.
 
 ## Layout
 
@@ -34,10 +36,13 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
   there: `branch = "main-mode-neighbors"` with c646f29c (scaling-v6, 2026-10-21), before that main at e20838e. To
   build a newer matsim-rust from main on the cluster: `cargo update -p matsim-rust && cargo build --release` in
   `src/main/rust` (ask first, see Rules). Cargo is in `~/.cargo/env`; the build takes about half a minute.
-- matsim-berlin on the cluster (`~/scratch/iterations-rust/matsim-berlin`): branch `ph/v7.1.1-dsim` at bd866a13 since
-  2026-11-10, jar `matsim-berlin-7.1-SNAPSHOT-v7.1.1-3-gbd866a1.jar` (MATSim 2027.0-PR5260, `--scoring-config`,
-  `TripsAndLegsCsvWriter`), built by the user with `./mvnw clean package -DskipTests`. The older jar of ff27314
-  (dsim-scaling, dsim-scaling-minconn) is still there; the settings take the newest match.
+- matsim-berlin on the cluster (`~/scratch/iterations-rust/matsim-berlin`): branch `ph/v7.1.1-dsim` at c23368b9 since
+  2026-11-23 (only the MATSim version: 2027.0-PR5308 instead of PR5260), jar
+  `matsim-berlin-7.1-SNAPSHOT-v7.1.1-4-gc23368b.jar`, built with `./mvnw clean package -DskipTests` (a few minutes).
+  Before, bd866a13 since 2026-11-10 (MATSim 2027.0-PR5260, `--scoring-config`, `TripsAndLegsCsvWriter`), jar
+  `...-v7.1.1-3-gbd866a1.jar`, built by the user; that jar and the older one of ff27314 (dsim-scaling,
+  dsim-scaling-minconn) are still there, the settings take the newest match. Locally, `~/git/matsim-berlin` is usually
+  on another branch of the user (e.g. `autofrei-v6.4`); switch back after a change to `ph/v7.1.1-dsim`.
 - To rerun an experiment with a newer library and keep the old runs, give it a new name (a copy of the experiment file,
   e.g. `scaling-v2.toml`). Reusing the name submits nothing, because all runs are already in `manifest.csv`.
 - New experiments get a `comment = """..."""` (since 2026-10-18): what they are for and what changed compared to the
@@ -294,6 +299,16 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
     `plots/archive/`), and only on the cluster `validation-v2-it0` and `validation-it100` (b9b7618, without global
     sync). So `validation-it0` and `validation-it100` are now the gsync runs; older mentions above refer to the
     archived experiments of the same name. The cluster repo still has the old toml files until a `git pull`.
+  - `dsim-validation-it0` rerun on 2026-11-23 (the user asked for it, with the newest MATSim build): jar of
+    matsim-berlin c23368b (MATSim 2027.0-PR5308, binary `4459d6a9bbd3`), same grid, configs and time limits. The only
+    DSim change between PR5260 and PR5308 is matsim-libs#5235 (explicit casts in the comparator of `PassingQueue`).
+    12 runs, jobs 9709475-9709486, all exit 0 (1pct 2.3 min, 3pct 3.3-3.5, 10pct 6.8-6.9), output in
+    `output/experiments/submit-dsim-validation-it0.log`; fetched on 2026-11-24 (svn add, not committed). The runs of
+    2026-11-11 (jar bd866a1) moved to `archive/dsim-validation-it0` (cluster `output/experiments/archive/`, runs-svn
+    `archive/` with `svn mv`, toml `experiments/archive/`). The trips of all 12 runs are identical to the archived ones
+    after sorting the rows (DSim writes them in another order). The plots `validation-it0_vs_dsim-validation-it0` and
+    `dsim-validation-it0_vs_qsim-validation-it0` were rewritten; only the builds in the READMEs and the last digit of
+    some correlations changed. `dsim-validation-it100` and the QSim runs still use the jar of bd866a1.
 - `scripts/cluster/hotpath.sh [name]` (2026-10-20, written because the user finds rust at many partitions
   unsatisfying): builds with `--features hotpath` into `src/main/rust/target/hotpath` (not `target/release`) and runs
   10 cases in one job on one node: 1 % and 3 % at 32/96/192 partitions with hotpath (scoring on, at 96 also off), and
