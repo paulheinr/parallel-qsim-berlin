@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the bundle of the raptor benchmark (step B6 of the design doc on exogenous pt delays,
-# docs/exogenous-pt-delays.md in matsim-rust): everything run.sh needs, so that the benchmark runs locally or on Lise
+# docs/exogenous-pt-delays.md): everything run.sh needs, so that the benchmark runs locally or on Lise
 # without Maven, matsim-libs or a build of this repository there. Run from the repository root:
 #
 #   scripts/raptor-benchmark/bundle.sh <bundle dir>

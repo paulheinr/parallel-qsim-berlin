@@ -1,8 +1,8 @@
 # Scenario `pt-delays`
 
 A small transit scenario for the development of exogenous transit delays and routing with real-time information
-(see `docs/exogenous-pt-delays.md` in matsim-rust). Unlike `pt-tutorial-dummy`, which has a single line with one route
-per direction, it has alternatives between routes and transfers. It will grow with the development.
+(see [the design document](../../docs/exogenous-pt-delays.md)). Unlike `pt-tutorial-dummy`, which has a single line
+with one route per direction, it has alternatives between routes and transfers. It will grow with the development.
 
 ```
                               village
