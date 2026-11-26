@@ -7,6 +7,7 @@ import com.google.inject.Injector;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.health.v1.HealthCheckResponse.ServingStatus;
+import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.protobuf.services.HealthStatusManager;
 import io.grpc.protobuf.services.ProtoReflectionServiceV1;
 import org.apache.logging.log4j.LogManager;
@@ -28,6 +29,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -98,17 +100,26 @@ public final class RoutingServer implements MATSimAppCommand {
     }
 
     /**
-     * Loads the scenario, creates the routers of all {@code threads} worker threads and starts the server.
-     * Returns once the server accepts requests.
+     * Loads the scenario, creates the routers of all {@code threads} worker threads and starts the server on all
+     * addresses at {@code port}. Returns once the server accepts requests.
      */
     static Running start(Config config, int port, int threads) throws IOException, InterruptedException, ExecutionException {
+        return start(config, new InetSocketAddress(port), threads);
+    }
+
+    /**
+     * Like {@link #start(Config, int, int)}, but on {@code address}. Tests bind to the loopback address: with port 0
+     * on all addresses, the system may pick a port that another process holds on 127.0.0.1, and a client of localhost
+     * then reaches that process instead of the router.
+     */
+    static Running start(Config config, InetSocketAddress address, int threads) throws IOException, InterruptedException, ExecutionException {
         AtomicReference<Running> running = new AtomicReference<>();
         Services services = createServices(config, () -> running.get().stop());
         ExecutorService executor = createExecutor(services.routing(), threads);
         services.routing().useRoutingExecutor(executor);
         HealthStatusManager health = new HealthStatusManager();
 
-        ServerBuilder<?> builder = ServerBuilder.forPort(port)
+        ServerBuilder<?> builder = NettyServerBuilder.forAddress(address)
                 .addService(services.routing())
                 .addService(health.getHealthService())
                 .addService(ProtoReflectionServiceV1.newInstance())

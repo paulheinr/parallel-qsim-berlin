@@ -19,6 +19,8 @@ import org.matsim.schemas.services.routing.v1.Request;
 import org.matsim.schemas.services.routing.v1.Response;
 import org.matsim.schemas.services.routing.v1.RoutingServiceGrpc;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.time.Duration;
 
@@ -37,8 +39,10 @@ class RoutingServerTest {
 	void setUp() throws Exception {
 		var scenario = ExamplesUtils.getTestScenarioURL("pt-tutorial");
 		Config config = RoutingServer.prepareConfig(ConfigUtils.loadConfig(IOUtils.extendUrl(scenario, "0.config.xml")), output);
-		router = RoutingServer.start(config, 0, 2);
-		channel = ManagedChannelBuilder.forAddress("localhost", router.port()).usePlaintext().build();
+		// on the loopback address, see RoutingServer.start(Config, InetSocketAddress, int)
+		InetAddress loopback = InetAddress.getLoopbackAddress();
+		router = RoutingServer.start(config, new InetSocketAddress(loopback, 0), 2);
+		channel = ManagedChannelBuilder.forAddress(loopback.getHostAddress(), router.port()).usePlaintext().build();
 	}
 
 	@AfterEach

@@ -30,6 +30,8 @@ import org.matsim.schemas.io.types.Coordinate;
 import org.matsim.schemas.io.types.PtRouteDescription;
 import org.matsim.schemas.services.routing.v1.*;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -95,14 +97,16 @@ class PtDelaysServerTest {
     private StreamObserver<TimetableUpdate> timetableUpdateStream;
 
     /**
-     * Starts a router with {@link #THREADS} threads on a free port of localhost, opens the timetable stream and sends
-     * snapshot 0 and the start of iteration 0, so every test begins with version (0, 0).
+     * Starts a router with {@link #THREADS} threads on a free port of the loopback address (see
+     * {@link RoutingServer#start(Config, InetSocketAddress, int)}), opens the timetable stream and sends snapshot 0 and
+     * the start of iteration 0, so every test begins with version (0, 0).
      */
     @BeforeEach
     void setUp() throws Exception {
         Config config = RoutingServer.prepareConfig(ConfigUtils.loadConfig(INPUT.resolve("router-config.xml").toString()), this.output);
-        this.routerServer = RoutingServer.start(config, 0, THREADS);
-        this.channel = ManagedChannelBuilder.forAddress("localhost", this.routerServer.port()).usePlaintext().build();
+        InetAddress loopback = InetAddress.getLoopbackAddress();
+        this.routerServer = RoutingServer.start(config, new InetSocketAddress(loopback, 0), THREADS);
+        this.channel = ManagedChannelBuilder.forAddress(loopback.getHostAddress(), this.routerServer.port()).usePlaintext().build();
         this.population = PopulationUtils.readPopulation(INPUT.resolve("plans.xml").toString());
 
         this.snapshot = new SnapshotZero(ScenarioUtils.loadScenario(config).getTransitSchedule());
