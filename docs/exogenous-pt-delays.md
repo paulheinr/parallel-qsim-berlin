@@ -1,6 +1,6 @@
 # Exogene PT-Verspätungen und Routing mit Echtzeitdaten
 
-Stand: 2026-11-20. Status: laufende Entwurfsdiskussion; technische Umsetzung noch offen.
+Stand: 2026-11-26. Status: laufende Entwurfsdiskussion.
 Dieses Dokument wird während des Gesprächs fortgeschrieben.
 
 ## Ziel und Arbeitsweise
@@ -24,8 +24,8 @@ denen die Simulation darauf warten muss, dass Reisezeiten und Prognosen aktualis
 
 | Punkt | Arbeitsstand | Noch zu klären |
 | --- | --- | --- |
-| 1. Eingabe und Verteilung | Parameter oder Profilverweise in Attributen des Transit Schedule sind ein Ausgangsvorschlag. Der Nutzer möchte dies später besprechen. | Verteilung, Parametrisierung, Geltungsbereich und Eingabeformat. |
-| 2. Fahrzeugausführung | Variante A ist entschieden: Der Driver zieht Störungswerte vor Fahrtbeginn; die tatsächlichen Fahrzeugzeiten werden während der Fahrt fortgeschrieben. Ein eigener Driver-Typ bleibt die Arbeitsrichtung. | Genaue Anwendung der Störungswerte, Aufholen und Abgrenzung zum bestehenden Driver; Eingabe und Verteilungen bleiben vertagt. |
+| 1. Eingabe und Verteilung | Das Driver-Beispiel in D01 verwendet eine Störungswahrscheinlichkeit je Linie, eine gleichverteilte Wahl des Ankunftshalts und eine exponentielle Zusatzfahrzeit. Bei einer beobachteten Schwelle je Linie wird die mittlere Zusatzfahrzeit für das Szenario vorgegeben und die Störungswahrscheinlichkeit daraus geschätzt. | Konkrete Szenariowerte, Kalibrierung im Simulationslauf und Eingabeformat. |
+| 2. Fahrzeugausführung | Variante A ist entschieden. Der Driver zieht Störungswerte vor Fahrtbeginn und schreibt die tatsächlichen Fahrzeugzeiten während der Fahrt fort. Unterschiedliche Driver-Typen können Störungsmodelle verschiedener Komplexität abbilden. | Auswahl der Driver-Typen, Einbindung in die Ausführung und Aufholregeln. |
 | 3. Information und Prognose | Kernentscheidung bestätigt: Für den ersten Stand werden Ankunfts-/Abfahrtsbeobachtungen übertragen; unbekannte zusätzliche Boardingdauer entfällt in der optimistischen Prognose. Bekannte Zeitgrenzen werden eingehalten. Arbeitsrichtung seit 2026-11-19: Rust berechnet die Prognose in einem nebenläufigen Snapshot-Thread, nur aus dem Event-Strom und mit denselben Zeitregeln wie die Ausführung (D03). | Fortschreibung bei ausgebliebenen Ereignissen; Zeitbedarf des Snapshot-Threads messen. |
 | 4. Java-Router | Nichtüberholung innerhalb derselben TransitRoute ist vom Nutzer als Vertrag zugesichert und in matsim-rust umgesetzt (f638bd5f). Der Router darf diese Ordnung voraussetzen. Seit 2026-11-19 erhält er die prognostizierten Zeiten je Fahrt und Halt von Rust und routet auf der genannten Version. | Seit 2026-11-19 entschieden: Umbau von SwissRailRaptor in einem Branch von matsim-libs. Seit 2026-11-20 umgesetzt und committet (B1–B4): Zeit-Schnittstelle `RaptorTimetable`, Option `useTimetableUpdates`, versionierte Zeiten mit einer Zeile je Fahrt, Auswahl der Version je Anfrage über einen per Guice injizierten Provider; Protokoll im Branch `ph/timetable-updates` von matsim-schemas (A2); keine Departure in der Antwort; Snapshot 0 einmal beim Start, Freigabe alter Versionen durch Rust, asynchrones Warten mit Frist, Abbruch bei Vertragsverletzung (A1). |
 | 5. Snapshots | Feste, konfigurierbare Intervalle in der Simulationszeit sind bestätigt. Alle Partitionen bestätigen Vollständigkeit. Die Anfragezeit bestimmt eine konkrete Snapshot-ID; eine Anfrage wartet bei Bedarf auf genau diesen Stand. Seit 2026-11-19 erzeugt Rust die Snapshots (Arbeitsrichtung); Versand je Intervall, Änderungen je Fahrt und die Grenzkonvention mit Grace Gap g als Szenarioparameter sind bestätigt (D03). | Werte für Δ und g und Anwendung von Antworten. Seit 2026-11-20 entschieden (A1 in D04): Initialisierung und Iterationswechsel, Fehler im Router, Freigabe alter Versionen. |
@@ -45,7 +45,7 @@ Standardwerte oder Verhaltensregeln.
 | Auslöser für Neurouting (D05) | Vor Reisebeginn, beim Umstieg, während des Wartens oder bereits im Fahrzeug? | Zunächst vor Reisebeginn und nach dem Aussteigen bei einem Umstieg; zusätzliche Auslöser später ergänzen. |
 | Verbindlichkeit des Routerergebnisses (D05) | Muss genau die genannte Departure genommen werden, oder ist die nächste passende Fahrt derselben Route erlaubt? | Route und bediente Halte verbindlich berücksichtigen; unter dem Nichtüberholungsvertrag eine passende Alternative derselben Route prüfen, ohne versehentlich eine andere Route derselben Linie zu wählen. |
 | Übernahme von Antworten und Fehlerverhalten (D06) | An welchem Simulationszeitpunkt wirkt eine Antwort? Was geschieht bei fehlender Antwort oder fehlender Verbindung? | Ergebnis an einem festgelegten Entscheidungspunkt übernehmen und erforderlichenfalls rechnerisch darauf warten; technische Laufzeit darf die fachliche Entscheidung nicht verschieben. Technische Fehler und die gültige Antwort „keine Verbindung“ getrennt behandeln. |
-| Exogene Störungen (D01 und vertagter Punkt 1) | Zusätzliche Fahr-/Haltezeit oder absolute Zielverspätung? Welche Eingaben, Verteilungen und Ziehungen je Iteration? | Wie gewünscht später besprechen; für den ersten Test feste, explizit definierte Zusatzzeiten verwenden. |
+| Exogene Störungen (D01 und vertagter Punkt 1) | Welche Störungsmodelle, Eingaben, Verteilungen und Ziehungen je Iteration sollen verwendet werden? | D01 beschreibt eine einmalige Zusatzfahrzeit als Beispiel für einen Driver-Typ. Für den ersten Test einen festen Störungswert verwenden. |
 
 Weitere technische Konkretisierungen können auf Grundlage der bestehenden Verträge
 ausgearbeitet werden: die genaue Snapshot-Grenzkonvention, das Nachrichtenschema,
@@ -95,7 +95,8 @@ an Nichtüberholung können davon unabhängig erfolgen.
 3. Snapshots: Kernvertrag bestätigt (D03); seit 2026-11-19 erzeugt Rust die Snapshots. Versand je Intervall, Änderungsformat und Grenzkonvention mit Grace Gap sind bestätigt; Werte für Δ und g, Fehlerbehandlung und Antwortübernahme bleiben offen.
 4. Router: Nichtüberholung innerhalb einer Route ist zugesichert (D04); Datenmodell, Prognoseordnung und Transfers zwischen Routen weiter klären.
 5. Passagiere: Auslöser und Verbindlichkeit der Route (D05), Antwortübernahme und Fehlerfälle (D06) sind auf Nutzerwunsch vertagt.
-6. Eingabe/Verteilungen: Der ausdrücklich vertagte Punkt 1 bleibt offen.
+6. Eingabe/Verteilungen: D01 beschreibt die Ziehungen und die Kalibrierung aus dem
+   Paper-Entwurf. Konkrete Szenariowerte und Eingabeformat bleiben offen.
 7. Umsetzungsschritte und CI anhand dieser Entscheidungen abschließend ordnen.
 
 Testfälle und umsetzbare Zwischenschritte werden bei jeder Entscheidung ergänzt.
@@ -118,10 +119,9 @@ getrennt. Ein Partitionswechsel muss die vorbereiteten Werte beziehungsweise den
 für ihre weitere Anwendung nötigen Zustand erhalten. Die laufende Zeitfortschreibung
 muss auch den in D04 zugesicherten Nichtüberholungsvertrag einhalten.
 
-Die genaue Bedeutung der Störungswerte und die Aufholregel sind damit noch nicht
-festgelegt. Eingabe und Verteilungen bleiben wie gewünscht vertagt. Ebenso folgt
-aus der Vorabziehung noch keine Freigabe zukünftiger Störungswerte an den Router;
-die Informationsregel wird in D02 geklärt.
+Die genaue Bedeutung der Störungswerte, die Aufholregel, die Eingabe und die
+Verteilungen hängen vom jeweiligen Störungsmodell ab. Die Informationsregel für
+vorab gezogene Werte steht in D02.
 
 Vorgeschlagene Abnahmetests für diese Entscheidung:
 
@@ -133,6 +133,126 @@ Vorgeschlagene Abnahmetests für diese Entscheidung:
   erhalten; kein erneutes Ziehen und keine doppelte Anwendung einer Störung.
 - Bei Einführung der stochastischen Profile gleiche Ergebnisse für denselben Seed
   und fachlichen Kontext prüfen, unabhängig von der Reihenfolge anderer Fahrten.
+
+#### Driver-Beispiel für die S-Bahn
+
+Arbeitsrichtung vom 2026-11-25. Unterschiedliche Driver-Typen bilden unterschiedliche
+Störungsmodelle und Komplexitätsstufen ab. Eine Fahrt wird von einer Instanz des gewählten
+Typs ausgeführt. Für das folgende Beispiel bietet sich die Zeitfortschreibung des
+`PlannedDriver` als Grundlage an. Die Auswahl des Typs je Fahrt und das Eingabeformat
+sind offen.
+
+**Ziehung vor Fahrtbeginn.** Für das Driver-Beispiel gelten die drei Ziehungen
+aus dem Abschnitt «Delay Model» des Paper-Entwurfs.
+
+1. Je Fahrt $T$ entscheidet der Bernoulli-Indikator $D_T$, ob eine Störung eintritt.
+   Die Wahrscheinlichkeit $p_{L(T)}$ ist für alle Fahrten der Linie $L(T)$ gleich.
+2. Bei $D_T=1$ zieht der Driver den ersten betroffenen Ankunftshalt $H_T$ gleichverteilt
+   aus den Ankunftshalten der Route $R(T)$. $N_R$ zählt die Ankunftshalte nach dem
+   Ursprung. Der Index $H_T=1$ bezeichnet die erste Ankunft nach der Startabfahrt.
+   Die Störung wirkt auf die Fahrzeit des Abschnitts unmittelbar vor dem gezogenen Halt.
+3. Der Driver zieht die Zusatzfahrzeit $X_T$ aus einer Exponentialverteilung mit
+   Mittelwert $\mu$. Bei einer Störung gilt dieselbe Verteilung für jeden möglichen
+   Wert von $H_T$.
+
+Eine Gewichtung nach planmäßiger Fahrzeit ist eine alternative Wahl des Abschnitts.
+Sie liefert bei gleich langen Abschnitten dieselbe Ziehung wie die Gleichverteilung.
+Eine von der Gesamtdauer der Fahrt abhängige Störungswahrscheinlichkeit ist eine
+weitere Variante. Eine exogene Startverspätung wäre ein eigener Störungsfall
+an der ersten Abfahrt.
+
+**In der Ausführung** verlängert die Instanz die Fahrt über den gewählten Abschnitt einmalig
+um den gezogenen Wert. Ausgangspunkt ist die tatsächliche Abfahrt am vorherigen Halt.
+An den folgenden Halten greifen die bestehenden Zeitregeln. Ein kürzerer Aufenthalt kann
+Verspätung abbauen. Die Nichtüberholung innerhalb derselben `TransitRoute` kann Verspätung
+auf Folgefahrten übertragen. Ein Partitionswechsel erhält den gezogenen Abschnitt, die
+Zusatzzeit und den für die einmalige Anwendung nötigen Zustand. Für die Prognose zählen
+die beobachteten Auswirkungen auf die Ankunfts- und Abfahrtszeiten (D02).
+
+##### Analytische Kalibrierung
+
+Für die analytische Rechnung wirkt $X_T$ in gleicher Höhe vom ersten betroffenen
+Halt bis zum Fahrtende. Alle übrigen Ankünfte liegen im Plan. Das Aufholen am Halt
+und die Übertragung auf Folgefahrten werden bei der Ausführung in Rust berücksichtigt.
+
+Eine Fahrt $T$ hat $n_T=N_{R(T)}$ Ankünfte. Eine Störung vor Halt $H_T$ betrifft
+$n_T-H_T+1$ Ankünfte. Bei gleichverteilter Wahl des Halts sind das im Mittel
+$(n_T+1)/2$ Ankünfte. Der mittlere Anteil betroffener Ankünfte bei einer Störung
+ist damit $c_T=(n_T+1)/(2n_T)$. Um daraus den erwarteten Anteil verspäteter
+Ankünfte ab einer Schwelle $x>0$ zu berechnen, multiplizieren wir $c_T$ mit
+der Wahrscheinlichkeit einer Störung und mit der Chance, dass deren Höhe
+mindestens $x$ beträgt.
+
+$$
+r_{\ge x}^{T} = c_T\,p_{L(T)}\,e^{-x/\mu}.
+$$
+
+Für die Linienquote summieren wir die erwarteten Anzahlen verspäteter Ankünfte
+über alle Fahrten der Linie und teilen durch die Gesamtzahl ihrer Ankünfte.
+Dabei wird jede Fahrt mit ihrer Zahl an Ankünften gewichtet.
+
+$$
+r_{\ge x}^{L}=c_L\,p_L\,e^{-x/\mu},\qquad
+c_L=\frac{\sum_{T:\,L(T)=L}n_T c_T}{\sum_{T:\,L(T)=L}n_T}.
+$$
+
+**Eine beobachtete Schwelle je Linie.** Wir geben $\mu$ für das Szenario vor
+und teilen die beobachtete Verspätungsquote der Linie durch $c_L e^{-x/\mu}$,
+um $p_L$ zu schätzen. Bei kleinerem $\mu$ braucht es häufiger Störungen, um
+dieselbe Quote zu erreichen. Ergibt die Rechnung $p_L>1$, kann die Linie
+den beobachteten Wert mit diesem $\mu$ im analytischen Modell nicht erreichen.
+
+**Zwei netzweite Schwellen.** Bei gemeinsamem $\mu$ für alle ausgewerteten
+Linien und identischer Beobachtungsbasis kürzt sich beim Verhältnis der Quoten
+der mit den Ankunftszahlen gewichtete Faktor aus $c_L$ und $p_L$ heraus.
+Aus dem Verhältnis lässt sich $\mu$ schätzen. Anschließend genügt wieder
+eine beobachtete Quote je Linie zur Schätzung von $p_L$.
+
+Für den Abgleich ist dieselbe Definition der Pünktlichkeit zu verwenden wie in
+der jeweiligen Quelle. Die Formeln oben zählen alle Ankünfte der betrachteten
+Fahrten. Für Berichte mit ausgewählten Messhalten werden sowohl die Quote als
+auch der Anteil betroffener Ankünfte über diese Messhalte berechnet. Für die
+BVG wird die Kennzahl über die gewerteten Abfahrten nachgebildet.
+[BVG-Vertragsdefinition, S. 19](https://www.parlament-berlin.de/adosservice/19/Haupt/vorgang/h19-1891.C-v.pdf#page=19)
+
+##### Rechenbeispiel mit den S-Bahn-Quoten
+
+Für 2024 meldet die S-Bahn 93,76 % Pünktlichkeit an der Vier-Minuten-Schwelle
+und 96,78 % an der Sechs-Minuten-Schwelle. Das entspricht 6,24 % der Ankünfte
+mit mindestens vier und 3,22 % mit mindestens sechs Minuten Verspätung. Aus
+dem Verhältnis der beiden Quoten ergibt sich unter der Annahme eines gemeinsamen
+exponentiellen Modells der Mittelwert $\mu=2/\ln(6{,}24/3{,}22)\approx3{,}02$ Minuten.
+[S-Bahn-Jahreswerte 2024](https://pardok.parlament-berlin.de/starweb/adis/citat/VT/19/SchrAnfr/S19-21315.pdf)
+
+In einer Beispiellinie mit 1.000 Fahrten zu je 20 Ankünften gilt $c_T=c_L=0{,}525$.
+Eine Störung auf dem Abschnitt vor der neunten Ankunft betrifft 12 der 20
+Ankünfte. Über alle Abschnitte sind es im Mittel 10,5. Setzt man für diese
+Beispiellinie die netzweite Vier-Minuten-Quote von 6,24 % ein, ergibt sich
+eine Störungswahrscheinlichkeit von 44,6 %. Für eine konkrete Linie gehen
+ihre eigene beobachtete Quote und ihr eigener Faktor $c_L$ ein.
+
+Eine Vergleichsvariante zieht vier Minuten plus eine exponentielle Zusatzzeit
+mit demselben Mittelwert. Damit erreichen alle betroffenen Ankünfte die
+Vier-Minuten-Schwelle und eine Störungswahrscheinlichkeit von 11,9 % genügt.
+
+| Gezogene Zusatzfahrzeit bei einer Störung | Fahrten mit Störung im Rechenbeispiel | Ankünfte ab 1 Minute Verspätung im Rechenbeispiel |
+| --- | ---: | ---: |
+| Exponentiell, Mittelwert rund 3,0 min | 44,6 % | 16,8 % |
+| 4 min plus exponentiell, Mittelwert des Zusatzanteils rund 3,0 min | 11,9 % | 6,24 % |
+
+Beide Varianten treffen im Rechenbeispiel dieselben Quoten bei vier und sechs Minuten. Die
+deutlich verschiedenen Anteile ab einer Minute können sich auf knappe Umstiege auswirken.
+Eine Ein-Minuten-Quote aus derselben Periode und mit gleicher Beobachtungsbasis könnte
+die Varianten eingrenzen. [VBB S-Bahn-Pünktlichkeit](https://unternehmen.vbb.de/qualitaet-im-oepnv/qualitaet-berliner-s-bahn/)
+
+**Erster Versuch in Rust.** M1 kann die Ausführung mit einer festen Zusatzfahrzeit von
+beispielsweise fünf Minuten auf einem festgelegten Abschnitt prüfen. Abgedeckt werden
+Weitergabe, möglicher Abbau am Halt, Wartezeit der Folgefahrt, Partitionswechsel und der
+Fall ohne Störung. Für die stochastische Kalibrierung dienen die analytischen Werte als
+Startpunkte. Bei vorgegebenem $\mu$ wird $p_L$ an der Quote der tatsächlich simulierten
+Ereignisse eingestellt. Liegen zwei vergleichbare Schwellen vor, kann auch $\mu$ anhand
+der simulierten Quoten angepasst werden. Ein- und Zwei-Minuten-Quoten und Taktlücken
+zeigen, wie sich die Varianten darüber hinaus unterscheiden.
 
 ### D02: Ort und Bedeutung der Prognose
 
@@ -652,7 +772,8 @@ Arbeitsvorschlag für den Branch, noch nicht entschieden:
    Departure, `RoutePart` bleibt unverändert.
 
 Snapshot 0, entschieden am 2026-11-20 (A1): Beim Start schickt Rust den Zeitstand einmal
-vollständig, je Route die Departures in Rust-Reihenfolge mit allen Zeiten (etwa 13 MB). Er ist
+vollständig, je Route die Departures in Rust-Reihenfolge mit allen Zeiten (etwa 13 MB an Zeiten;
+als Nachrichten mit Zeiten in ns 30,2 MB, gemessen in B6). Er ist
 in jeder Iteration gleich (Fahrplan, Ankunftsverschiebung und Prognoseregeln ohne
 Beobachtungen; die vorab gezogenen Störungen sieht die Prognose nicht). Zu Beginn jeder
 Iteration genügt eine kurze Startmeldung, mit der der Router auf diese Grundversion
@@ -711,13 +832,13 @@ Protobuf-Typen verwendet.
 | --- | --- | --- |
 | A1: offene Punkte für den Router | E, entschieden am 2026-11-20: Die Antwort enthält keine Departure. Rust braucht sie für die Ausführung nicht, denn Passagiere steigen in jedes Fahrzeug der geplanten Linie, das ihren Ausstiegshalt noch anfährt (`agent_logic.rs:385`). Für Prüfungen bestimmen Linie, Route, Ein- und Ausstiegshalt, `boarding_time_ns` und die Snapshot-ID die geplante Fahrt; mehrdeutig sind nur Fahrten derselben Route mit gleichen Zeiten an diesem Halt. Bindet D05 Passagiere später an eine Fahrt, kommt ein optionales Feld dazu. Die `Response` erhält `snapshot_id` als Kontrolle, dass auf der angefragten Version geroutet wurde. F, entschieden am 2026-11-20, soweit sie den Router betrifft: (a) Snapshot 0 nur einmal beim Start, je Iteration eine Startmeldung (siehe „Snapshot 0“ oben). (b) Freigabe durch Rust statt eines festen Fensters: Anfragen verzögern sich in Wandzeit, die Versionen wechseln in Simulationszeit (bei RTR 50k und Δ = 60 s sind 10 ms Warteschlange etwa 8 Intervalle). Jedes Delta nennt die älteste noch benötigte Version, das Minimum aus der Version der ältesten offenen Anfrage (Zähler im Adapter-Thread) und k − ⌈g/Δ⌉ für den neuesten geschlossenen Snapshot k; jede neue Anfrage hat mindestens diese ID, weil k erst schließt, wenn alle Partitionen kΔ passiert haben. Ältere Versionen verwirft der Router; eine Anfrage auf eine verworfene Version ist ein Fehler. (c) Warten asynchron, ohne blockierten Thread. Kein stiller Rückfall auf eine ältere Version; ein Fehlerstatus, den Rust als fatal behandelt. Geändert am 2026-11-20 (C2): keine Frist im Router. Endet oder bricht der Strom, schlagen wartende Anfragen sofort fehl (C1); gegen einen offenen Strom ohne weitere Deltas setzt Rust je Anfrage eine gRPC-Deadline (M2). (d) Vertragsverletzungen (Lücke in k, falsche Iteration, unbekannter Departure-Index, Zeiten gegen die Fahrtreihenfolge, abweichende IDs oder Haltefolgen in Snapshot 0): Der Router schließt den Strom mit Fehler und loggt; der Snapshot-Thread in Rust gerät in Panic, der Lauf endet. (e) Rust schickt für jedes k ein Delta, auch ein leeres, sonst warten Anfragen auf k ewig. Der Router kennt Δ und g nicht, die ID k genügt. C betrifft nur Rust und kann warten. | Entscheidungen des Nutzers im Protokoll. |
 | A2: Protokoll in matsim-schemas | Umgesetzt am 2026-11-20 im Branch `ph/timetable-updates` von `~/git/matsim-schemas` (von `origin/main` 9fe316d, Version 0.4.0 bzw. `0.4.0-SNAPSHOT`; Commit 11919e2, gepusht, seit 2026-11-23 PR matsim-org/matsim-schemas#5 (WIP), CI grün). Alles steht in `routing.proto` im Paket `matsim.services.routing.v1` und sind nur Ergänzungen; `population.proto` bleibt unverändert. `Request` und `Response` erhalten `TimetableVersion timetable_version` (`iteration`, `snapshot_id`); ohne sie routet der Router auf dem Fahrplan. Neuer Dienst `TimetableService` mit `rpc UpdateTimetable(stream TimetableUpdate) returns (google.protobuf.Empty)`, ein geordneter Strom je Router für den ganzen Lauf. `TimetableUpdate` ist eines von: `BaseRoute` (Snapshot 0, eine Nachricht je Route, damit jede weit unter der gRPC-Grenze von 4 MB bleibt; Linie, Route, Haltefolge als Facility-IDs, Departures in Rust-Reihenfolge mit ID und Zeiten je Halt), `IterationStart` (die erste beendet Snapshot 0) und `TimetableDelta` (`iteration`, `snapshot_id`, `oldest_needed_snapshot_id`, je geänderter Fahrt ein `TripUpdate` mit der Nummer der Departure in Snapshot 0, `from_stop` und den Zeiten ab dort). Zeiten als `uint64` in ns wie im übrigen Schema, vom Nutzer am 2026-11-20 gewählt; der Java-Router verlangt ganze Sekunden. Vertragsverletzungen beendet der Router mit einem Fehlerstatus. Wechselt matsim-rust auf das neue Schema, braucht das Struct-Literal `Request { .. }` in `external_services/routing/mod.rs` `timetable_version: None`. | `buf lint` und `buf breaking` gegen `origin/main` grün (die lokale `main` ist veraltet); Rust mit `--features routing` und Java gebaut, `0.4.0-SNAPSHOT` lokal installiert. Review durch den Nutzer steht aus. |
-| B1: Zeit-Schnittstelle | Eine Schnittstelle (Name offen) mit Ankunft und Abfahrt je globalem Departure- und Routenhalt-Index. Die Standardimplementierung rechnet `departures[d]` plus Offset wie heute. Die 20 Zeilen mit Zeitzugriffen in `SwissRailRaptorCore` gehen über sie, also Start der Suche, `exploreRoute`, `findNextDepartureIndex` und `RouteSegmentIterator`. Zwei Stellen bleiben beim Fahrplan: `calcTreesObservable` in `SwissRailRaptor` (Baumsuche, mit der Option abgelehnt) und `hasNoPossibleDeparture` in Data (mit der Option aus). Core hält die Tabelle als Feld, das je Anfrage gesetzt wird. Umgesetzt am 2026-11-20 im Branch `ph/raptor-timetable` von matsim-libs (von `origin/main` bd2ff64c, Commit b2c64193ec6, nicht gepusht). Die package-private Schnittstelle `RaptorTimetable` (seit B4 öffentlich und `sealed`) bietet `getArrivalTime`, `getDepartureTime` und `findNextDepartureIndex`. `RaptorScheduleTimetable` ist die Standardimplementierung mit dem unveränderten Code der binären Suche; sie liegt als `scheduleTimetable` in `SwissRailRaptorData`. Die öffentliche API ändert sich nicht. Die verketteten Departures nehmen die Startzeit der Route weiter aus `data.departures`. Neu ist `RaptorScheduleTimetableTest`: die Zeiten gleich Start plus Offset, die Suche gegen eine lineare Suche, auch bei gleichen Startzeiten. | Alle Tests in `ch.sbb.matsim.routing.pt.raptor` unverändert grün (2026-11-20: 105 Tests, davon 3 neue; das ganze Modul `matsim` mit `verify` ebenfalls grün, 2479 + 77 Tests, 6 übersprungen; Contribs erst in der CI nach einem Push); B6 zeigt keine Verlangsamung (steht noch aus, der Benchmark ist noch nicht gebaut). |
-| B2: Option für veränderliche Zeiten | Umgesetzt am 2026-11-20 (Commit e8795ed0681): `useTimetableUpdates` in `SwissRailRaptorConfigGroup`, übertragen nach `RaptorStaticConfig`, Standard aus. Mit der Option entfällt `hasNoPossibleDeparture`, und `cannotReachAdditionalStops` gilt nur innerhalb derselben Route, bei `Initial` und `Adaptive`. Die Option sortiert nichts: Java ordnet die Departures einer Route nach ihrer ID (`TreeMap` in `TransitRouteImpl`, `Id.compareTo` vergleicht Strings), die Dateireihenfolge ist also verloren; die Reihenfolge kommt deshalb aus Snapshot 0 (B3). Abgelehnt werden Kapazitäten und verkettete Departures (in `SwissRailRaptorData.create`) und die Range Query (`checkConsistency` und `calcRoute`; seit B4 auch `calcRoutes` und `calcTreesObservable`). | `SwissRailRaptorTimetableUpdatesTest` mit den Filtertests aus „Vorgeschlagene Abnahme“ (7 Tests). `#transfers` und Berlin mit und ohne Option hat der Nutzer zurückgestellt. |
-| B3: versionierte Zeiten | Umgesetzt am 2026-11-20 (Commit fbfcdaeb0dc): `VersionedRaptorTimetable`, unveränderliche Versionen mit einer Zeile je Fahrt (Ankunft und Abfahrt je Halt). Entschieden nach der Messung am Berliner Fahrplan 1pct: Departures je Route im Median 1, p90 10, Max 332; eine geänderte Fahrt kopiert im Median 160 Byte statt 1,7 KB für einen Block je Route, und `exploreRoute` liest entlang einer Fahrt. `fromSchedule` übernimmt den Fahrplan; `builder` baut Snapshot 0 aus Routen und Departures in Rust-Reihenfolge und prüft IDs, Halte und Anzahl gegen die Daten; `apply(Collection<TripUpdate>)` kopiert nur das äußere Array und die geänderten Zeilen. Der externe Departure-Index ist die Position in Snapshot 0, und die Suche nach der nächsten Departure folgt dieser Reihenfolge. Jede Version prüft Ankunft ≤ Abfahrt, Ankunft am nächsten Halt ≥ Abfahrt und keine Überholung innerhalb der Route. Versionen lassen sich nur mit der Option erzeugen. Die Schnittstelle besteht nur aus Arrays und Zahlen, sodass matsim-libs nicht von matsim-schemas abhängt. | `VersionedRaptorTimetableTest` (7 Tests): gleiche Zeiten wie der Fahrplan, Reihenfolge aus Snapshot 0, binäre gegen lineare Suche bei zufälligen ordnungserhaltenden Verspätungen, die alte Version bleibt nach `apply` unverändert, Verletzungen werden abgelehnt. Dieselben Routen wie der Standard auf pt-tutorial-dummy und einer Stichprobe Berlin stehen noch aus (B6). |
+| B1: Zeit-Schnittstelle | Eine Schnittstelle (Name offen) mit Ankunft und Abfahrt je globalem Departure- und Routenhalt-Index. Die Standardimplementierung rechnet `departures[d]` plus Offset wie heute. Die 20 Zeilen mit Zeitzugriffen in `SwissRailRaptorCore` gehen über sie, also Start der Suche, `exploreRoute`, `findNextDepartureIndex` und `RouteSegmentIterator`. Zwei Stellen bleiben beim Fahrplan: `calcTreesObservable` in `SwissRailRaptor` (Baumsuche, mit der Option abgelehnt) und `hasNoPossibleDeparture` in Data (mit der Option aus). Core hält die Tabelle als Feld, das je Anfrage gesetzt wird. Umgesetzt am 2026-11-20 im Branch `ph/raptor-timetable` von matsim-libs (von `origin/main` bd2ff64c, Commit b2c64193ec6, nicht gepusht). Die package-private Schnittstelle `RaptorTimetable` (seit B4 öffentlich und `sealed`) bietet `getArrivalTime`, `getDepartureTime` und `findNextDepartureIndex`. `RaptorScheduleTimetable` ist die Standardimplementierung mit dem unveränderten Code der binären Suche; sie liegt als `scheduleTimetable` in `SwissRailRaptorData`. Die öffentliche API ändert sich nicht. Die verketteten Departures nehmen die Startzeit der Route weiter aus `data.departures`. Neu ist `RaptorScheduleTimetableTest`: die Zeiten gleich Start plus Offset, die Suche gegen eine lineare Suche, auch bei gleichen Startzeiten. | Alle Tests in `ch.sbb.matsim.routing.pt.raptor` unverändert grün (2026-11-20: 105 Tests, davon 3 neue; das ganze Modul `matsim` mit `verify` ebenfalls grün, 2479 + 77 Tests, 6 übersprungen; Contribs erst in der CI nach einem Push); B6 zeigt keine Verlangsamung: auf Lise 4036 statt 4028 µs je Anfrage, Faktor 1,002 (95-%-Intervall 0,982–1,026), siehe B6. |
+| B2: Option für veränderliche Zeiten | Umgesetzt am 2026-11-20 (Commit e8795ed0681): `useTimetableUpdates` in `SwissRailRaptorConfigGroup`, übertragen nach `RaptorStaticConfig`, Standard aus. Mit der Option entfällt `hasNoPossibleDeparture`, und `cannotReachAdditionalStops` gilt nur innerhalb derselben Route, bei `Initial` und `Adaptive`. Die Option sortiert nichts: Java ordnet die Departures einer Route nach ihrer ID (`TreeMap` in `TransitRouteImpl`, `Id.compareTo` vergleicht Strings), die Dateireihenfolge ist also verloren; die Reihenfolge kommt deshalb aus Snapshot 0 (B3). Abgelehnt werden Kapazitäten und verkettete Departures (in `SwissRailRaptorData.create`) und die Range Query (`checkConsistency` und `calcRoute`; seit B4 auch `calcRoutes` und `calcTreesObservable`). | `SwissRailRaptorTimetableUpdatesTest` mit den Filtertests aus „Vorgeschlagene Abnahme“ (7 Tests). `#transfers` und Berlin mit und ohne Option hat der Nutzer zurückgestellt; gemessen in B6: mit Option 25,3 Mio. statt 16,3 Mio. Transfers (+56 %) und 26 % mehr Routing-Zeit bei gleichen Routen. Von den 9,05 Mio. zusätzlichen Transfers würde `hasNoPossibleDeparture` 6,17 Mio. entfernen, `cannotReachAdditionalStops` zwischen verschiedenen Routen 4,01 Mio. (davon 2,61 Mio. innerhalb einer Linie), beide 1,13 Mio. Mit einem Sicherheitsabstand von 1 h bzw. 2 h entfernte `hasNoPossibleDeparture` noch 5,11 bzw. 4,36 Mio.; das setzte eine zugesicherte Höchstverspätung voraus und ist nicht geplant. |
+| B3: versionierte Zeiten | Umgesetzt am 2026-11-20 (Commit fbfcdaeb0dc): `VersionedRaptorTimetable`, unveränderliche Versionen mit einer Zeile je Fahrt (Ankunft und Abfahrt je Halt). Entschieden nach der Messung am Berliner Fahrplan 1pct: Departures je Route im Median 1, p90 10, Max 332; eine geänderte Fahrt kopiert im Median 160 Byte statt 1,7 KB für einen Block je Route, und `exploreRoute` liest entlang einer Fahrt. `fromSchedule` übernimmt den Fahrplan; `builder` baut Snapshot 0 aus Routen und Departures in Rust-Reihenfolge und prüft IDs, Halte und Anzahl gegen die Daten; `apply(Collection<TripUpdate>)` kopiert nur das äußere Array und die geänderten Zeilen. Der externe Departure-Index ist die Position in Snapshot 0, und die Suche nach der nächsten Departure folgt dieser Reihenfolge. Jede Version prüft Ankunft ≤ Abfahrt, Ankunft am nächsten Halt ≥ Abfahrt und keine Überholung innerhalb der Route. Versionen lassen sich nur mit der Option erzeugen. Die Schnittstelle besteht nur aus Arrays und Zahlen, sodass matsim-libs nicht von matsim-schemas abhängt. | `VersionedRaptorTimetableTest` (7 Tests): gleiche Zeiten wie der Fahrplan, Reihenfolge aus Snapshot 0, binäre gegen lineare Suche bei zufälligen ordnungserhaltenden Verspätungen, die alte Version bleibt nach `apply` unverändert, Verletzungen werden abgelehnt. Dieselben Routen wie der Standard: `RaptorVariantsTest` in parallel-qsim-berlin (Anfragen zwischen allen Haltepaaren auf pt-tutorial-dummy und pt-delays, alle Varianten gleich) und in B6 alle 2000 Anfragen der Berliner Stichprobe in allen Varianten identisch. |
 | B4: Auswahl je Anfrage | Umgesetzt am 2026-11-20 (Commit ee6bd3c66a0). Entschieden am 2026-11-20, auf die Frage des Nutzers nach Guice: ein injizierter Provider, nicht die Tabelle selbst: `RaptorTimetableProvider.getTimetable(SwissRailRaptorData data, double departureTime, Person person, Attributes routingAttributes)`, Standard `DefaultRaptorTimetableProvider`. Die Tabelle wird aus drei Gründen nicht selbst injiziert. Erstens wechselt sie je Anfrage, eine Bindung ist aber je Injector fest. Zweitens hängt sie an `SwissRailRaptorData`, das die Factory erst bei Bedarf erzeugt und bei `TransitScheduleChangedEvent` verwirft. Drittens lässt sie sich außerhalb des Pakets nicht sinnvoll implementieren (`RRoute` und die Felder von `RRouteStop` sind package-private). Vorbild ist `RaptorStopFinder`: Er bekommt dieselben Eingaben je Anfrage, ist in `SwissRailRaptorModule` gebunden und wird in die Factory injiziert. Der Standard gibt `data.scheduleTimetable` zurück. Die Factory reicht den Provider an `SwissRailRaptor` weiter; der `Builder` bekommt `with(...)` mit dem Standard als Vorgabe, daher bleiben seine 76 Verwendungen unverändert. `SwissRailRaptor` fragt den Provider je Anfrage und reicht die Tabelle an den Core weiter. `RaptorTimetable` wird öffentlich als `sealed interface`, mit `permits` für die Fahrplan- und die versionierte Implementierung: Andere Projekte können sie halten und weiterreichen, aber nicht implementieren. Jede Tabelle kennt ihre Daten (`belongsTo`), und der Core lehnt eine Tabelle zu anderen Daten ab. Der alte Konstruktor von `SwissRailRaptor` bleibt und nimmt den Standard. `calcRoute` und `calcTree` für einen Zeitpunkt fragen den Provider; mit der Option werden `calcTreesObservable` und die Range Query, auch über `calcRoutes`, abgelehnt. | Neue Tests in `SwissRailRaptorTimetableUpdatesTest`: Ein verspäteter letzter Bus ist nur auf der Version erreichbar, auch per `calcTree`; vier Threads routen abwechselnd auf zwei Versionen; eine Tabelle zu anderen Daten wird abgelehnt; Range Query und `calcTreesObservable` werden abgelehnt. 123 Raptor-Tests grün. Den Test der Guice-Bindung (Standard ohne Bindung, Override) hat der Nutzer entfernt; er folgt in C3. |
 | B5: gestrichen | Am 2026-11-20 gestrichen, weil die Antwort keine Departure enthält (A1). | – |
-| B6: Benchmark | In parallel-qsim-berlin (dort liegen die Berliner Eingaben): eine feste Stichprobe von pt-Anfragen aus den it0-Plänen, 1pct, gemessen vor B1, nach B1, mit Option und mit versionierten Zeiten. Dazu die Zeit von `apply` mit synthetischen Verspätungen aller laufenden Fahrten zur Spitzenstunde, gegen das Budget Δ/RTR (etwa 1,2 ms bei RTR 50k und Δ = 60 s). | Standard ohne messbare Verlangsamung; Kosten der versionierten Zeiten und von `apply` dokumentiert. |
-| B7: Draft-PR | Früh öffnen, damit `verify-push` mitläuft; zum Review nach B4. Seit 2026-11-23 offen als Draft matsim-org/matsim-libs#5306 (Branch `ph/raptor-timetable` gepusht, ee6bd3c66a0). | CI grün (2026-11-24: 52 Checks erfolgreich, 2 übersprungen). Zum Review erst nach B6. |
+| B6: Benchmark | In parallel-qsim-berlin (dort liegen die Berliner Eingaben): eine feste Stichprobe von pt-Anfragen aus den it0-Plänen, 1pct, gemessen vor B1, nach B1, mit Option und mit versionierten Zeiten. Dazu die Zeit von `apply` mit synthetischen Verspätungen aller laufenden Fahrten zur Spitzenstunde, gegen das Budget Δ/RTR (etwa 1,2 ms bei RTR 50k und Δ = 60 s). Umgesetzt am 2026-11-24 im Branch `ph/timetable-updates` von parallel-qsim-berlin (Commit 738fe6f, nicht gepusht). `RaptorBenchmark` routet 2000 pt-Wege (Seed 1) aus `output_trips` des kalibrierten 1pct-Laufs wie `RoutingService` (Facility aus Link und Koordinate, ohne Person), in einem Thread und je Variante in einer eigenen JVM: `base/schedule` (matsim bd2ff64ce56; das Modul ist gleich dem Release 2027.0-2026w45), `branch/schedule` (ee6bd3c66a0, Option aus), `branch/option` (Option an, Zeiten des Fahrplans) und `branch/versioned` (Snapshot 0 als `VersionedRaptorTimetable` über `TimetableVersions`). Fünf Forks in wechselnder Reihenfolge mit je 3 + 10 Runden. Die 8 Busrouten, die einen Halt vor der Abfahrt am vorigen erreichen (31 Fahrten, Datenfehler des Fahrplans), entfernt der Benchmark in allen Varianten. `TimetableUpdateBenchmark` misst Snapshot 0 und 60 Deltas um die Spitze (07:10, 3104 laufende Fahrten), in denen jede laufende Fahrt eine neue Verspätung von 0–180 s ab ihrem nächsten Halt bekommt, also den ungünstigsten Fall; dazu dieselben Deltas mit kürzeren Zahlen in den Zeitfeldern, nur geparst. Skripte in `scripts/raptor-benchmark/`, Zusammenfassung mit `src/main/python/scripts/raptor_benchmark.py`. Läufe auf je einem exklusiven Genoa-Knoten von Lise am 2026-11-24: b6-lise-1 (alle Varianten), b6-lise-2 (JFR-Profile, Kodierungen, Zählung der Transferfilter) und b6-lise-3 (Wiederholung mit einer Suche ab der Departure des Fahrplans, matsim-libs d10a5bfbec5). | Standard ohne messbare Verlangsamung; Kosten der versionierten Zeiten und von `apply` dokumentiert. Ergebnisse (µs je Anfrage, Median über die Forks; lokal in `output/benchmark/raptor/b6-lise-{1,2,3}/summary.md`, nicht versioniert): Standard 4028 (base) und 4036 (branch, Faktor 1,002, 95-%-Intervall 0,982–1,026); Option 5092 (1,264); versioniert 6387 (1,586, gegenüber der Option 1,25). b6-lise-3 auf einem anderen Knoten wiederholt diese Werte auf 1 % genau. Alle 2000 Routen in allen Varianten identisch. Im Profil liegt der Mehraufwand der Option in `handleTransfers` und `exploreRoutes` (mehr Transfers, siehe B2), der der versionierten Zeiten fast ganz in `findNextDepartureIndex`: teuer ist der erste Cache-Miss auf die Zeile einer Departure (die Zeilen aller Fahrten belegen etwa 14 MB, `data.departures` des Fahrplans 0,3 MB), nicht die Zahl der Suchschritte; die Suche ab der Departure des Fahrplans änderte nichts (6364 µs) und wurde am 2026-11-26 wieder entfernt. Helfen würde nur eine kleinere Arbeitsmenge, etwa Zeilen nur für Fahrten, die vom Fahrplan abweichen; wegen der Ankunftsverschiebung in Snapshot 0 eine Frage für M2. Snapshot 0: 19.090 Routen mit 78.075 Fahrten, 30,2 MB Nachrichten (größte 110 kB), aufgebaut in 0,12 s. Deltas an der Spitze: im Median 3073 Fahrten (47.780 Halte), 708 kB je Nachricht, 1,03 MB je Version. Router-Pfad (Parsen und `applyDelta`) im Median 1,8–1,9 ms (p95 2,0 ms) gegen das Budget von 1,2 ms, davon Parsen 0,76 ms und `apply` allein 0,47 ms. Mit einem Thread hält der Router im ungünstigsten Fall bis etwa RTR 33k mit. Zeiten in Sekunden oder als Verspätung kürzten die Nachricht auf 324 bzw. 161 kB, das Parsen aber nur um 9–15 %; die ns bleiben. Spielraum: Parsen und Anwenden überlappen (etwa 1,16 ms), Rust schickt nur geänderte Fahrten (M2), größeres Δ. Der Nutzer bewertet das Ergebnis am 2026-11-24 als halbwegs vertretbar. |
+| B7: Draft-PR | Früh öffnen, damit `verify-push` mitläuft; zum Review nach B4. Seit 2026-11-23 offen als Draft matsim-org/matsim-libs#5306 (Branch `ph/raptor-timetable` gepusht, ee6bd3c66a0). | CI grün (2026-11-24: 52 Checks erfolgreich, 2 übersprungen). Zum Review erst nach B6; B6 liegt seit 2026-11-26 vor. |
 | C1: Versionsspeicher | Der neue Dienst aus A2 baut je Strom nacheinander die Versionen und legt sie unter (Iteration, k) ab. Er verwirft Versionen, die älter sind als die im Delta genannte älteste benötigte, und beim Iterationswechsel alle bis auf die Grundversion. Verletzungen des Vertrags beenden den Strom mit Fehler. Umgesetzt am 2026-11-20 im Branch `ph/timetable-updates` von parallel-qsim-berlin (von `origin/main` 4b709bb, Commit df1e158, gepusht): `TimetableVersions` (Speicher, `get(iteration, snapshotId)` liefert je Aufruf ein eigenes `CompletableFuture`, sofort erfüllt, wartend oder sofort fehlgeschlagen) und `TimetableUpdateService` (ein Strom je Router, Verletzungen als `INVALID_ARGUMENT`). Statt eines Maven-Profils baut der Branch gegen die lokal installierten Snapshots (Parent `2027.0-SNAPSHOT` aus `ph/raptor-timetable`, matsim-schemas `0.4.0-SNAPSHOT`), weil der neue Code deren API braucht; zurück auf Releases nach PR-Release und Tag. | Komponententests ohne Netz, auch für jede Verletzung aus A1 (d): `TimetableUpdateServiceTest`, 21 Tests (davon 14 Verletzungen) grün; alle Tests von parallel-qsim-berlin grün. |
 | C2: RoutingService | Umgesetzt am 2026-11-20 im Branch `ph/timetable-updates` von parallel-qsim-berlin (Commit 44713a7, nicht gepusht). Mit `swissRailRaptor.useTimetableUpdates` in der Router-Config erzeugt `RoutingServer.createServices` den Speicher aus C1 (Daten über `getUnderlyingData()` eines `SwissRailRaptor` aus demselben Injector; die Factory cacht sie, daher teilen sich alle Router dieselbe Instanz) und daneben `RoutingService` und `TimetableUpdateService`, die nur den Speicher teilen und einander nicht kennen (auf Wunsch des Nutzers am 2026-11-23; vorher erzeugte `RoutingService` den Strom-Service selbst). Der Server registriert beide. Der Injector entspricht `ControllerUtils.createAdhocInjector`, mit einem Override, das `RaptorTimetableProvider` an `RequestTimetableProvider` bindet. Eine Anfrage mit `timetable_version` holt das Future aus dem Speicher: Ist die Version da, routet sie sofort im gRPC-Thread, sonst nach dem Eintreffen im Pool der Router-Threads (`whenCompleteAsync`), ohne blockierten Thread und ohne Frist (A1 c). Abweichend vom ersten Entwurf legt der Service nicht die Snapshot-ID, sondern die abgewartete Version selbst in die Routing-Attribute; der Provider gibt sie nur zurück und kennt den Speicher nicht. Bricht der Client den Aufruf ab (etwa über seine Deadline), wird das Warten abgebrochen. Fehler: freigegebene Version, beendete Iteration, beendeter Strom oder Router ohne die Option als `FAILED_PRECONDITION`, ein Fehler beim Routen als `INTERNAL`. Die Antwort enthält `timetable_version`. | `TimetableRoutingTest` (6 Tests, pt-tutorial, ohne Netz): Injector routet auf der Version in den Attributen; Snapshot 0 ergibt dieselben Legs wie der Fahrplan; eine Anfrage wartet auf ihren Snapshot und steigt nach dem Delta 60 s später ein; Ende des Stroms, freigegebene Version und Router ohne Option ergeben `FAILED_PRECONDITION`. Die Szenarien folgen in C3. |
 | C3: Dienst-Tests | Umgesetzt am 2026-11-23 im Branch `ph/timetable-updates` von parallel-qsim-berlin (Commit a99ae42 am 2026-11-24, nicht gepusht). Statt pt-tutorial-dummy (nur eine Linie, kein Umstieg) das Szenario `pt_delays` des Nutzers aus dem matsim-rust-Branch `ph/pt-delays-scenario`, nach Wunsch des Nutzers kopiert nach `integration/pt-delays/` (Eingaben unverändert, README angepasst, neue `router-config.xml` für SwissRailRaptor: keine zusätzliche Umsteigezeit, Warten und Fahren gleich teuer, Umstieg ohne Zusatzkosten); der Rust-Test und seine Dateien bleiben vorerst in matsim-rust. `PtDelaysServerTest` startet den Router mit `RoutingServer.start` und spricht über gRPC auf localhost (nicht in-process, das bräuchte einen zweiten Startweg). Die Anfragen sind die Wege der Personen. Abweichend vom ersten Entwurf: eine unbekannte Version endet mit der Deadline des Clients (`DEADLINE_EXCEEDED`), nicht mit einer Frist im Router (A1 c). | `PtDelaysServerTest` (13 Tests, fünfmal hintereinander grün): Basisfall gleich den handgeschriebenen Plänen; Varianten des README als Delta 1 (express +10 → local_0800; feeder_0800 +3 → local_0800 ab hub 08:10, eine Minute vor trunk_0815, entgegen der ersten Erwartung trunk_0815; trunk_0815 +2 neu erreichbar; trunk_0815 +5 noch da), dabei behält Snapshot 0 sein Ergebnis; local_0800 +5 allein bricht den Vertrag, mit local_0802 dahinter nicht; wartende Anfragen belegen keine Router-Threads; Client-Deadline; freigegebene Version; Iterationswechsel; Vertragsbruch beendet den Strom, Anfragen ohne Version routen weiter; Health. Noch nicht in der CI (nur lokal). |
@@ -905,19 +1026,23 @@ Wichtige fachliche Testfälle:
 | 2026-11-20 | Der Nutzer schlägt vor, die Tabelle über Guice in `SwissRailRaptorFactory` injizierbar zu machen. Der Assistent analysiert: Injiziert wird ein Provider, der je Anfrage die Tabelle liefert, nach dem Vorbild von `RaptorStopFinder`; `RaptorTimetable` wird ein öffentliches `sealed interface`. Der Nutzer bestätigt. | B4 entschieden (ersetzt das Objekt unter einem festen Attributschlüssel); C2 angepasst |
 | 2026-11-20 | B1–B4 auf Wunsch des Nutzers committet in `ph/raptor-timetable` von matsim-libs (b2c64193ec6, e8795ed0681, fbfcdaeb0dc, ee6bd3c66a0), nicht gepusht. B3 hält eine Zeile je Fahrt statt eines Blocks je Route. A2 umgesetzt im Branch `ph/timetable-updates` von matsim-schemas; der Nutzer wählt `uint64` in ns für die Zeiten, wie im übrigen Schema. | B1–B4 umgesetzt; A2 zum Review |
 | 2026-11-20 | Der Nutzer nimmt A2 an. C1 committet in `ph/timetable-updates` von parallel-qsim-berlin (df1e158); der Branch baut gegen die lokal installierten Snapshots statt in einem Maven-Profil. Für C2 fragt der Nutzer, ob die Frist im Router nötig ist; der Assistent schlägt vor, darauf zu verzichten, weil ein endender Strom wartende Anfragen schon fehlschlagen lässt und Rust selbst eine gRPC-Deadline setzen kann. Der Nutzer stimmt zu. | A1 (c) geändert; C1 umgesetzt, C2 umgesetzt (nur im Index) |
+| 2026-11-24 | B6 auf Lise gemessen und in `ph/timetable-updates` von parallel-qsim-berlin committet (738fe6f). Der Standard ist nicht langsamer; die Option kostet 26 %, die versionierten Zeiten 59 % gegenüber dem Standard, bei gleichen Routen. Der Router-Pfad je Delta braucht im ungünstigsten Fall 1,8 ms gegen ein Budget von 1,2 ms. Der Nutzer findet das halbwegs vertretbar. Kürzere Zeitfelder sparen beim Parsen nur 9–15 %, die Zeiten bleiben in ns. | B1, B3 und B6 abgenommen; Spielraum beim Delta-Pfad für später |
+| 2026-11-25 | Der Nutzer befürwortet unterschiedliche Driver-Typen für unterschiedliche Verspätungskonzepte und Komplexitätsstufen. D01 ergänzt als Beispiel eine vorab gezogene, einmalige Zusatzfahrzeit auf einem S-Bahn-Abschnitt. | Driver-Typen als Arbeitsrichtung. Ziehungsmodell und Zahlen als Diskussionsbeispiel. |
+| 2026-11-26 | Das Driver-Beispiel in D01 übernimmt die Herleitung aus dem Paper-Entwurf. Die Störung wird je Fahrt mit einer Wahrscheinlichkeit je Linie ausgelöst, der Ankunftshalt gleichverteilt gezogen. Bei einer beobachteten Schwelle je Linie wird $\mu$ vorgegeben und $p_L$ geschätzt. | Kalibrierungsansatz für das Beispiel. Szenariowerte und Umsetzung offen. |
+| 2026-11-26 | Die Suche nach der nächsten Departure ab der Departure des Fahrplans (matsim-libs d10a5bfbec5, b6-lise-3) bringt nichts, weil der erste Cache-Miss auf die Zeile einer Departure den Aufwand bestimmt. Der Nutzer lässt den Commit wieder aus `ph/raptor-timetable` entfernen. | Verworfen; kleinere Arbeitsmenge der Versionen als Möglichkeit für M2 |
 
 ## Quellen im Projekt und Referenzen
 
-- [Driver und Zeitfortschreibung](../matsim_rust/src/simulation/pt/driver.rs)
-- [Transit Engine](../matsim_rust/src/simulation/engines/transit_engine.rs)
-- [Transit-Datenmodell](../matsim_rust/src/simulation/scenario/transit.rs)
-- [Events](../matsim_rust/src/simulation/events/mod.rs)
-- [Passagier- und adaptive Logik](../matsim_rust/src/simulation/agents/agent_logic.rs)
-- [Routing-Protokoll](../matsim_rust/src/external_services/routing/routing.proto)
-- [Bisherige PT-Integrationstests](../matsim_rust/tests/simulation/pt.rs)
-- [Aktueller CI-Workflow](../.github/workflows/rust.yml)
-- [Testregeln](tests.md)
-- [Architektur](architecture.md)
+- [Driver und Zeitfortschreibung](https://github.com/matsim-vsp/matsim-rust/blob/99bdffe0b1799e71680d2e93bb2327d3412b8c09/matsim_rust/src/simulation/pt/driver.rs)
+- [Transit Engine](https://github.com/matsim-vsp/matsim-rust/blob/99bdffe0b1799e71680d2e93bb2327d3412b8c09/matsim_rust/src/simulation/engines/transit_engine.rs)
+- [Transit-Datenmodell](https://github.com/matsim-vsp/matsim-rust/blob/99bdffe0b1799e71680d2e93bb2327d3412b8c09/matsim_rust/src/simulation/scenario/transit.rs)
+- [Events](https://github.com/matsim-vsp/matsim-rust/blob/99bdffe0b1799e71680d2e93bb2327d3412b8c09/matsim_rust/src/simulation/events/mod.rs)
+- [Passagier- und adaptive Logik](https://github.com/matsim-vsp/matsim-rust/blob/99bdffe0b1799e71680d2e93bb2327d3412b8c09/matsim_rust/src/simulation/agents/agent_logic.rs)
+- [Ursprüngliches Routing-Protokoll](https://github.com/matsim-vsp/matsim-rust/blob/99bdffe0b1799e71680d2e93bb2327d3412b8c09/matsim_rust/src/external_services/routing/routing.proto)
+- [Bisherige PT-Integrationstests](https://github.com/matsim-vsp/matsim-rust/blob/99bdffe0b1799e71680d2e93bb2327d3412b8c09/matsim_rust/tests/simulation/pt.rs)
+- [CI-Workflow im untersuchten Rust-Stand](https://github.com/matsim-vsp/matsim-rust/blob/99bdffe0b1799e71680d2e93bb2327d3412b8c09/.github/workflows/rust.yml)
+- [Testregeln](https://github.com/matsim-vsp/matsim-rust/blob/99bdffe0b1799e71680d2e93bb2327d3412b8c09/docs/tests.md)
+- [Architektur](https://github.com/matsim-vsp/matsim-rust/blob/99bdffe0b1799e71680d2e93bb2327d3412b8c09/docs/architecture.md)
 - [Java-Upstream: Factory](https://github.com/matsim-org/matsim-libs/blob/main/matsim/src/main/java/ch/sbb/matsim/routing/pt/raptor/SwissRailRaptorFactory.java)
 - [Java-Upstream: Datenhaltung](https://github.com/matsim-org/matsim-libs/blob/main/matsim/src/main/java/ch/sbb/matsim/routing/pt/raptor/SwissRailRaptorData.java)
 - [Java-Upstream: Router-Kern](https://github.com/matsim-org/matsim-libs/blob/main/matsim/src/main/java/ch/sbb/matsim/routing/pt/raptor/SwissRailRaptorCore.java)
