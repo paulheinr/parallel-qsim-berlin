@@ -69,3 +69,9 @@ schedule) over the timetable stream and asks for the trips of the persons over g
 | `local_0800_late` (+5 min at suburb) | none | `local_0802` has to stay behind `local_0800`; delaying `local_0800` alone breaks the contract and ends the stream |
 
 The same test also checks waiting for snapshots, released versions, the change of iteration and client deadlines.
+
+In matsim-rust, the same variants run in the simulation (`tests/simulation/pt_delays.rs`, see the README of
+`assets/pt_delays` there), plus `local_0800_late_before_center`. Each sets delays of one departure at one stop of its
+route as attributes of the departure: `delayStopIndex` (position of the stop in the route, from 0),
+`arrivalDelayOffset` and `departureDelayOffset` (`"HH:MM:SS"`, optional, 0 by default). The persons follow their
+plans there; they do not ask the router yet.
