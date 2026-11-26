@@ -19,7 +19,7 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
 | | cluster | local (Mac) |
 |---|---|---|
 | this repo | `~/scratch/iterations-rust/parallel-qsim-berlin` | `~/git/parallel-qsim-berlin` |
-| simulation library, DSim | `~/scratch/iterations-rust/{matsim-rust,matsim-berlin}` | `~/git/parallel_qsim_rust/matsim_rust`, `~/git/matsim-berlin` |
+| simulation library, DSim | `~/scratch/iterations-rust/matsim-berlin` (matsim-rust: git dependency, checkout deleted 2026-11-24) | `~/git/parallel_qsim_rust/matsim_rust`, `~/git/matsim-berlin` |
 | svn checkouts | `~/scratch/{shared-svn,public-svn,runs-svn}` | `~/{shared-svn,public-svn,runs-svn}` |
 | experiments | `<repo>/output/experiments/<name>/` (`out_root`) | `~/runs-svn/matsim-rust/iterations-vs-dsim-2026/<name>/` |
 
@@ -294,6 +294,18 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
     `plots/archive/`), and only on the cluster `validation-v2-it0` and `validation-it100` (b9b7618, without global
     sync). So `validation-it0` and `validation-it100` are now the gsync runs; older mentions above refer to the
     archived experiments of the same name. The cluster repo still has the old toml files until a `git pull`.
+  - Debugging of kinematicWaves, QSim vs. DSim (2026-11-24, from another session, the one on the DSim fix
+    matsim-libs#5307): `qsim-scaled-inflow-it0` (QSim with the inflow capacity scaled by the flow capacity factor,
+    jar of `../matsim-berlin-scaled-inflow`), `qsim-scaled-inflow-ptpce0-it0` and `dsim-ptpce0-it0` (transit vehicles
+    with pce 0). The user does not want to keep them: with the user's approval, moved on the cluster to
+    `output/experiments/archive/` (with their submit logs), and their toml files, settings
+    `cluster-validation-qsim-scaled-inflow.toml` and `input/v7.1/berlin-v7.1.output_transitVehicles.pce0.xml.gz` to
+    `output/experiments/archive/qsim-scaled-inflow-inputs/`. Still there: `../matsim-berlin-scaled-inflow`,
+    `matsim-libs` on `ph/qsim-scaled-inflow` and `2027.0-qsim-scaled-inflow` in `~/.m2`. In runs-svn, also with the
+    user's approval, moved to `archive/` and their two comparisons to `plots/archive/` (committed in r7040);
+    `plots/index.html` reverted to r7038, without them. The user will run them again once all fixes are merged. The
+    untracked local copies of the 5 files were removed on 2026-11-26 (the user asked for it; byte-identical to the
+    cluster archive, checked by sha256).
 - `scripts/cluster/hotpath.sh [name]` (2026-10-20, written because the user finds rust at many partitions
   unsatisfying): builds with `--features hotpath` into `src/main/rust/target/hotpath` (not `target/release`) and runs
   10 cases in one job on one node: 1 % and 3 % at 32/96/192 partitions with hotpath (scoring on, at 96 also off), and
@@ -377,6 +389,76 @@ Notes for Claude. Facts were checked on 2026-10-15; re-check anything that looks
     known. The revert is matsim-vsp/matsim-rust#326, merged on 2026-10-20 (main e20838e) and measured in
     `scaling-v5`. Not measured here: few partitions (P=1-8), where #324 had measured a gain of the smaller backpacks
     on a laptop.
+- Raptor benchmark B6 (2026-11-24, the user asked for it, see `scripts/raptor-benchmark/`): a bundle built on the Mac
+  (`bundle.sh`: matsim jars of bd2ff64ce56 and ee6bd3c66a0, classes, 364 lib jars, 243M) copied with the user's
+  approval to `output/benchmark/raptor/b6-lise-1/bundle` (outside `out_root`, not fetched by `fetch`) and run by
+  `slurm.sh` on one exclusive Genoa node (2 h limit): job 9719053, 5 forks x 4 variants plus TimetableUpdateBenchmark.
+  Fetch without the bundle with the rsync command in the header of `slurm.sh`. Completed (exit 0, 50 min on
+  genoa1237) and fetched on 2026-11-24 to the gitignored local `output/benchmark/raptor/b6-lise-1` (`summary.md` by
+  `src/main/python/scripts/raptor_benchmark.py`); the bundle is still on the cluster. Follow-up `b6-lise-2` (same day,
+  the user asked for it, not on the Mac): bundle with the parse encodings, `TransferFilterCount` (removed afterwards
+  with the user's approval; its numbers are only in the local `b6-lise-2/summary.md`) and the JFR switch of
+  `run.sh`, created on the cluster as `cp -al` of the old bundle plus `rsync -rlpc` of the 5 changed files (the other
+  files are hard links, no new space or inodes); job 9719497 (45 min limit) with
+  `--export='FORKS=1,JFR=1,TRANSFERS=1,VARIANTS=base/schedule branch/option branch/versioned'`. Completed (exit 0,
+  9.4 min on genoa1027; `--export` with spaces in a value works) and fetched to the gitignored local
+  `output/benchmark/raptor/b6-lise-2` (JFR files about 10 MB each). `b6-lise-3` (same day, the user asked for it):
+  branch jar of matsim-libs d10a5bfbec5 (local commit on `ph/raptor-timetable`, not pushed: the next departure of a
+  version is searched from that of the schedule), bundle as `cp -al` of b6-lise-2 plus 5 changed files; job 9719619
+  (1:15 limit) with `--export='FORKS=5,UPDATES=0,VARIANTS=base/schedule branch/option branch/versioned'`. Completed
+  (exit 0, 39 min on genoa1212), fetched to the gitignored local `output/benchmark/raptor/b6-lise-3` on 2026-11-26.
+  Result: no gain (versioned 6364 µs per request, b6-lise-1 6387; versioned / option 1.250 instead of 1.254; base and
+  option within 1 % of b6-lise-1 on another node, all 2000 routes identical). In the profile of b6-lise-2, two thirds
+  of the samples of the old search are on the read `times[order[mid]][column]`: the cost is the first cache miss on
+  the row of a departure (rows of all departures about 14 MB, `data.departures` 0.3 MB), not the number of steps.
+  d10a5bfbec5 was removed again from `ph/raptor-timetable` with the user's approval (2026-11-26, branch back at
+  ee6bd3c66a0 as on GitHub). The bundles of b6-lise-1 to -3 on the cluster were deleted with the user's approval on
+  2026-11-26 (results are on the cluster and in the local `output/benchmark/raptor/`, the bundles also locally).
+- `qsim-scaled-inflow-it0` (2026-11-24, the user asked for it): why DSim (and rust) are much slower than QSim with
+  kinematicWaves (car +13/+38/+85 % at 1/3/10pct, queue +3-4 %). QSim scales flow and storage capacities with
+  `flowCapacityFactor` but not the inflow capacity from the fundamental diagram; DSim scales the vehicles' pce instead,
+  so its inflow capacity is effectively scaled. In the Berlin network the fundamental diagram (1455-1739 veh/h per
+  lane) is below the capacity (about 2040) on practically all roads from 40 km/h on. Check: QSim with the scaled
+  inflow capacity (matsim-libs `ph/qsim-scaled-inflow` fc8e73e6ef5, on top of the #5239 fix 219c858240f).
+  - Build, with the user's approval: `~/scratch/iterations-rust/matsim-libs` (new; 99da89af from GitHub with depth 1 plus
+    the branch from a git bundle; POMs set to `2027.0-qsim-scaled-inflow`, uncommitted), only the core installed into
+    `~/.m2` (`install -DskipTests -pl matsim -am`, Maven 3.9.5 of the matsim-berlin wrapper in `~/.m2/wrapper`).
+    matsim-berlin branch `ph/v7.1.1-dsim-scaled-inflow` (769d2e49, only org.matsim:matsim at that version; parent and
+    contribs stay 2027.0-PR5308, built from the same base 99da89af) in the local clone
+    `~/scratch/iterations-rust/matsim-berlin-scaled-inflow`, jar `...-v7.1.1-5-g769d2e4.jar` (sha256 2e740df6ad07).
+    Not a worktree: git-commit-id-maven-plugin then takes the describe and SCM-Revision of the main checkout (also with
+    native git). Settings `cluster-validation-qsim-scaled-inflow.toml` point to that clone, so the other experiments
+    keep the newest jar of `../matsim-berlin`.
+  - 6 runs (kw and queue, PassingQ, 1/3/10pct), jobs 9719094-9719099, all exit 0 in 2.5-10 min, fetched (svn add, not
+    committed). `python -m validation` refuses two QSim experiments; QSim new vs old was computed with
+    `validation.plots.agreement` directly.
+  - Results (rel. mean diff of trav_time): DSim vs scaled QSim car +2.7/+2.4/+2.1 % (before +13/+38/+85 %), truck
+    +2.5/+2.6/+2.1 %; queue identical to qsim-validation-it0 (trips and times), so nothing else changed in the QSim.
+    Scaled vs old QSim, kw: car +10/+35/+82 %. pt: +14.3/+1.7/+0.1 % (DSim vs scaled QSim -12.3 % at 1pct): the
+    transit vehicles have pce 1 in every sample (pt is not sampled), so in QSim with scaled capacities a bus counts as
+    1/f cars, and the fundamental diagram ignores the large capacity of the pt links. DSim does not scale transit
+    vehicles (TransitQVehicle), so a bus is one real vehicle there.
+  - All 19,098 transit routes run on pt links only (none allows car, all 100000 veh/h). Follow-up (2026-11-24, the user
+    asked for it): `qsim-scaled-inflow-ptpce0-it0` (same jar) and the control `dsim-ptpce0-it0` (jar of
+    dsim-validation-it0), kw/PassingQ, 1/3/10pct, with `input/v7.1/berlin-v7.1.output_transitVehicles.pce0.xml.gz`
+    (the calibrated output_transitVehicles, identical for all pct, with the 7 `pce="1.0"` set to 0.0; sha256
+    8c0174ee6289; untracked here and on the cluster), passed by `extra_args = ["--config:transit.vehiclesFile=..."]`
+    (relative to the config). Jobs 9719442-9719444 and 9719446-9719448, all exit 0 in 2.3-9.8 min, fetched (svn add,
+    not committed); the written output_transitVehicles have pce 0.0.
+  - Results: DSim vs QSim, both pce 0: car +2.7/+2.4/+2.7 %, truck +2.3/+2.5/+2.5 %, pt +0.2/+0.1/+0.2 %, i.e. as the
+    +3-4 % of queue (fractional link travel times of DSim). QSim pce 0 vs qsim-validation-it0: pt +0.1/0.0/+0.1 %, so the
+    pt slowdown of the scaled inflow is gone; car still +10/+35/+81 %. DSim pce 0 vs pce 1: identical trips and times.
+- Cleanup of `~/scratch/iterations-rust` on 2026-11-24, with the user's approval (before 562 GB and 87k inodes, after
+  146 GB and 45k; the user quota was at 713 GiB and 200k inodes): deleted `ITERS/` and `output_plans.binpb` of all 52
+  runs of scaling-v6-gsync (327 GB; `output_experienced_plans.binpb` kept, now 25G), `output/hotpath` (37 GB; v4b
+  without plans in the local gitignored `output/hotpath`), the checkout `matsim-rust` (26 GB; branch
+  `claude/magical-allen-jqkeh8` is on GitHub), `output/experiments/example` (16 GB, the first test of 2026-10-13, never
+  fetched), `archive/validation-v2-it0` and `archive/validation-it100` with their submit logs (only on the cluster,
+  superseded), the build of the scaled inflow capacity (`matsim-libs` on `ph/qsim-scaled-inflow`, which is on GitHub,
+  `matsim-berlin-scaled-inflow`, its logs and bundle, and `2027.0-qsim-scaled-inflow` of matsim, matsim-examples and
+  matsim-all in `~/.m2`; the archived qsim-scaled-inflow runs keep their jar in `bin/`) and `pqb-integration` (a second
+  checkout on `ph/run-routing`, merged). Left for the user to decide: `archive/validation-it0` (14.8 GB),
+  `archive/dsim-validation-it0` (7.7 GB) and `routing-example` (1 GB, not fetched).
 - `~/scratch/rust-pt-routing` holds the older async-routing project. Its results are in
   `runs-svn/matsim-rust/async-routing-2026`.
 - Tools on the cluster: `uv` and `python3` (`~/scratch/miniforge3/bin`), `svn`, `rsync` 3.2.7, Slurm. Locally, `rsync`
