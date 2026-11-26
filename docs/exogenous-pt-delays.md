@@ -24,8 +24,8 @@ denen die Simulation darauf warten muss, dass Reisezeiten und Prognosen aktualis
 
 | Punkt | Arbeitsstand | Noch zu klären |
 | --- | --- | --- |
-| 1. Eingabe und Verteilung | Das Driver-Beispiel in D01 verwendet eine Störungswahrscheinlichkeit je Linie, eine gleichverteilte Wahl des Ankunftshalts und eine exponentielle Zusatzfahrzeit. Bei einer beobachteten Schwelle je Linie wird die mittlere Zusatzfahrzeit für das Szenario vorgegeben und die Störungswahrscheinlichkeit daraus geschätzt. Seit 2026-11-26 (M1) gibt es feste Störungswerte je Departure als Attribute `delayStopIndex`, `arrivalDelayOffset` und `departureDelayOffset` (D01, „Umsetzung in M1“). | Konkrete Szenariowerte, Kalibrierung im Simulationslauf, Eingabeformat für gezogene Werte. |
-| 2. Fahrzeugausführung | Variante A ist entschieden. Der Driver zieht Störungswerte vor Fahrtbeginn und schreibt die tatsächlichen Fahrzeugzeiten während der Fahrt fort. Unterschiedliche Driver-Typen können Störungsmodelle verschiedener Komplexität abbilden. Seit 2026-11-26 umgesetzt (M1): `StopDelayDriver` für feste Störungen an einem Halt; Aufholen nach den bestehenden Zeitregeln. | Weitere Driver-Typen für gezogene Werte. |
+| 1. Eingabe und Verteilung | Das Driver-Beispiel in D01 verwendet eine Störungswahrscheinlichkeit je Linie, eine gleichverteilte Wahl des Ankunftshalts und eine exponentielle Zusatzfahrzeit. Bei einer beobachteten Schwelle je Linie wird die mittlere Zusatzfahrzeit für das Szenario vorgegeben und die Störungswahrscheinlichkeit daraus geschätzt. Seit 2026-11-26 (M1) gibt es feste Störungswerte je Departure und Halt als Attribute `delay_<Halt>` mit `arrivalDelayOffset` und `departureDelayOffset` (D01, „Umsetzung in M1“). | Konkrete Szenariowerte, Kalibrierung im Simulationslauf, Eingabeformat für gezogene Werte. |
+| 2. Fahrzeugausführung | Variante A ist entschieden. Der Driver zieht Störungswerte vor Fahrtbeginn und schreibt die tatsächlichen Fahrzeugzeiten während der Fahrt fort. Unterschiedliche Driver-Typen können Störungsmodelle verschiedener Komplexität abbilden. Seit 2026-11-26 umgesetzt (M1): `StopDelayDriver` für feste Störungen an Halten, erzeugt von einer eigenen Agent-Source; Aufholen nach den bestehenden Zeitregeln. | Weitere Driver-Typen für gezogene Werte. |
 | 3. Information und Prognose | Kernentscheidung bestätigt: Für den ersten Stand werden Ankunfts-/Abfahrtsbeobachtungen übertragen; unbekannte zusätzliche Boardingdauer entfällt in der optimistischen Prognose. Bekannte Zeitgrenzen werden eingehalten. Arbeitsrichtung seit 2026-11-19: Rust berechnet die Prognose in einem nebenläufigen Snapshot-Thread, nur aus dem Event-Strom und mit denselben Zeitregeln wie die Ausführung (D03). | Fortschreibung bei ausgebliebenen Ereignissen; Zeitbedarf des Snapshot-Threads messen. |
 | 4. Java-Router | Nichtüberholung innerhalb derselben TransitRoute ist vom Nutzer als Vertrag zugesichert und in matsim-rust umgesetzt (f638bd5f). Der Router darf diese Ordnung voraussetzen. Seit 2026-11-19 erhält er die prognostizierten Zeiten je Fahrt und Halt von Rust und routet auf der genannten Version. | Seit 2026-11-19 entschieden: Umbau von SwissRailRaptor in einem Branch von matsim-libs. Seit 2026-11-20 umgesetzt und committet (B1–B4): Zeit-Schnittstelle `RaptorTimetable`, Option `useTimetableUpdates`, versionierte Zeiten mit einer Zeile je Fahrt, Auswahl der Version je Anfrage über einen per Guice injizierten Provider; Protokoll im Branch `ph/timetable-updates` von matsim-schemas (A2); keine Departure in der Antwort; Snapshot 0 einmal beim Start, Freigabe alter Versionen durch Rust, asynchrones Warten mit Frist, Abbruch bei Vertragsverletzung (A1). |
 | 5. Snapshots | Feste, konfigurierbare Intervalle in der Simulationszeit sind bestätigt. Alle Partitionen bestätigen Vollständigkeit. Die Anfragezeit bestimmt eine konkrete Snapshot-ID; eine Anfrage wartet bei Bedarf auf genau diesen Stand. Seit 2026-11-19 erzeugt Rust die Snapshots (Arbeitsrichtung); Versand je Intervall, Änderungen je Fahrt und die Grenzkonvention mit Grace Gap g als Szenarioparameter sind bestätigt (D03). | Werte für Δ und g und Anwendung von Antworten. Seit 2026-11-20 entschieden (A1 in D04): Initialisierung und Iterationswechsel, Fehler im Router, Freigabe alter Versionen. |
@@ -260,12 +260,15 @@ Vom Nutzer am 2026-11-26 entschieden und in matsim-rust umgesetzt: PR
 matsim-vsp/matsim-rust#362 (Branch `ph/exogenous-pt-delays`) auf dem Szenario-PR
 matsim-vsp/matsim-rust#361, der am 2026-11-26 gemergt wurde.
 
-- **Eingabe:** Eine Departure kann feste Störungen an einem Halt ihrer Route haben, als
-  Attribute der Departure analog zu den Offsets der Route: `delayStopIndex` (Integer, Position
-  des Halts in der Route ab 0), `arrivalDelayOffset` und `departureDelayOffset` (Strings
-  `"HH:MM:SS"`, beide optional, Standard 0). `TransitSimSchedule::build` liest sie als
-  `StopDelay` und bricht ab bei einem Offset ohne Index, einem Index außerhalb der Route
-  oder einem anderen Format. Ein Index ohne Offsets ergibt keine Störung.
+- **Eingabe:** Eine Departure kann feste Störungen an mehreren Halten ihrer Route haben, ein
+  Attribut je Halt: `delay_<i>` für den Halt an Position i der Route (ab 0). Der Wert ist ein
+  `java.lang.String` mit einem JSON-Objekt aus `arrivalDelayOffset` und
+  `departureDelayOffset` (`"HH:MM:SS"`, beide optional, Standard 0), z. B.
+  `{"arrivalDelayOffset":"00:04:00"}`. Rust und Java lesen das ohne eigenen Converter.
+  `StopDelays::of_departure` bricht ab, wenn ein Attribut `delay_…` keinen Halt der Route
+  nennt (`delay_3` und `delay_03` zählen als derselbe Halt) oder ein Wert einen anderen Typ,
+  ein unbekanntes Feld oder ein anderes Zeitformat hat. Offsets, die fehlen oder 0 sind,
+  ergeben keine Störung.
 - **Bedeutung an Halt i**, jeweils gegenüber den Zeitregeln ohne Störung: Die Ankunft ist
   die Ankunft nach den Zeitregeln plus `arrivalDelayOffset`. Bei i ≥ 1 ist das der Abschnitt
   vor Halt i wie im S-Bahn-Beispiel, bei i = 0 eine Startverspätung. Die Abfahrt ist
@@ -273,17 +276,25 @@ matsim-vsp/matsim-rust#361, der am 2026-11-26 gemergt wurde.
   Wert länger, auch nach einer verspäteten Ankunft. Die Verspätung, die das Fahrzeug
   weiterträgt, misst der Driver weiter gegen den unveränderten Fahrplan. So wirkt die
   Störung an den folgenden Halten nach, und ein kürzerer Aufenthalt baut sie ab.
-- **Driver-Typ:** `StopDelayDriver` enthält einen `PlannedDriver` und delegiert an ihn. Er
-  addiert die Störungen dort, wo die Zeitregel die Ankunft an Halt i bzw. die Abfahrt von
-  dort ergibt. Weil die Halt-Position nur einmal i wird, wirkt jede Störung genau einmal.
-  Der wartende Driver wählt ihn beim Start der Fahrt, wenn die Departure eine Störung hat;
-  sonst bleibt es der `PlannedDriver`.
+- **Driver-Typ und Agent-Source:** `StopDelayDriver` (Modul `pt::stop_delays`) enthält einen
+  `PlannedDriver` und delegiert an ihn. Er addiert die Störung eines Halts dort, wo die
+  Zeitregel die Ankunft an diesem Halt bzw. die Abfahrt von dort ergibt. Weil jede
+  Halt-Position nur einmal erreicht wird, wirkt jede Störung genau einmal. Die Driver erzeugt
+  die eigene `StopDelayDriverAgentSource`: Fahrten mit Störungen starten als
+  `StopDelayDriver`, die übrigen als `PlannedDriver`. Sie ist opt-in
+  (`ControllerBuilder::add_agent_source`). Die neue Trait-Funktion
+  `AgentSource::creates_transit_drivers` sagt, ob eine Source die Transit-Driver erzeugt;
+  nur wenn keine es tut, fügt `ControllerBuilder::build` die Standard-Source
+  `TransitDriverAgentSource` hinzu, die die Attribute ignoriert. Der wartende Driver kennt
+  die Störungen nicht mehr: Er bekommt von seiner Source einen `DriverStart`, der beim Start
+  der Fahrt den Driver erzeugt.
 - **Events:** `VehicleArrivesAtFacility` und `VehicleDepartsAtFacility` tragen jetzt
   `delay` gegenüber dem Fahrplan wie in MATSim. In der Berlin-Referenz (0,1pct, bis 10:00)
   haben 1.041 von 975.600 Halte-Events eine Verspätung (775 × 1 s, 175 × 61 s, 91 × 121 s),
   sonst sind die Events unverändert.
 - **Tests:** Unit-Tests für Ankunfts- und Abfahrtsstörung, Störung am ersten und am letzten
-  Halt, beide am selben Halt, die Auswahl des Drivers und die Prüfungen der Attribute. Im
+  Halt, beide am selben Halt, Störungen an mehreren Halten, die Agent-Source und die
+  Prüfungen der Attribute. Im
   Szenario `pt_delays` laufen die fünf Varianten des README und
   `local_0800_late_before_center` mit 1 und 2 Partitionen gegen Referenz-Events. In der
   letzten wird die Störung beim Abfahren in hub auf Partition 1 wirksam, nachdem der Driver
@@ -1069,6 +1080,7 @@ Wichtige fachliche Testfälle:
 | 2026-11-26 | Die Suche nach der nächsten Departure ab der Departure des Fahrplans (matsim-libs d10a5bfbec5, b6-lise-3) bringt nichts, weil der erste Cache-Miss auf die Zeile einer Departure den Aufwand bestimmt. Der Nutzer lässt den Commit wieder aus `ph/raptor-timetable` entfernen. | Verworfen; kleinere Arbeitsmenge der Versionen als Möglichkeit für M2 |
 | 2026-11-26 | Abschluss der Java-Seite. matsim-schemas#5 bleibt WIP bis nach M2; ein Vorab-Tag geht nicht, weil `release.yml` nur `vX.Y.Z` veröffentlicht. matsim-libs#5306 ist „ready for review“, die Reviewer fragt der Nutzer an. `ph/timetable-updates` von parallel-qsim-berlin wird nur gepusht; einen PR gibt es erst nach den Releases, ohne Bau der Snapshots in der CI. | A2 wartet auf M2; B7 im Review; C1–C3 bis zu den Releases nur lokal getestet |
 | 2026-11-26 | M1 geplant und umgesetzt. Der Nutzer entscheidet: Störung als Zusatzzeit an einem Halt i ≥ 0 (i = 0 Startverspätung), als Attribute der Departure analog zu den Offsets (`delayStopIndex`, `arrivalDelayOffset`, `departureDelayOffset`, `"HH:MM:SS"`, Standard 0), `departureDelayOffset` verlängert den Aufenthalt, ein eigener Driver-Typ, der an den `PlannedDriver` delegiert. Das Szenario `pt_delays` und der Berlin-Test mit fahrplanbasiertem Transit kommen zuerst als eigener PR (matsim-vsp/matsim-rust#361, gemergt), M1 darauf als matsim-vsp/matsim-rust#362. | D01 und M1 umgesetzt; gezogene Werte (M5) offen |
+| 2026-11-26 | Überarbeitung von M1 (matsim-vsp/matsim-rust#362) auf Wunsch des Nutzers: Nicht der wartende Driver wählt den `StopDelayDriver`, sondern eine eigene Agent-Source (`StopDelayDriverAgentSource`); die Trait-Funktion `AgentSource::creates_transit_drivers` verhindert, dass der Controller zusätzlich die Standard-Source für Transit-Driver anlegt. Störungen sind an mehreren Halten möglich: ein Attribut `delay_<Halt>` je Halt mit einem JSON-Objekt aus `arrivalDelayOffset` und `departureDelayOffset` (vom Nutzer gewählt statt eines Index im JSON oder einer Liste in einem Attribut, weil MATSim-Attributnamen je Departure eindeutig sein müssen). | Ersetzt die Attribute `delayStopIndex`, `arrivalDelayOffset` und `departureDelayOffset` vom selben Tag |
 
 ## Quellen im Projekt und Referenzen
 

@@ -72,6 +72,7 @@ The same test also checks waiting for snapshots, released versions, the change o
 
 In matsim-rust, the same variants run in the simulation (`tests/simulation/pt_delays.rs`, see the README of
 `assets/pt_delays` there), plus `local_0800_late_before_center`. Each sets delays of one departure at one stop of its
-route as attributes of the departure: `delayStopIndex` (position of the stop in the route, from 0),
-`arrivalDelayOffset` and `departureDelayOffset` (`"HH:MM:SS"`, optional, 0 by default). The persons follow their
-plans there; they do not ask the router yet.
+route as an attribute of the departure, one per stop: `delay_<i>` for the stop at position i of the route (from 0), a
+`java.lang.String` with a JSON object of `arrivalDelayOffset` and `departureDelayOffset` (`"HH:MM:SS"`, optional, 0 by
+default), e.g. `{"departureDelayOffset":"00:02:00"}`. Only the drivers of `StopDelayDriverAgentSource`, which the test
+adds to the controller, carry them out. The persons follow their plans there; they do not ask the router yet.
