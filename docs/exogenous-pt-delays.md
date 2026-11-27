@@ -363,12 +363,32 @@ Abfahrt in der `TransitEngine`, Nichtüberholung aus f638bd5f). Mit Plan-Ankunft
 und Plan-Abfahrt `s_d(i)` am Halt i und dem Vorgänger derselben Route gilt:
 
 - `a(i+1) = max(s_a(i+1) + (d(i) - s_d(i)), d(i) + 1 s, a_vorgaenger(i+1))`
-- `d(i) = max(s_d(i), a(i), d_vorgaenger(i))`
+- `d(i) = max(s_d(i), a(i), d_vorgaenger(i) + ε)`
 
 `d(i) + 1 s` ist die Ankunft frühestens im nächsten Zeitschritt. Am ersten Halt ist die
 Ankunft der Plan-Ankunft oder der spätere Startzeitpunkt. Ein Fahrzeug kann im selben
 Zeitschritt wie sein Vorgänger ankommen und abfahren, in der Reihenfolge der Events nach ihm
 (beobachtet in der Variante `local_0800_late` von `pt_delays`, 2026-11-26).
+
+Ergänzt am 2026-11-27:
+- **ε:** ε ist ein Zeitschritt, wenn die Driver-ID kleiner ist als die des Vorgängers, sonst 0.
+  Fällige Abfahrten eines Zeitschritts bearbeitet `depart` nach den IDs der Driver; ein
+  Fahrzeug, das vor seinem noch haltenden Vorgänger drankommt, fährt erst im nächsten Zeitschritt.
+- **Je Halt:** Die Regeln gelten je Halt, also je Route und Position.
+  - Bis dahin verglich `predecessor_departure` nur Route und Facility. Auf Schleifenrouten wartete
+    ein Fahrzeug deshalb auch auf einen Vorgänger, der an derselben Facility auf einer anderen
+    Position der Route hielt.
+  - Ohne Störung traf das in Berlin v7.1 (1pct, ausgewertet am Fahrplan) 206 Fahrten auf 21
+    Routen, die einen Zeitschritt später abfuhren, z. B. `114---9050_0` mit `412749_bus` an
+    Halt 3 und 13.
+  - Korrigiert in matsim-rust ebd7a3f1. Die Referenz-Events des Tests mit Berlin v6.4 (0.1pct)
+    wurden neu erzeugt: 762 Events von 54 Fahrzeugen auf Schleifenrouten und ihren aussteigenden
+    Fahrgästen liegen 1 s früher, alles andere ist gleich.
+- **Gemeinsame Offsets:** Alle Fahrten einer Route teilen die Offsets.
+  - Bei konsistenten Beobachtungen liegen die eigenen Regeln und die Anhebung auf die Grenze
+    deshalb nie vor dem Vorgänger.
+  - In der Prognose wirkt die Reihenfolge praktisch nur über ε, wenn Fahrten sich bündeln. Die
+    Ankunftsregel bleibt als Absicherung.
 
 Rechnet die Prognose in Rust, verwendet sie dieselben Funktionen wie die Ausführung.
 Ohne Störungen und mit 0 s Boarding trifft sie die Ausführung dann genau. Snapshot 0 ist
@@ -726,6 +746,8 @@ Vom Nutzer am 2026-11-27 besprochen und bestätigt; umgesetzt wird in kleinen Sc
     Driver-ID kleiner ist als die des Vorgängers, sonst 0. Das folgt aus der Reihenfolge, in der
     die Engine im selben Zeitschritt fällige Abfahrten bearbeitet (`predecessor_departure` in
     `transit_engine.rs`).
+  - Beide Regeln gelten je Halt (Route und Position). Umgesetzt in M2-A3 als `RouteForecast`,
+    siehe „Aus dem Code abgeleitete Zeitregeln“.
   - Ohne Störung trifft die Prognose die Ausführung genau; die Deltas sind dann leer.
 - Adapter: Snapshot 0, `IterationStart` und Deltas laufen über denselben FIFO-Kanal wie die
   Routing-Anfragen in den Adapter-Thread. Jede Anfrage, die eine Partition vor ihrer
@@ -1110,7 +1132,7 @@ nicht als festgelegt behandelt.
 | --- | --- | --- |
 | M0: Rust-Java-Kopplung automatisieren | Bisherigen Java-Service und seine Version identifizieren; kleiner Test startet/beendet ihn selbst und fragt eine bekannte Route ab. | Echter Java-Prozess in einem eigenen CI-Job; bekannte Haltefolge/Ankunft; Bereitschaft, Fehler und Beendigung geprüft. |
 | M1: Fahrzeugverspätung isoliert | Driver gemäß D01: vorbereitete Störungswerte und laufende Zeitfortschreibung auf Grundlage der separat von Claude umgesetzten Nichtüberholung; zunächst feste Testwerte, tatsächliche Zeiten und korrekte Delay-Events. Umgesetzt am 2026-11-26, siehe D01, „Umsetzung in M1“; gemergt am 2026-11-27 (matsim-vsp/matsim-rust#362). | Kleines Netz ohne externen Router; keine Ziehungen während der Fahrt, verspätete Ankunft, Weitergabe, Aufholen gemäß noch festzulegender Regel, erhaltene Fahrtreihenfolge, Nullstörung und Zustandserhalt beim Partitionswechsel. |
-| M2: Beobachtungen, Snapshots und Prognose in Rust | Seit 2026-11-19 umfasst M2 auch die Prognose. Partitionen senden ihre Events je Intervall mit Vollständigkeitsmeldung an den Snapshot-Thread. Er schließt Snapshots, schreibt die Prognose mit den Zeitregeln der Ausführung fort und erzeugt Änderungen je Fahrt. Die Anfrage trägt die Snapshot-ID. Entwurf in D03, „Entwurf für M2“. Seit 2026-11-27 in kleinen Schritten, jeweils mit Review durch den Nutzer; Code bleibt bis dahin im Index. Die Bezeichnungen sind nicht die des Umsetzungsplans Router in D04. Teil A ohne neues Schema: M2-A0 Design-Dokument; M2-A1 Zeitregeln des Drivers als gemeinsame Funktionen; M2-A2 Prognose einer Fahrt (Snapshot 0, Beobachtungen, Anhebung, Änderungen); M2-A3 Reihenfolge innerhalb der Route; M2-A4 Snapshots offline aus der Event-Datei eines Laufs; M2-A5 Snapshot-Thread; M2-A6 Sammler und Anschluss im Controller. Teil B gegen matsim-schemas rev 11919e2, Merge erst nach dem Release v0.4.0: M2-B1 Schema; M2-B2 Enum im Adapter-Kanal; M2-B3 Version in der Anfrage; M2-B4 Ströme im Adapter; M2-B5 ganzer Lauf mit Rust-Testdienst. M2-A1 in Arbeit im Branch `ph/timetable-snapshots` von matsim-rust. | Rust-Tests mit kontrolliertem Testdienst: feste Zuordnung trotz vertauschter Nachrichten und Laufzeiten, Grenzkonvention, fehlende Produzenten, alte/neue Versionen und Iterationswechsel. Prognose exakt ohne Störung, nicht später als die Ausführung mit Störung, unabhängig von der Event-Reihenfolge. Zeitbedarf je Snapshot gemessen. Snapshot 0 gleich den ausgeführten Events von pt_tutorial, pt_delays und Berlin (M2-A3); die Snapshots im Lauf gleich der Offline-Wiederholung aus den Events (M2-A6 gegen M2-A4). |
+| M2: Beobachtungen, Snapshots und Prognose in Rust | Seit 2026-11-19 umfasst M2 auch die Prognose. Partitionen senden ihre Events je Intervall mit Vollständigkeitsmeldung an den Snapshot-Thread. Er schließt Snapshots, schreibt die Prognose mit den Zeitregeln der Ausführung fort und erzeugt Änderungen je Fahrt. Die Anfrage trägt die Snapshot-ID. Entwurf in D03, „Entwurf für M2“. Seit 2026-11-27 in kleinen Schritten, jeweils mit Review durch den Nutzer; Code bleibt bis dahin im Index. Die Bezeichnungen sind nicht die des Umsetzungsplans Router in D04. Teil A ohne neues Schema: M2-A0 Design-Dokument; M2-A1 Zeitregeln des Drivers als gemeinsame Funktionen; M2-A2 Prognose einer Fahrt (Snapshot 0, Beobachtungen, Anhebung, Änderungen); M2-A3 Reihenfolge innerhalb der Route; M2-A4 Snapshots offline aus der Event-Datei eines Laufs; M2-A5 Snapshot-Thread; M2-A6 Sammler und Anschluss im Controller. Teil B gegen matsim-schemas rev 11919e2, Merge erst nach dem Release v0.4.0: M2-B1 Schema; M2-B2 Enum im Adapter-Kanal; M2-B3 Version in der Anfrage; M2-B4 Ströme im Adapter; M2-B5 ganzer Lauf mit Rust-Testdienst. Umgesetzt im Branch `ph/timetable-snapshots` von matsim-rust (nicht gepusht): M2-A1 3d1c09c3, M2-A2 af14571a, M2-A3 in zwei Commits, ebd7a3f1 (die Engine wartet nur auf Vorgänger am selben Halt) und b52a80c7 (`RouteForecast` mit den Vorgängerregeln und ε). Der Abgleich von Snapshot 0 mit der Ausführung gehört seit 2026-11-27 zu M2-A4. | Rust-Tests mit kontrolliertem Testdienst: feste Zuordnung trotz vertauschter Nachrichten und Laufzeiten, Grenzkonvention, fehlende Produzenten, alte/neue Versionen und Iterationswechsel. Prognose exakt ohne Störung, nicht später als die Ausführung mit Störung, unabhängig von der Event-Reihenfolge. Zeitbedarf je Snapshot gemessen. Snapshot 0 gleich den ausgeführten Events von pt_tutorial, pt_delays und Berlin (M2-A4; Berlin mit der Engine allein, ohne Population); die Snapshots im Lauf gleich der Offline-Wiederholung aus den Events (M2-A6 gegen M2-A4). |
 | M3: Dynamischer Java-Router | SwissRailRaptor mit versionierten Zeiten in einem Branch von matsim-libs (D04), bis zum Merge lokal installiert, danach über das PR-Release (Plan in D04, „Umsetzungsplan Router“). Java übernimmt die Änderungen als neue Version (copy-on-write je Route), lässt Anfragen auf die genannte Version warten und routet mit Zeiten je Fahrt und Halt unter der Fahrtreihenfolge aus D04. | Java-Tests plus echter Rust-Java-Vertragstest: ohne Änderungen dieselben Routen wie der heutige Router, individuelle Zeitprofile ohne Überholung innerhalb einer Route, Alternativen zwischen verschiedenen Routen, verpasster und neu erreichbarer Anschluss, unveränderter alter Snapshot. |
 | M4: Passagier reagiert | Ein zunächst eng begrenzter Entscheidungspunkt wendet eine neue Route korrekt an. Seit 2026-11-27 Entwurf in D05: Neurouting im Fahrzeug vor dem geplanten Umstieg, in den Schritten M4a–c. | Vollständiger kleiner Simulationslauf: Störung -> Beobachtung -> Snapshot -> Route -> tatsächlich ausgeführte Fahrt und Ankunft. |
 | M5: Konfiguration und stochastische Profile | Nach der vertagten Diskussion: Attribute/Profile und reproduzierbare Ziehungen. | Seed-/Kontext-Reproduzierbarkeit, Einlesevalidierung, XML-/Protobuf-Gleichwertigkeit und Verhalten ohne Profil. |
@@ -1206,6 +1228,8 @@ Wichtige fachliche Testfälle:
 | 2026-11-27 | Der Nutzer fragt, welche Ereignisse Routing-Anfragen auslösen und welche Zeit den Snapshot bestimmt. Entschieden: Die Snapshot-ID folgt aus der Wirkungszeit der Antwort minus g statt aus der Sendezeit. g steht für die Bereitstellungszeit des Betreibers und ist der einzige Informationsverzug; der Vorlauf h ändert keine Ergebnisse mehr. | D03: ersetzt die Snapshot-ID aus der Sendezeit vom 2026-11-19 |
 | 2026-11-27 | Neurouting im Fahrzeug vor dem geplanten Umstieg als Entwurf für M4: Auslöser mindestens g vor der erwarteten Ankunft, erwartete Ankunft aus beobachtbarem Zustand und nicht aus `next_time`, das die vorab gezogene Störung schon enthält (Hinweis des Nutzers), Anfrage nur bei eigener Verspätung über der Umsteigezeit (Vorschlag des Nutzers), Aussteigen nur am geplanten Halt. | D05 teilweise als Entwurf; weitere Auslöser offen |
 | 2026-11-27 | Der Nutzer wünscht eine inkrementelle Umsetzung mit Review nach jedem Schritt. M2 wird in M2-A0–A6 und M2-B1–B5 geteilt; Code-Schritte bleiben bis zum Review im Index. M2-A1 begonnen im Branch `ph/timetable-snapshots` von matsim-rust. | M2-A0 umgesetzt, M2-A1 im Review |
+| 2026-11-27 | Beim Planen von M2-A3 gefunden: `predecessor_departure` vergleicht Route und Facility statt des Halts. Auf Schleifenrouten fahren Fahrzeuge deshalb ohne Störung einen Zeitschritt später; in Berlin v7.1 1pct trifft das 206 Fahrten. Der Nutzer entscheidet, die Engine zu korrigieren und die dadurch geänderten Referenz-Events des Tests mit Berlin v6.4 neu zu erzeugen. | matsim-rust ebd7a3f1; D03 „Aus dem Code abgeleitete Zeitregeln“ ergänzt |
+| 2026-11-27 | Der Nutzer fragt, wofür der geplante Abgleich von Snapshot 0 mit der Ausführung (M2-A3c) nötig ist. Weil die Fahrten einer Route ihre Offsets teilen, prüft er vor allem die Zeitregeln aus M2-A1 und die Korrektur der Engine, kaum die Vorgängerregeln. Er geht deshalb in M2-A4 auf, wo die Offline-Wiederholung ihn als Snapshot 0 enthält. Berlin wird dort mit der Engine allein und ohne Population gefahren, weil mit 0 s Boarding die Fahrzeiten nicht von Fahrgästen abhängen (Entscheidung des Nutzers). | M2-A3 umgesetzt als ebd7a3f1 und b52a80c7; Abgleich in M2-A4 |
 
 ## Quellen im Projekt und Referenzen
 
