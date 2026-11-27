@@ -1,6 +1,6 @@
 # Exogene PT-Verspätungen und Routing mit Echtzeitdaten
 
-Stand: 2026-11-26. Status: laufende Entwurfsdiskussion.
+Stand: 2026-11-27. Status: laufende Entwurfsdiskussion.
 Dieses Dokument wird während des Gesprächs fortgeschrieben.
 
 ## Ziel und Arbeitsweise
@@ -26,10 +26,10 @@ denen die Simulation darauf warten muss, dass Reisezeiten und Prognosen aktualis
 | --- | --- | --- |
 | 1. Eingabe und Verteilung | Das Driver-Beispiel in D01 verwendet eine Störungswahrscheinlichkeit je Linie, eine gleichverteilte Wahl des Ankunftshalts und eine exponentielle Zusatzfahrzeit. Bei einer beobachteten Schwelle je Linie wird die mittlere Zusatzfahrzeit für das Szenario vorgegeben und die Störungswahrscheinlichkeit daraus geschätzt. Seit 2026-11-26 (M1) gibt es feste Störungswerte je Departure und Halt im Attribut `delays`, einem JSON-Array mit `stopIndex`, `arrivalDelayOffset` und `departureDelayOffset` in Sekunden (D01, „Umsetzung in M1“). | Konkrete Szenariowerte, Kalibrierung im Simulationslauf, Eingabeformat für gezogene Werte. |
 | 2. Fahrzeugausführung | Variante A ist entschieden. Der Driver zieht Störungswerte vor Fahrtbeginn und schreibt die tatsächlichen Fahrzeugzeiten während der Fahrt fort. Unterschiedliche Driver-Typen können Störungsmodelle verschiedener Komplexität abbilden. Seit 2026-11-26 umgesetzt (M1): `StopDelayDriver` für feste Störungen an Halten, erzeugt von einer eigenen Agent-Source; Aufholen nach den bestehenden Zeitregeln. | Weitere Driver-Typen für gezogene Werte. |
-| 3. Information und Prognose | Kernentscheidung bestätigt: Für den ersten Stand werden Ankunfts-/Abfahrtsbeobachtungen übertragen; unbekannte zusätzliche Boardingdauer entfällt in der optimistischen Prognose. Bekannte Zeitgrenzen werden eingehalten. Arbeitsrichtung seit 2026-11-19: Rust berechnet die Prognose in einem nebenläufigen Snapshot-Thread, nur aus dem Event-Strom und mit denselben Zeitregeln wie die Ausführung (D03). | Fortschreibung bei ausgebliebenen Ereignissen; Zeitbedarf des Snapshot-Threads messen. |
+| 3. Information und Prognose | Kernentscheidung bestätigt: Für den ersten Stand werden Ankunfts-/Abfahrtsbeobachtungen übertragen; unbekannte zusätzliche Boardingdauer entfällt in der optimistischen Prognose. Bekannte Zeitgrenzen werden eingehalten. Arbeitsrichtung seit 2026-11-19: Rust berechnet die Prognose in einem nebenläufigen Snapshot-Thread, nur aus dem Event-Strom und mit denselben Zeitregeln wie die Ausführung (D03). Seit 2026-11-27 entschieden: Fehlt in Snapshot k das nächste prognostizierte Event einer Fahrt vor kΔ, hebt der Snapshot-Thread es auf kΔ an (D03). | Zeitbedarf des Snapshot-Threads messen. |
 | 4. Java-Router | Nichtüberholung innerhalb derselben TransitRoute ist vom Nutzer als Vertrag zugesichert und in matsim-rust umgesetzt (f638bd5f). Der Router darf diese Ordnung voraussetzen. Seit 2026-11-19 erhält er die prognostizierten Zeiten je Fahrt und Halt von Rust und routet auf der genannten Version. | Seit 2026-11-19 entschieden: Umbau von SwissRailRaptor in einem Branch von matsim-libs. Seit 2026-11-20 umgesetzt und committet (B1–B4): Zeit-Schnittstelle `RaptorTimetable`, Option `useTimetableUpdates`, versionierte Zeiten mit einer Zeile je Fahrt, Auswahl der Version je Anfrage über einen per Guice injizierten Provider; Protokoll im Branch `ph/timetable-updates` von matsim-schemas (A2); keine Departure in der Antwort; Snapshot 0 einmal beim Start, Freigabe alter Versionen durch Rust, asynchrones Warten mit Frist, Abbruch bei Vertragsverletzung (A1). |
-| 5. Snapshots | Feste, konfigurierbare Intervalle in der Simulationszeit sind bestätigt. Alle Partitionen bestätigen Vollständigkeit. Die Anfragezeit bestimmt eine konkrete Snapshot-ID; eine Anfrage wartet bei Bedarf auf genau diesen Stand. Seit 2026-11-19 erzeugt Rust die Snapshots (Arbeitsrichtung); Versand je Intervall, Änderungen je Fahrt und die Grenzkonvention mit Grace Gap g als Szenarioparameter sind bestätigt (D03). | Werte für Δ und g und Anwendung von Antworten. Seit 2026-11-20 entschieden (A1 in D04): Initialisierung und Iterationswechsel, Fehler im Router, Freigabe alter Versionen. |
-| 6. Passagierverhalten | Auf ausdrücklichen Nutzerwunsch vertagt; Vorschläge zu Auslösern, Fahrtbindung und Antwortübernahme sind nicht beschlossen. | Entscheidungspunkte, Boarding, Routenwechsel und laufende Anfragen (D05/D06). |
+| 5. Snapshots | Feste, konfigurierbare Intervalle in der Simulationszeit sind bestätigt. Alle Partitionen bestätigen Vollständigkeit. Die Anfragezeit bestimmt eine konkrete Snapshot-ID; eine Anfrage wartet bei Bedarf auf genau diesen Stand. Seit 2026-11-19 erzeugt Rust die Snapshots (Arbeitsrichtung); Versand je Intervall, Änderungen je Fahrt und die Grenzkonvention mit Grace Gap g als Szenarioparameter sind bestätigt (D03). Seit 2026-11-27 folgt die Snapshot-ID aus der Wirkungszeit der Antwort minus g statt aus der Sendezeit; g steht für die Bereitstellungszeit des Betreibers (D03, „Snapshot-ID aus der Wirkungszeit“). | Werte für Δ und g und Anwendung von Antworten. Seit 2026-11-20 entschieden (A1 in D04): Initialisierung und Iterationswechsel, Fehler im Router, Freigabe alter Versionen. |
+| 6. Passagierverhalten | Auf ausdrücklichen Nutzerwunsch vertagt; Vorschläge zu Auslösern, Fahrtbindung und Antwortübernahme sind nicht beschlossen. Seit 2026-11-27 gibt es einen Entwurf für M4: Neurouting im Fahrzeug vor dem geplanten Umstieg (D05). | Entscheidungspunkte, Boarding, Routenwechsel und laufende Anfragen (D05/D06). |
 | Umsetzung und Tests | Inkrementelle Umsetzung und automatisierte Rust-Java-Tests in GitHub CI sind ausdrücklich Teil der Planung. | Reihenfolge, Java-Artefakt, Testprozess und verbindliche Prüfungen. |
 
 ## Vertagte fachliche Entscheidungen
@@ -42,7 +42,7 @@ Standardwerte oder Verhaltensregeln.
 
 | Vertagte Entscheidung | Offene Frage | Bisheriger, unbestätigter Diskussionsvorschlag |
 | --- | --- | --- |
-| Auslöser für Neurouting (D05) | Vor Reisebeginn, beim Umstieg, während des Wartens oder bereits im Fahrzeug? | Zunächst vor Reisebeginn und nach dem Aussteigen bei einem Umstieg; zusätzliche Auslöser später ergänzen. |
+| Auslöser für Neurouting (D05) | Vor Reisebeginn, beim Umstieg, während des Wartens oder bereits im Fahrzeug? | Zunächst vor Reisebeginn und nach dem Aussteigen bei einem Umstieg; zusätzliche Auslöser später ergänzen. Seit 2026-11-27 Entwurf für M4: vor Reisebeginn (Aktivitätsende) und im Fahrzeug vor dem geplanten Umstieg, siehe D05, „Entwurf für M4“. Regelmäßige Anfragen, Anfragen beim Warten und bei Verspätung des Anschlusses bleiben offen. |
 | Verbindlichkeit des Routerergebnisses (D05) | Muss genau die genannte Departure genommen werden, oder ist die nächste passende Fahrt derselben Route erlaubt? | Route und bediente Halte verbindlich berücksichtigen; unter dem Nichtüberholungsvertrag eine passende Alternative derselben Route prüfen, ohne versehentlich eine andere Route derselben Linie zu wählen. |
 | Übernahme von Antworten und Fehlerverhalten (D06) | An welchem Simulationszeitpunkt wirkt eine Antwort? Was geschieht bei fehlender Antwort oder fehlender Verbindung? | Ergebnis an einem festgelegten Entscheidungspunkt übernehmen und erforderlichenfalls rechnerisch darauf warten; technische Laufzeit darf die fachliche Entscheidung nicht verschieben. Technische Fehler und die gültige Antwort „keine Verbindung“ getrennt behandeln. |
 | Exogene Störungen (D01 und vertagter Punkt 1) | Welche Störungsmodelle, Eingaben, Verteilungen und Ziehungen je Iteration sollen verwendet werden? | D01 beschreibt eine einmalige Zusatzfahrzeit als Beispiel für einen Driver-Typ. Für den ersten Test einen festen Störungswert verwenden. |
@@ -91,10 +91,10 @@ an Nichtüberholung können davon unabhängig erfolgen.
 ## Gesprächsfolge für eine spätere Fortsetzung
 
 1. Driver: Rahmenentscheidung getroffen (D01, Variante A); genaue Störungssemantik bleibt offen.
-2. Prognose: Kernentscheidung getroffen (D02); seit 2026-11-19 in Rust, Zeitregeln aus dem Code abgeleitet. Ausgebliebene Ereignisse bleiben offen.
+2. Prognose: Kernentscheidung getroffen (D02); seit 2026-11-19 in Rust, Zeitregeln aus dem Code abgeleitet. Ausgebliebene Ereignisse seit 2026-11-27 entschieden (Anhebung auf die Grenze des Snapshots, D03).
 3. Snapshots: Kernvertrag bestätigt (D03); seit 2026-11-19 erzeugt Rust die Snapshots. Versand je Intervall, Änderungsformat und Grenzkonvention mit Grace Gap sind bestätigt; Werte für Δ und g, Fehlerbehandlung und Antwortübernahme bleiben offen.
 4. Router: Nichtüberholung innerhalb einer Route ist zugesichert (D04); Datenmodell, Prognoseordnung und Transfers zwischen Routen weiter klären.
-5. Passagiere: Auslöser und Verbindlichkeit der Route (D05), Antwortübernahme und Fehlerfälle (D06) sind auf Nutzerwunsch vertagt.
+5. Passagiere: Auslöser und Verbindlichkeit der Route (D05), Antwortübernahme und Fehlerfälle (D06) sind auf Nutzerwunsch vertagt. Seit 2026-11-27 gibt es einen Entwurf für das Neurouting vor dem Umstieg (D05).
 6. Eingabe/Verteilungen: D01 beschreibt die Ziehungen und die Kalibrierung aus dem
    Paper-Entwurf. Konkrete Szenariowerte und Eingabeformat bleiben offen.
 7. Umsetzungsschritte und CI anhand dieser Entscheidungen abschließend ordnen.
@@ -459,7 +459,8 @@ Offen bleiben insbesondere:
 - Gemeinsame Zeitregeln und Konfigurationsvertrag einschließlich späterer Änderungen.
 - Wann gilt eine Störung als bekannt: bei Beobachtung am Halt, bei Störungsbeginn oder
   durch eine zusätzliche Informationsquelle?
-- Was wird für Fahrzeuge angenommen, deren erwartete Ankunft bereits verstrichen ist?
+- Was wird für Fahrzeuge angenommen, deren erwartete Ankunft bereits verstrichen ist? Entschieden am
+  2026-11-27: Die Prognose hebt das ausgebliebene Event auf die Grenze des Snapshots an (D03).
 - Wie werden neuere Beobachtungen und Iterationswechsel behandelt?
 
 ### D03: Vertrag für Snapshots
@@ -511,6 +512,10 @@ nicht veröffentlichten, aber vorgesehenen Snapshot wartet auf genau diesen Stan
 Transport und Bearbeitung können weiterhin asynchron erfolgen. Details des
 Wartens und der Antwortübernahme bleiben Teil des Gesamtvertrags.
 
+Geändert am 2026-11-27: Die Snapshot-ID folgt nicht mehr aus der Sendezeit der Anfrage,
+sondern aus der Wirkungszeit ihrer Antwort, siehe „Snapshot-ID aus der Wirkungszeit“ unten.
+Sie hängt weiterhin nicht davon ab, welcher Snapshot beim Eingang technisch verfügbar ist.
+
 Beispiel mit einem nur zur Illustration gewählten Intervall von 30 s: Eine Anfrage
 um 08:00:45 verwendet den Snapshot mit Grenze 08:00:30. Sie verwendet diesen auch,
 wenn eine neuere Version vor ihrer Bearbeitung veröffentlicht wird. Für Ereignisse
@@ -520,8 +525,11 @@ Die Vollständigkeit liefert auch Information ohne neues fachliches Ereignis:
 Wurde eine Abfahrt um 08:02 prognostiziert, aber bis zur vollständigen Grenze
 08:03 keine Abfahrt beobachtet, ist das Fahrzeug bis zu dieser Grenze noch nicht
 abgefahren. Der Vorschlag ist, seine früheste prognostizierte Abfahrt auf diese
-Grenze anzuheben und folgende Halte entsprechend fortzuschreiben. Diese Verwendung
-ausgebliebener Ereignisse und ihre genaue Zeitsemantik sind noch zu bestätigen.
+Grenze anzuheben und folgende Halte entsprechend fortzuschreiben. Vom Nutzer am 2026-11-27
+bestätigt: Fehlt in Snapshot k das nächste prognostizierte Event einer Fahrt, Ankunft oder
+Abfahrt, liegt es mindestens bei kΔ, weil Events vor kΔ zu Snapshot k gehören. Die Prognose
+hebt es auf kΔ an und schreibt die folgenden Halte nach den Zeitregeln fort. Sie bleibt damit
+nicht später als die Ausführung.
 Aus einem älteren Snapshot lässt sich dagegen kein solcher Schluss für die Zeit
 nach seiner Grenze ziehen.
 
@@ -550,8 +558,10 @@ Prognose eine Event-Datei zuführt.
 Die folgenden Einzelheiten hat der Assistent am 2026-11-19 vorgeschlagen. Der Nutzer hat
 am selben Tag den Versand je Intervall (1.) und das Änderungsformat (3.) bestätigt und die
 Grace Gap ergänzt (4.). Die Formel der Snapshot-ID, die Grenzkonvention und g als
-Szenarioparameter hat der Nutzer ebenfalls am 2026-11-19 bestätigt. Offen bleiben die
-Anhebung überfälliger Fahrten (2.) und die Werte für Δ und g.
+Szenarioparameter hat der Nutzer ebenfalls am 2026-11-19 bestätigt. Die Anhebung
+überfälliger Fahrten (2.) hat der Nutzer am 2026-11-27 bestätigt; offen bleiben die Werte für
+Δ und g. Die Formel der Snapshot-ID in 4. gilt seit 2026-11-27 mit der Wirkungszeit statt
+`now` (siehe „Snapshot-ID aus der Wirkungszeit“).
 
 1. Jede Partition sammelt die Ankunfts- und Abfahrts-Events ihrer PT-Fahrzeuge lokal. Nach
    Schritt kΔ − 1 schickt sie die Events des Intervalls zusammen mit der Meldung
@@ -560,7 +570,7 @@ Anhebung überfälliger Fahrten (2.) und die Werte für Δ und g.
    Arbeit im Mobsim-Schritt klein: P Nachrichten je Intervall statt je Zeitschritt.
 2. Liegt diese Meldung von allen Partitionen vor, schließt der Thread Snapshot k. Er wendet
    die Beobachtungen in fester Sortierung an, hebt gegebenenfalls überfällige Fahrten auf die
-   Grenze an (noch offen, siehe oben) und schreibt die Prognose fort.
+   Grenze an (entschieden am 2026-11-27, siehe oben) und schreibt die Prognose fort.
 3. Er schickt jedem Router über einen eigenen, geordneten Stream die Änderungen gegenüber
    Snapshot k − 1.
 4. Eine Anfrage mit Simulationszeit `now` nennt die Snapshot-ID
@@ -646,12 +656,84 @@ Vorgeschlagene Tests für diesen Vertrag:
   einem dafür vollständigen Snapshot. Ältere Snapshots bleiben unverändert.
 - Ergänzt am 2026-11-19: Ein Event genau zur Zeit kΔ erscheint erst in Snapshot k + 1.
 - Anfragen in [kΔ, kΔ + g) verwenden Snapshot k − 1, ab kΔ + g Snapshot k; Anfragen vor
-  Δ + g verwenden Snapshot 0.
+  Δ + g verwenden Snapshot 0. Seit 2026-11-27 gilt das für die Wirkungszeit der Antwort,
+  nicht für die Sendezeit.
 - Ein künstlich verzögerter Snapshot verlängert nur die Wartezeit, ändert aber keine Antwort.
 - Eine Partition, die auf eine Antwort wartet, verhindert nicht den Abschluss des Snapshots,
   den diese Anfrage braucht; mit Nachbar- und mit globaler Synchronisation.
 - Ein Router, der Änderungen für k erhält, bevor eine Anfrage für k − 1 bearbeitet ist,
   beantwortet diese weiterhin auf Version k − 1.
+
+#### Snapshot-ID aus der Wirkungszeit (entschieden am 2026-11-27)
+
+Anlass war die Frage des Nutzers, welche Ereignisse Routing-Anfragen auslösen (D05). Mit der
+Snapshot-ID aus der Sendezeit war der Vorlauf h ein Modellparameter: Bei h = 600 s wie in
+`routing-example` und g = 60 s ist die Information bei der Abfahrt 11 bis 12 Minuten alt.
+
+Entschieden: Die Snapshot-ID folgt aus der Wirkungszeit t_w der Antwort, dem Zeitpunkt, ab dem
+sie das Verhalten des Agenten bestimmt:
+
+`k = max(0, ⌊(t_w − g) / Δ⌋)`
+
+- Bei einer Aktivität ist t_w das Aktivitätsende, also die `departure_time` der Anfrage.
+- Im Fahrzeug (Entwurf für M4, siehe D05) ist t_w die erwartete Ankunft am Umstiegshalt, aus
+  beobachtbarem Zustand berechnet.
+- t_w wird beim Senden festgelegt und gehört zur Anfrage. Die Zuordnung bleibt deterministisch,
+  auch wenn die Antwort später übernommen wird, etwa weil das Fahrzeug auf dem letzten
+  Abschnitt eine noch unbekannte Störung hat.
+
+Folgen:
+
+- g ist der einzige Informationsverzug des Modells. Der Nutzer sieht g als Stellvertreter für
+  die Zeit, die ein Infrastrukturbetreiber braucht, um Informationen bereitzustellen. g bleibt
+  ein Szenarioparameter.
+- Der Vorlauf h ändert keine Ergebnisse mehr. Ein h kleiner als g kostet Wandzeit, weil der
+  Router die Anfrage später als nötig bekommt; ein größeres h bringt nichts, weil die Anfrage im
+  Router auf ihren Snapshot wartet. h bleibt nur für Routing ohne Snapshots von Bedeutung.
+- Ohne Wartezeit muss g / RTR die Latenz von Snapshot-Thread, Netz und Routing decken. Eine
+  Anfrage auf versionierten Zeiten kostet allein etwa 6,4 ms (B6), bei RTR 50.000 rund 320 s
+  Simulationszeit; g liegt damit eher bei Minuten als bei Sekunden. Ist g kleiner, wartet die
+  Partition. Das kostet Wandzeit, ändert aber kein Ergebnis.
+- Deadlock bleibt ausgeschlossen: Eine Partition wartet frühestens bei t_w auf die Antwort. Der
+  benötigte Snapshot k braucht nur, dass alle Partitionen Schritt kΔ − 1 < t_w − g abschließen;
+  die Begründung unter „Grenzkonvention“ gilt unverändert.
+- `oldest_needed_snapshot_id` bleibt das Minimum aus der Version der ältesten offenen Anfrage
+  und k − ⌈g/Δ⌉, weil jede neue Anfrage t_w ≥ now ≥ kΔ hat.
+- Neu zu behandeln: Liegt t_w − g nach dem Ende der Iteration, kommt die Version nie, und die
+  Anfrage schlägt im Router beim nächsten `IterationStart` fehl. Braucht niemand mehr die
+  Antwort, darf Rust dann nicht in Panic geraten.
+
+#### Entwurf für M2 (2026-11-27)
+
+Vom Nutzer am 2026-11-27 besprochen und bestätigt; umgesetzt wird in kleinen Schritten (siehe
+„Inkrementelle Umsetzung“).
+
+- Beobachtungen: Ein Sammler je Partition hört als Event-Handler auf
+  `VehicleArrivesAtFacilityEvent` und `VehicleDepartsAtFacilityEvent` und puffert sie. Nach
+  dem letzten Schritt vor kΔ schickt er sie mit der Meldung „vollständig bis kΔ“ in einer
+  Nachricht an den Snapshot-Thread, über einen unbeschränkten Kanal, sodass die Partition nie
+  wartet. Die Event-Handler laufen synchron im Mobsim und rechnen deshalb nichts. Transit-Engine
+  und Driver ändern sich dafür nicht, und die Prognose bleibt eine Funktion des Event-Stroms.
+- Snapshot-Thread: Er puffert die Meldungen je k, weil schnelle Partitionen voraus sein können,
+  und schließt k, wenn alle P Partitionen gemeldet haben. Den Halt-Index einer Beobachtung
+  zählt er entlang der Fahrt mit und prüft die Facility gegen die Route. Er schickt beim Start
+  Snapshot 0, bei jedem `BeforeMobsim` des Controllers ein `IterationStart` und danach je k ein
+  Delta. Die Rechenzeit je Snapshot wird gemessen und je Iteration im Log zusammengefasst.
+- Prognose: dieselben Zeitregeln wie der `PlannedDriver`, als gemeinsame Funktionen, dazu die
+  Regeln der Engine für die Reihenfolge innerhalb einer Route:
+  - a(i) = max(eigene Ankunft, a_Vorgänger(i)).
+  - d(i) = max(R, d_Vorgänger(i) + ε) mit R = max(s_d(i), a(i)). ε ist ein Zeitschritt, wenn die
+    Driver-ID kleiner ist als die des Vorgängers, sonst 0. Das folgt aus der Reihenfolge, in der
+    die Engine im selben Zeitschritt fällige Abfahrten bearbeitet (`predecessor_departure` in
+    `transit_engine.rs`).
+  - Ohne Störung trifft die Prognose die Ausführung genau; die Deltas sind dann leer.
+- Adapter: Snapshot 0, `IterationStart` und Deltas laufen über denselben FIFO-Kanal wie die
+  Routing-Anfragen in den Adapter-Thread. Jede Anfrage, die eine Partition vor ihrer
+  Intervallmeldung geschickt hat, steht damit vor dem Delta im Kanal und ist gezählt, wenn der
+  Adapter `oldest_needed_snapshot_id` berechnet. Der Adapter setzt die Version in jede Anfrage,
+  setzt eine gRPC-Deadline, prüft die Version der Antwort und schreibt einen Strom je Router.
+  Verworfen: ein Zähler der Partitionen in einer geteilten Struktur, der mehr geteilten Zustand
+  bräuchte und dem Snapshot-Thread einen Zugang zur tokio-Runtime.
 
 ### D04: Router-Datenmodell mit zugesicherter Nichtüberholung
 
@@ -950,6 +1032,42 @@ Die deterministische Übernahme einer Antwort und der Umgang mit inzwischen
 verändertem Agentenzustand werden in D06 festgelegt. Danach können Tests zu einem
 konkreten Entscheidungspunkt und ausgeführten Reiseverlauf präzisiert werden.
 
+#### Entwurf für M4: Neurouting vor dem Umstieg (2026-11-27)
+
+Am 2026-11-27 mit dem Nutzer besprochen, als Entwurf für M4 festgehalten und noch nicht
+umgesetzt. Die übrigen Punkte oben bleiben vertagt.
+
+- Aktivität: Der Agent fragt wie bisher vor dem Aktivitätsende; die Snapshot-ID folgt aus dem
+  Aktivitätsende minus g (D03, „Snapshot-ID aus der Wirkungszeit“).
+- Im Fahrzeug fragt der Agent vorerst nur vor dem geplanten Umstieg, nicht an jedem Halt.
+- Auslöser: die späteste Abfahrt des eigenen Fahrzeugs, die noch mindestens g vor der
+  erwarteten Ankunft am Umstiegshalt liegt. Dann bleibt dem Router g / RTR Wandzeit wie bei
+  Aktivitäten. Ein Auslöser „n Halte vorher“ wäre einfacher, kostet bei kurzen Abschnitten
+  aber Wandzeit. Offen: Ist die Fahrt bis zum Umstieg kürzer als g, fragt der Agent beim
+  Einsteigen und wartet gegebenenfalls.
+- Erwartete Ankunft: aus beobachtbarem Zustand, also aus Fahrplan, letzter tatsächlicher
+  Abfahrt und den gemeinsamen Zeitregeln, ohne die Regeln zur Reihenfolge innerhalb der Route.
+  Der Fahrgast kennt den Zustand seines Fahrzeugs. `next_time` des Drivers scheidet aus
+  (Hinweis des Nutzers): Der `StopDelayDriver` addiert dort beim Abfahren schon die vorab
+  gezogene Ankunftsverspätung des nächsten Halts, die nach D02 niemand kennen darf.
+- Schwelle (Vorschlag des Nutzers): Der Agent fragt nur, wenn die erwartete Ankunft plus
+  Umsteigeweg nach der geplanten Abfahrt des Anschlusses liegt, der `boarding_time` des
+  nächsten pt-Legs. Fehlt diese Zeit, fragt er immer. Pünktliche Umstiege erzeugen so keine
+  Anfrage, und die Last wächst mit den Verspätungen.
+- Anfrage: Start ist der Umstiegshalt, `departure_time` die erwartete Ankunft dort, Ziel das
+  Ziel der Reise. Der Agent steigt nur am geplanten Umstiegshalt aus; die Antwort ersetzt den
+  Rest der Reise ab dort und wird beim Aussteigen übernommen. Fehlt sie dann noch, wartet die
+  Partition.
+- Ohne Neurouting gilt das bestehende Verhalten: Wer den Anschluss verpasst, wartet auf das
+  nächste Fahrzeug der geplanten Linie, das seinen Ausstiegshalt anfährt.
+- Blinde Flecken des ersten Schritts: Einen verspäteten Anschluss bemerkt der Agent nicht, und
+  ohne eigene Verspätung sieht er keine neuen, besseren Verbindungen. Regelmäßige Anfragen,
+  Anfragen beim Warten und solche, die von Informationen über den Anschluss ausgelöst werden,
+  kommen später.
+- Schritte: M4a erwartete Ankunft aus beobachtbarem Zustand, mit einem Test gegen die Prognose
+  des Snapshot-Threads; M4b ein Hook der Transit-Engine für Fahrgäste bei der Abfahrt ihres
+  Fahrzeugs; M4c Auslöser mit Schwelle, Anfrage und Übernahme beim Aussteigen.
+
 ### D06: Deterministische Antwortübernahme und Fehlerverhalten
 
 Auf ausdrücklichen Nutzerwunsch am 2026-11-13 vertagt. Die folgenden Vorschläge
@@ -991,10 +1109,10 @@ nicht als festgelegt behandelt.
 | Schritt | Konkretes Ergebnis | Abnahme durch Tests |
 | --- | --- | --- |
 | M0: Rust-Java-Kopplung automatisieren | Bisherigen Java-Service und seine Version identifizieren; kleiner Test startet/beendet ihn selbst und fragt eine bekannte Route ab. | Echter Java-Prozess in einem eigenen CI-Job; bekannte Haltefolge/Ankunft; Bereitschaft, Fehler und Beendigung geprüft. |
-| M1: Fahrzeugverspätung isoliert | Driver gemäß D01: vorbereitete Störungswerte und laufende Zeitfortschreibung auf Grundlage der separat von Claude umgesetzten Nichtüberholung; zunächst feste Testwerte, tatsächliche Zeiten und korrekte Delay-Events. Umgesetzt am 2026-11-26, siehe D01, „Umsetzung in M1“. | Kleines Netz ohne externen Router; keine Ziehungen während der Fahrt, verspätete Ankunft, Weitergabe, Aufholen gemäß noch festzulegender Regel, erhaltene Fahrtreihenfolge, Nullstörung und Zustandserhalt beim Partitionswechsel. |
-| M2: Beobachtungen, Snapshots und Prognose in Rust | Seit 2026-11-19 umfasst M2 auch die Prognose. Partitionen senden ihre Events je Intervall mit Vollständigkeitsmeldung an den Snapshot-Thread. Er schließt Snapshots, schreibt die Prognose mit den Zeitregeln der Ausführung fort und erzeugt Änderungen je Fahrt. Die Anfrage trägt die Snapshot-ID. | Rust-Tests mit kontrolliertem Testdienst: feste Zuordnung trotz vertauschter Nachrichten und Laufzeiten, Grenzkonvention, fehlende Produzenten, alte/neue Versionen und Iterationswechsel. Prognose exakt ohne Störung, nicht später als die Ausführung mit Störung, unabhängig von der Event-Reihenfolge. Zeitbedarf je Snapshot gemessen. |
+| M1: Fahrzeugverspätung isoliert | Driver gemäß D01: vorbereitete Störungswerte und laufende Zeitfortschreibung auf Grundlage der separat von Claude umgesetzten Nichtüberholung; zunächst feste Testwerte, tatsächliche Zeiten und korrekte Delay-Events. Umgesetzt am 2026-11-26, siehe D01, „Umsetzung in M1“; gemergt am 2026-11-27 (matsim-vsp/matsim-rust#362). | Kleines Netz ohne externen Router; keine Ziehungen während der Fahrt, verspätete Ankunft, Weitergabe, Aufholen gemäß noch festzulegender Regel, erhaltene Fahrtreihenfolge, Nullstörung und Zustandserhalt beim Partitionswechsel. |
+| M2: Beobachtungen, Snapshots und Prognose in Rust | Seit 2026-11-19 umfasst M2 auch die Prognose. Partitionen senden ihre Events je Intervall mit Vollständigkeitsmeldung an den Snapshot-Thread. Er schließt Snapshots, schreibt die Prognose mit den Zeitregeln der Ausführung fort und erzeugt Änderungen je Fahrt. Die Anfrage trägt die Snapshot-ID. Entwurf in D03, „Entwurf für M2“. Seit 2026-11-27 in kleinen Schritten, jeweils mit Review durch den Nutzer; Code bleibt bis dahin im Index. Die Bezeichnungen sind nicht die des Umsetzungsplans Router in D04. Teil A ohne neues Schema: M2-A0 Design-Dokument; M2-A1 Zeitregeln des Drivers als gemeinsame Funktionen; M2-A2 Prognose einer Fahrt (Snapshot 0, Beobachtungen, Anhebung, Änderungen); M2-A3 Reihenfolge innerhalb der Route; M2-A4 Snapshots offline aus der Event-Datei eines Laufs; M2-A5 Snapshot-Thread; M2-A6 Sammler und Anschluss im Controller. Teil B gegen matsim-schemas rev 11919e2, Merge erst nach dem Release v0.4.0: M2-B1 Schema; M2-B2 Enum im Adapter-Kanal; M2-B3 Version in der Anfrage; M2-B4 Ströme im Adapter; M2-B5 ganzer Lauf mit Rust-Testdienst. M2-A1 in Arbeit im Branch `ph/timetable-snapshots` von matsim-rust. | Rust-Tests mit kontrolliertem Testdienst: feste Zuordnung trotz vertauschter Nachrichten und Laufzeiten, Grenzkonvention, fehlende Produzenten, alte/neue Versionen und Iterationswechsel. Prognose exakt ohne Störung, nicht später als die Ausführung mit Störung, unabhängig von der Event-Reihenfolge. Zeitbedarf je Snapshot gemessen. Snapshot 0 gleich den ausgeführten Events von pt_tutorial, pt_delays und Berlin (M2-A3); die Snapshots im Lauf gleich der Offline-Wiederholung aus den Events (M2-A6 gegen M2-A4). |
 | M3: Dynamischer Java-Router | SwissRailRaptor mit versionierten Zeiten in einem Branch von matsim-libs (D04), bis zum Merge lokal installiert, danach über das PR-Release (Plan in D04, „Umsetzungsplan Router“). Java übernimmt die Änderungen als neue Version (copy-on-write je Route), lässt Anfragen auf die genannte Version warten und routet mit Zeiten je Fahrt und Halt unter der Fahrtreihenfolge aus D04. | Java-Tests plus echter Rust-Java-Vertragstest: ohne Änderungen dieselben Routen wie der heutige Router, individuelle Zeitprofile ohne Überholung innerhalb einer Route, Alternativen zwischen verschiedenen Routen, verpasster und neu erreichbarer Anschluss, unveränderter alter Snapshot. |
-| M4: Passagier reagiert | Ein zunächst eng begrenzter Entscheidungspunkt wendet eine neue Route korrekt an. | Vollständiger kleiner Simulationslauf: Störung -> Beobachtung -> Snapshot -> Route -> tatsächlich ausgeführte Fahrt und Ankunft. |
+| M4: Passagier reagiert | Ein zunächst eng begrenzter Entscheidungspunkt wendet eine neue Route korrekt an. Seit 2026-11-27 Entwurf in D05: Neurouting im Fahrzeug vor dem geplanten Umstieg, in den Schritten M4a–c. | Vollständiger kleiner Simulationslauf: Störung -> Beobachtung -> Snapshot -> Route -> tatsächlich ausgeführte Fahrt und Ankunft. |
 | M5: Konfiguration und stochastische Profile | Nach der vertagten Diskussion: Attribute/Profile und reproduzierbare Ziehungen. | Seed-/Kontext-Reproduzierbarkeit, Einlesevalidierung, XML-/Protobuf-Gleichwertigkeit und Verhalten ohne Profil. |
 
 ## Teststrategie und GitHub CI: vorläufiger Vorschlag
@@ -1083,6 +1201,11 @@ Wichtige fachliche Testfälle:
 | 2026-11-26 | M1 geplant und umgesetzt. Der Nutzer entscheidet: Störung als Zusatzzeit an einem Halt i ≥ 0 (i = 0 Startverspätung), als Attribute der Departure analog zu den Offsets (`delayStopIndex`, `arrivalDelayOffset`, `departureDelayOffset`, `"HH:MM:SS"`, Standard 0), `departureDelayOffset` verlängert den Aufenthalt, ein eigener Driver-Typ, der an den `PlannedDriver` delegiert. Das Szenario `pt_delays` und der Berlin-Test mit fahrplanbasiertem Transit kommen zuerst als eigener PR (matsim-vsp/matsim-rust#361, gemergt), M1 darauf als matsim-vsp/matsim-rust#362. | D01 und M1 umgesetzt; gezogene Werte (M5) offen |
 | 2026-11-26 | Überarbeitung von M1 (matsim-vsp/matsim-rust#362) auf Wunsch des Nutzers: Nicht der wartende Driver wählt den `StopDelayDriver`, sondern eine eigene Agent-Source (`StopDelayDriverAgentSource`); die Trait-Funktion `AgentSource::creates_transit_drivers` verhindert, dass der Controller zusätzlich die Standard-Source für Transit-Driver anlegt. Störungen sind an mehreren Halten möglich: ein Attribut `delay_<Halt>` je Halt mit einem JSON-Objekt aus `arrivalDelayOffset` und `departureDelayOffset` (vom Nutzer gewählt statt eines Index im JSON oder einer Liste in einem Attribut, weil MATSim-Attributnamen je Departure eindeutig sein müssen). | Ersetzt die Attribute `delayStopIndex`, `arrivalDelayOffset` und `departureDelayOffset` vom selben Tag |
 | 2026-11-27 | Attributformat von M1 auf Wunsch des Nutzers erneut geändert: statt eines Attributs `delay_<Halt>` je Halt mit `"HH:MM:SS"` ein Attribut `delays` mit einem JSON-Array von Objekten aus `stopIndex`, `arrivalDelayOffset` und `departureDelayOffset`. Die Offsets sind ganze Sekunden, damit schon der JSON-Parser Werte wie `"2 min"` ablehnt und keine zweite Zeitprüfung im String nötig ist; die Schlüssel sind durchgehend camelCase. Verworfen: eine eigene Attributklasse (bräuchte Converter in Rust und Java) und eine eigene Eingabedatei der Agent-Source (für M1 zu viel; für gezogene Werte in M5 vorzumerken). | Ersetzt die Attribute `delay_<Halt>` vom 2026-11-26 |
+| 2026-11-27 | Der Nutzer bestätigt die Anhebung überfälliger Fahrten: Fehlt in Snapshot k das nächste prognostizierte Event einer Fahrt vor kΔ, wird es auf kΔ angehoben und fortgeschrieben. | D03 Punkt 2 entschieden |
+| 2026-11-27 | Architektur von M2 mit dem Nutzer besprochen: Sammler als Event-Handler auf den Partitionen, ein Snapshot-Thread für Prognose und Snapshots, ein FIFO-Kanal für Anfragen und Snapshots in den Adapter, der die Versionen setzt, offene Anfragen zählt und die Ströme schreibt. | Entwurf für M2 in D03 |
+| 2026-11-27 | Der Nutzer fragt, welche Ereignisse Routing-Anfragen auslösen und welche Zeit den Snapshot bestimmt. Entschieden: Die Snapshot-ID folgt aus der Wirkungszeit der Antwort minus g statt aus der Sendezeit. g steht für die Bereitstellungszeit des Betreibers und ist der einzige Informationsverzug; der Vorlauf h ändert keine Ergebnisse mehr. | D03: ersetzt die Snapshot-ID aus der Sendezeit vom 2026-11-19 |
+| 2026-11-27 | Neurouting im Fahrzeug vor dem geplanten Umstieg als Entwurf für M4: Auslöser mindestens g vor der erwarteten Ankunft, erwartete Ankunft aus beobachtbarem Zustand und nicht aus `next_time`, das die vorab gezogene Störung schon enthält (Hinweis des Nutzers), Anfrage nur bei eigener Verspätung über der Umsteigezeit (Vorschlag des Nutzers), Aussteigen nur am geplanten Halt. | D05 teilweise als Entwurf; weitere Auslöser offen |
+| 2026-11-27 | Der Nutzer wünscht eine inkrementelle Umsetzung mit Review nach jedem Schritt. M2 wird in M2-A0–A6 und M2-B1–B5 geteilt; Code-Schritte bleiben bis zum Review im Index. M2-A1 begonnen im Branch `ph/timetable-snapshots` von matsim-rust. | M2-A0 umgesetzt, M2-A1 im Review |
 
 ## Quellen im Projekt und Referenzen
 
